@@ -1,10 +1,13 @@
-name: Build Tally Audit Assistant (Windows x64)
+name: Build Tally Audit Assistant
 
 on:
   push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build-windows:
@@ -12,45 +15,39 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout source code
+        uses: actions/checkout@v4
 
-    - name: Setup .NET 8.0 SDK
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
-    - name: Setup Node.js Environment
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
+      - name: Display .NET information
+        run: dotnet --info
 
-    - name: Install Frontend Dependencies
-      run: npm ci
+      - name: Restore dependencies
+        run: dotnet restore
 
-    - name: Build Web Client Bundle
-      run: npm run build
+      - name: Build application
+        run: dotnet build -c Release --no-restore
 
-    - name: Restore .NET Solution Dependencies
-      run: dotnet restore TallyAuditAssistant.sln
+      - name: Run tests
+        run: dotnet test -c Release --no-build
+        continue-on-error: false
 
-    - name: Build .NET Solution (Release)
-      run: dotnet build TallyAuditAssistant.sln --configuration Release --no-restore
+      - name: Publish Windows x64 application
+        run: >
+          dotnet publish
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o ./publish
 
-    - name: Execute Automated Unit Tests (xUnit)
-      run: dotnet test TallyAuditAssistant.sln --configuration Release --no-build --verbosity normal
-
-    - name: Publish Windows Executable (win-x64 Self-Contained)
-      run: |
-        dotnet publish windows-desktop/src/TallyAuditAssistant.App/TallyAuditAssistant.App.csproj `
-          --configuration Release `
-          --runtime win-x64 `
-          --self-contained true `
-          --output ./publish
-
-    - name: Upload Build Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: TallyAuditAssistant-Windows-x64
-        path: ./publish
+      - name: Upload Windows application
+        uses: actions/upload-artifact@v4
+        with:
+          name: TallyAuditAssistant-Windows-x64
+          path: ./publish/
