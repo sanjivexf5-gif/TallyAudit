@@ -219,20 +219,20 @@ public class GstRepository : IGstRepository, IGstExceptionService
         ";
 
         var row = await connection.QuerySingleOrDefaultAsync(new CommandDefinition(sql, new { CompanyId = companyId }, cancellationToken: cancellationToken));
-        if (row == null || row.Total == 0)
+        if (row == null || row.Total == null || row.Total is DBNull)
         {
             return new GstAuditSummary();
         }
 
         return new GstAuditSummary
         {
-            TotalTransactionsChecked = (int)(row.Total ?? 0),
-            PassedCount = (int)(row.Passed ?? 0),
-            ExceptionCount = (int)(row.Exceptions ?? 0),
-            HighSeverityCount = (int)(row.HighSeverity ?? 0),
-            MediumSeverityCount = (int)(row.MediumSeverity ?? 0),
-            LowSeverityCount = (int)(row.LowSeverity ?? 0),
-            UnableToDetermineCount = (int)(row.UnableToDetermine ?? 0),
+            TotalTransactionsChecked = row.Total != null && !(row.Total is DBNull) ? Convert.ToInt32(row.Total) : 0,
+            PassedCount = row.Passed != null && !(row.Passed is DBNull) ? Convert.ToInt32(row.Passed) : 0,
+            ExceptionCount = row.Exceptions != null && !(row.Exceptions is DBNull) ? Convert.ToInt32(row.Exceptions) : 0,
+            HighSeverityCount = row.HighSeverity != null && !(row.HighSeverity is DBNull) ? Convert.ToInt32(row.HighSeverity) : 0,
+            MediumSeverityCount = row.MediumSeverity != null && !(row.MediumSeverity is DBNull) ? Convert.ToInt32(row.MediumSeverity) : 0,
+            LowSeverityCount = row.LowSeverity != null && !(row.LowSeverity is DBNull) ? Convert.ToInt32(row.LowSeverity) : 0,
+            UnableToDetermineCount = row.UnableToDetermine != null && !(row.UnableToDetermine is DBNull) ? Convert.ToInt32(row.UnableToDetermine) : 0,
             EvaluatedAt = DateTime.UtcNow
         };
     }

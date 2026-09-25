@@ -54,7 +54,7 @@ public class DuplicateRepository : IDuplicateRepository
                 RuleId = $"DUP-{pair.Tier}",
                 RuleName = $"{pair.TierLabel} ({pair.ConfidenceScore:F0}%)",
                 Category = $"Duplicate - {pair.VoucherCategory}",
-                Severity,
+                Severity = severity,
                 VoucherId = pair.PotentialDuplicate.VoucherId,
                 LedgerId = pair.OriginalTransaction.PartyLedgerName,
                 pair.PotentialDuplicate.VoucherNumber,
@@ -123,11 +123,11 @@ public class DuplicateRepository : IDuplicateRepository
 
         return new DuplicateAuditSummary
         {
-            TotalDuplicatePairsFound = row != null ? (int)row.TotalPairs : 0,
-            ExactDuplicatesCount = row != null ? (int)row.ExactCount : 0,
-            LikelyDuplicatesCount = row != null ? (int)row.LikelyCount : 0,
-            PossibleDuplicatesCount = row != null ? (int)row.PossibleCount : 0,
-            TotalPotentialExposureRupees = row != null && row.TotalExposure != null ? (decimal)row.TotalExposure : 0m,
+            TotalDuplicatePairsFound = row != null && row.TotalPairs != null && !(row.TotalPairs is DBNull) ? Convert.ToInt32(row.TotalPairs) : 0,
+            ExactDuplicatesCount = row != null && row.ExactCount != null && !(row.ExactCount is DBNull) ? Convert.ToInt32(row.ExactCount) : 0,
+            LikelyDuplicatesCount = row != null && row.LikelyCount != null && !(row.LikelyCount is DBNull) ? Convert.ToInt32(row.LikelyCount) : 0,
+            PossibleDuplicatesCount = row != null && row.PossibleCount != null && !(row.PossibleCount is DBNull) ? Convert.ToInt32(row.PossibleCount) : 0,
+            TotalPotentialExposureRupees = row != null && row.TotalExposure != null && !(row.TotalExposure is DBNull) ? Convert.ToDecimal(row.TotalExposure) : 0m,
             EvaluatedAt = DateTime.UtcNow
         };
     }
