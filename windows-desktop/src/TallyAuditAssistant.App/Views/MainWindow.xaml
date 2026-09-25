@@ -1,0 +1,108 @@
+<Window x:Class="TallyAuditAssistant.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:TallyAuditAssistant.App.ViewModels"
+        xmlns:views="clr-namespace:TallyAuditAssistant.App.Views"
+        mc:Ignorable="d"
+        Title="{Binding Title}" Height="768" Width="1200"
+        MinHeight="600" MinWidth="900"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource SurfaceBackgroundBrush}">
+
+    <Window.Resources>
+        <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
+            <views:DashboardView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:TallyConnectionViewModel}">
+            <views:TallyConnectionView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SyncViewModel}">
+            <views:SyncView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+            <views:SettingsView />
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Top Status Header / Tally Ribbon -->
+            <RowDefinition Height="52" />
+            <!-- Main Content with Navigation Sidebar -->
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Top Header Ribbon -->
+        <Border Grid.Row="0" Background="#090D16" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid Margin="16,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Brand Title -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Width="28" Height="28" CornerRadius="6" Background="{StaticResource PrimaryBrandBrush}" Margin="0,0,10,0">
+                        <TextBlock Text="T" FontWeight="Bold" FontSize="16" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="Tally Audit Assistant" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <Border Margin="12,0,0,0" Padding="6,2" CornerRadius="4" Background="#1E293B" BorderBrush="#334155" BorderThickness="1">
+                        <TextBlock Text="AUDITOR PRO" FontSize="11" FontWeight="SemiBold" Foreground="#38BDF8"/>
+                    </Border>
+                </StackPanel>
+
+                <!-- Active Company & FY -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="Company: " Foreground="{StaticResource TextMutedBrush}" FontSize="13"/>
+                    <TextBlock Text="{Binding ActiveCompany}" FontWeight="SemiBold" Foreground="White" FontSize="13" Margin="0,0,16,0"/>
+                </StackPanel>
+
+                <!-- Tally Connection Live Status Indicator -->
+                <Border Grid.Column="2" Padding="10,5" CornerRadius="20" Background="#1E293B" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse Width="10" Height="10" Margin="0,0,8,0">
+                            <Ellipse.Fill>
+                                <SolidColorBrush Color="{Binding ConnectionBadgeColor}" />
+                            </Ellipse.Fill>
+                        </Ellipse>
+                        <TextBlock Text="{Binding ConnectionStatusText}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Main Body: Sidebar Navigation + Content Area -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Navigation Sidebar -->
+            <Border Grid.Column="0" Background="#090D16" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+                <StackPanel Margin="8,12">
+                    <Button Content="📊  Dashboard" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Dashboard" Margin="0,2"/>
+                    <Button Content="🔌  Tally Connection" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="TallyConnection" Margin="0,2"/>
+                    <Button Content="🏢  Companies" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Companies" Margin="0,2"/>
+                    <Button Content="🔄  Synchronize" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Sync" Margin="0,2"/>
+                    <Button Content="⚖️  GST Audit" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="GST" Margin="0,2"/>
+                    <Button Content="📑  TDS Audit" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="TDS" Margin="0,2"/>
+                    <Button Content="📜  Vouchers" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Vouchers" Margin="0,2"/>
+                    <Button Content="📖  Ledgers" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Ledgers" Margin="0,2"/>
+                    <Button Content="🏦  Bank Audit" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Bank" Margin="0,2"/>
+                    <Button Content="⚠️  Exceptions" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Exceptions" Margin="0,2"/>
+                    <Button Content="📈  Reports" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Reports" Margin="0,2"/>
+                    <Button Content="⚙️  Settings" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Settings" Margin="0,2"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Dynamic View Host -->
+            <Border Grid.Column="1" Padding="20" Background="{StaticResource SurfaceBackgroundBrush}">
+                <ContentControl Content="{Binding CurrentViewModel}" />
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

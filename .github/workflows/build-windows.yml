@@ -1,0 +1,56 @@
+name: Build Tally Audit Assistant (Windows x64)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-windows:
+    name: Build & Test Windows Application
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET 8.0 SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Setup Node.js Environment
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install Frontend Dependencies
+      run: npm ci
+
+    - name: Build Web Client Bundle
+      run: npm run build
+
+    - name: Restore .NET Solution Dependencies
+      run: dotnet restore TallyAuditAssistant.sln
+
+    - name: Build .NET Solution (Release)
+      run: dotnet build TallyAuditAssistant.sln --configuration Release --no-restore
+
+    - name: Execute Automated Unit Tests (xUnit)
+      run: dotnet test TallyAuditAssistant.sln --configuration Release --no-build --verbosity normal
+
+    - name: Publish Windows Executable (win-x64 Self-Contained)
+      run: |
+        dotnet publish windows-desktop/src/TallyAuditAssistant.App/TallyAuditAssistant.App.csproj `
+          --configuration Release `
+          --runtime win-x64 `
+          --self-contained true `
+          --output ./publish
+
+    - name: Upload Build Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: TallyAuditAssistant-Windows-x64
+        path: ./publish

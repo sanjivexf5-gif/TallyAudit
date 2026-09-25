@@ -1,0 +1,6 @@
+{
+  "name": "Tally Audit Assistant",
+  "description": "Production-quality Windows desktop auditor assistant for TallyPrime with automated GST, TDS, accounting, and transaction audit engines.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

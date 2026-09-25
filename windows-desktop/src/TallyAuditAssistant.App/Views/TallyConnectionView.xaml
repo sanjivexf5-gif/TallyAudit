@@ -1,0 +1,158 @@
+<UserControl x:Class="TallyAuditAssistant.App.Views.TallyConnectionView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             mc:Ignorable="d" 
+             d:DesignHeight="850" d:DesignWidth="950">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="0,0,10,0">
+            <!-- Header -->
+            <TextBlock Text="TallyPrime Integration &amp; Connection Manager" FontSize="22" FontWeight="Bold" Foreground="White"/>
+            <TextBlock Text="Auto-detects TallyPrime process, probes HTTP XML/JSON endpoints, monitors status, and verifies company." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,20"/>
+
+            <!-- Action Ribbon & Scanner -->
+            <Border Padding="16" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,20">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Automatic Endpoint Discovery (Ports 9000-9005)" FontWeight="Bold" FontSize="15" Foreground="White"/>
+                        <TextBlock Text="Continuous background monitor checks connectivity periodically with minimal CPU usage." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                        <TextBlock Text="{Binding StatusMessage}" Foreground="#38BDF8" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="⚡ Auto-Detect TallyPrime" Command="{Binding ScanForTallyCommand}" 
+                            IsEnabled="{Binding IsScanning, Converter={x:Null}}" Padding="18,10" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- Diagnostics Metrics Cards -->
+            <Grid Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Margin="0,0,10,0" Padding="14" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="PROCESS STATUS" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock Text="{Binding IsProcessRunning, StringFormat={}{0}}" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,6,0,0"/>
+                        <TextBlock Text="tally.exe executable" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Margin="5,0,5,0" Padding="14" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="CONNECTED PORT" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock Text="{Binding Port}" FontSize="18" FontWeight="Bold" Foreground="#10B981" Margin="0,6,0,0"/>
+                        <TextBlock Text="HTTP XML Server" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Margin="5,0,5,0" Padding="14" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="PING LATENCY" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock Text="{Binding Latency}" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,6,0,0"/>
+                        <TextBlock Text="HTTP round-trip" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="3" Margin="10,0,0,0" Padding="14" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="ACTIVE COMPANY" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock Text="{Binding ActiveCompany}" FontSize="14" FontWeight="Bold" Foreground="White" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="GSTIN: " Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Company Profile Inspection Card -->
+            <Border Padding="16" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock Text="Active Company Statutory Profile" FontWeight="Bold" FontSize="15" Foreground="White" Margin="0,0,0,10"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Registered GSTIN" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding CompanyGstin}" FontWeight="Bold" Foreground="#38BDF8" FontSize="13" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Jurisdiction State" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding CompanyState}" FontWeight="Bold" Foreground="White" FontSize="13" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Books Beginning Date" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding CompanyBooksDate}" FontWeight="Bold" Foreground="White" FontSize="13" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Automated Integration Test Suite Runner -->
+            <Border Padding="16" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,20">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Integration Test Suite (5 Test Scenarios)" FontWeight="Bold" FontSize="15" Foreground="White"/>
+                            <TextBlock Text="Verifies connection, company detection, error handling, timeout recovery, and unavailable state." Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="▶ Run Integration Test Suite" Command="{Binding RunIntegrationTestSuiteCommand}" Padding="16,8"/>
+                    </Grid>
+                    <TextBox Text="{Binding TestRunnerOutput, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" 
+                             Background="#070B14" Foreground="#10B981" FontFamily="Consolas, Courier New" FontSize="11" 
+                             Padding="12" BorderBrush="{StaticResource BorderBrush}" Height="120" VerticalScrollBarVisibility="Auto"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Manual Endpoint Configuration -->
+            <Border Padding="16" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock Text="Manual Endpoint Override &amp; Test" FontWeight="Bold" FontSize="15" Foreground="White" Margin="0,0,0,12"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                            <TextBlock Text="Tally Host / IP Address" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding Host, UpdateSourceTrigger=PropertyChanged}" Padding="8" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                            <TextBlock Text="Port" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding Port, UpdateSourceTrigger=PropertyChanged}" Padding="8" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}"/>
+                        </StackPanel>
+
+                        <Button Grid.Column="2" Content="Test Connection" Command="{Binding TestManualConnectionCommand}" VerticalAlignment="Bottom" Padding="16,8"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Troubleshooting Guide -->
+            <Border Padding="16" Background="#111C2D" CornerRadius="8" BorderBrush="#1E3A8A" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="💡 TallyPrime Setup Guide for Automated Auditing" FontWeight="Bold" FontSize="14" Foreground="#60A5FA" Margin="0,0,0,8"/>
+                    <TextBlock Text="1. Launch TallyPrime on this Windows computer." Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2"/>
+                    <TextBlock Text="2. Press F1 (Help) → Settings → Connectivity." Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2"/>
+                    <TextBlock Text="3. Set 'Client/Server configuration' to 'Both' or 'Server'." Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2"/>
+                    <TextBlock Text="4. Ensure the Port is configured to 9000 (or custom 9001-9005)." Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2"/>
+                    <TextBlock Text="5. Restart TallyPrime and click 'Auto-Detect TallyPrime' above." Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

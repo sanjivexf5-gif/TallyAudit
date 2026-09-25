@@ -1,0 +1,68 @@
+# ==========================================
+# Tally Audit Assistant — Git Ignore Configuration
+# ==========================================
+
+# --- Node & Frontend Build Artifacts ---
+node_modules/
+dist/
+build/
+coverage/
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+.DS_Store
+Thumbs.db
+
+# --- .NET Build & Binary Output Folders ---
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Pp]ublish/
+[Ll]og/
+[Ll]ogs/
+*.log
+
+# --- User-Specific Settings & IDE Metadata ---
+.vs/
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.user
+*.userossc
+*.sln.docstates
+*.suo
+*.userprefs
+*.workspace
+
+# --- SQLite Runtime Databases & Snapshots (Privacy Guarantee) ---
+# CRITICAL: Ensures company accounting databases and local snapshots are NEVER committed
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.db.bak
+*.bak
+audit_assistant_data.db
+*.local.db
+
+# --- Certificates, Keys & Secrets Protection ---
+*.pfx
+*.p12
+*.key
+*.pem
+*.cer
+*.crt
+
+# --- Operating System & Temporary Files ---
+[Tt]emp/
+[Tt]mp/
+*.tmp
+*.swp
+*~
