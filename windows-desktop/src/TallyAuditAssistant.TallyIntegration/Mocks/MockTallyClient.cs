@@ -60,6 +60,18 @@ public class MockTallyClient : ITallyClient
         _logger.LogInformation("[MOCK] Ping successful at {Url}", endpointUrl);
         return Task.FromResult(true);
     }
+
+    public Task<bool> TestConnectionAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("[MOCK] TestConnectionAsync successful (default endpoint)");
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> TestConnectionAsync(string endpointUrl, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("[MOCK] TestConnectionAsync successful at {Url}", endpointUrl);
+        return Task.FromResult(true);
+    }
 }
 
 public class MockTallyCompanyService : ITallyCompanyService

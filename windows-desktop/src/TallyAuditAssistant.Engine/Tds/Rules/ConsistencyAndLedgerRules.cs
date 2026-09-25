@@ -65,14 +65,14 @@ public class DeductionAmountConsistencyRule : BaseTdsRule
     {
         Parameters = new Dictionary<string, object>
         {
-            { "ToleranceRupees", 5.0 }
+            { "ToleranceRupees", 5.0m }
         };
     }
 
     public override async Task<IReadOnlyList<TdsCheckResult>> EvaluateAsync(TdsAuditContext context, CancellationToken cancellationToken = default)
     {
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
-        var tolerance = GetParam("ToleranceRupees", 5.0);
+        var tolerance = GetParam("ToleranceRupees", 5.0m);
 
         const string sql = @"
             SELECT v.Id as VoucherId, v.VoucherNumber, v.VoucherDate, v.VoucherTypeName, v.PartyLedgerName,
