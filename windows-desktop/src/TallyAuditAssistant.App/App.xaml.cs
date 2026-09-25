@@ -1,10 +1,12 @@
 using System.IO;
+using System.Reflection;
 using System.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using Serilog.Settings.Configuration;
 using TallyAuditAssistant.App.ViewModels;
 using TallyAuditAssistant.App.Views;
 using TallyAuditAssistant.Core.Interfaces;
@@ -51,8 +53,9 @@ public partial class App : Application
                 })
                 .UseSerilog((context, services, configuration) =>
                 {
+                    var options = new ConfigurationReaderOptions(typeof(FileLoggerConfigurationExtensions).Assembly);
                     configuration
-                        .ReadFrom.Configuration(context.Configuration)
+                        .ReadFrom.Configuration(context.Configuration, options)
                         .Enrich.FromLogContext()
                         .WriteTo.File(
                             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "audit_assistant_.log"),
