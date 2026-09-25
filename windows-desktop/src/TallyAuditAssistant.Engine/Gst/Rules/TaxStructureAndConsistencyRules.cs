@@ -116,10 +116,17 @@ public class InterstateIntrastateTaxConsistencyRule : BaseGstRule
         const string compSql = "SELECT StateCode, GSTIN FROM Companies WHERE Id = @CompanyId LIMIT 1;";
         var comp = await conn.QuerySingleOrDefaultAsync(new CommandDefinition(compSql, new { context.CompanyId }, cancellationToken: cancellationToken));
 
-        string? compState = comp?.StateCode;
-        if (string.IsNullOrWhiteSpace(compState) && comp?.GSTIN != null && ((string)comp.GSTIN).Length >= 2)
+        string? compState = null;
+        if (comp is IDictionary<string, object> compDict)
         {
-            compState = ((string)comp.GSTIN).Substring(0, 2);
+            if (compDict.TryGetValue("StateCode", out var sc) && sc is string scStr && !string.IsNullOrWhiteSpace(scStr))
+            {
+                compState = scStr;
+            }
+            else if (compDict.TryGetValue("GSTIN", out var gstinObj) && gstinObj is string gstinStr && gstinStr.Length >= 2)
+            {
+                compState = gstinStr.Substring(0, 2);
+            }
         }
 
         if (string.IsNullOrWhiteSpace(compState))
@@ -226,7 +233,18 @@ public class PlaceOfSupplyInconsistencyRule : BaseGstRule
 
         const string compSql = "SELECT StateCode, GSTIN FROM Companies WHERE Id = @CompanyId LIMIT 1;";
         var comp = await conn.QuerySingleOrDefaultAsync(new CommandDefinition(compSql, new { context.CompanyId }, cancellationToken: cancellationToken));
-        string? compState = comp?.StateCode ?? (comp?.GSTIN != null && ((string)comp.GSTIN).Length >= 2 ? ((string)comp.GSTIN).Substring(0, 2) : null);
+        string? compState = null;
+        if (comp is IDictionary<string, object> compDict)
+        {
+            if (compDict.TryGetValue("StateCode", out var sc) && sc is string scStr && !string.IsNullOrWhiteSpace(scStr))
+            {
+                compState = scStr;
+            }
+            else if (compDict.TryGetValue("GSTIN", out var gstinObj) && gstinObj is string gstinStr && gstinStr.Length >= 2)
+            {
+                compState = gstinStr.Substring(0, 2);
+            }
+        }
 
         const string sql = @"
             SELECT v.Id as VoucherId, v.VoucherNumber, v.VoucherDate, v.VoucherTypeName,

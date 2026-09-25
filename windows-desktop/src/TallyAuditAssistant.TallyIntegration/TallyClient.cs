@@ -134,4 +134,14 @@ public class TallyClient : ITallyClient
             return false;
         }
     }
+
+    public Task<bool> TestConnectionAsync(CancellationToken cancellationToken = default)
+    {
+        return PingAsync("http://localhost:9000", cancellationToken);
+    }
+
+    public Task<bool> TestConnectionAsync(string endpointUrl, CancellationToken cancellationToken = default)
+    {
+        return PingAsync(endpointUrl, cancellationToken);
+    }
 }

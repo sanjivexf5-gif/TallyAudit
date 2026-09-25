@@ -114,20 +114,20 @@ public class ThresholdMonitoringRule : BaseTdsRule
     {
         Parameters = new Dictionary<string, object>
         {
-            { "Threshold194C_Single", 30000.0 },
-            { "Threshold194J", 30000.0 },
-            { "Threshold194I", 240000.0 },
-            { "Threshold194H", 15000.0 }
+            { "Threshold194C_Single", 30000m },
+            { "Threshold194J", 30000m },
+            { "Threshold194I", 240000m },
+            { "Threshold194H", 15000m }
         };
     }
 
     public override async Task<IReadOnlyList<TdsCheckResult>> EvaluateAsync(TdsAuditContext context, CancellationToken cancellationToken = default)
     {
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
-        var t194c = GetParam("Threshold194C_Single", 30000.0);
-        var t194j = GetParam("Threshold194J", 30000.0);
-        var t194i = GetParam("Threshold194I", 240000.0);
-        var t194h = GetParam("Threshold194H", 15000.0);
+        var t194c = GetParam("Threshold194C_Single", 30000m);
+        var t194j = GetParam("Threshold194J", 30000m);
+        var t194i = GetParam("Threshold194I", 240000m);
+        var t194h = GetParam("Threshold194H", 15000m);
 
         const string sql = @"
             SELECT v.Id as VoucherId, v.VoucherNumber, v.VoucherDate, v.VoucherTypeName, v.TotalAmount, v.PartyLedgerName,
@@ -218,14 +218,14 @@ public class PanAvailabilityAndHigherDeductionRule : BaseTdsRule
     {
         Parameters = new Dictionary<string, object>
         {
-            { "HigherRatePercentage", 20.0 }
+            { "HigherRatePercentage", 20m }
         };
     }
 
     public override async Task<IReadOnlyList<TdsCheckResult>> EvaluateAsync(TdsAuditContext context, CancellationToken cancellationToken = default)
     {
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
-        var higherRate = GetParam("HigherRatePercentage", 20.0);
+        var higherRate = GetParam("HigherRatePercentage", 20m);
 
         const string sql = @"
             SELECT l.Id as PartyId, l.Name as PartyName, l.PAN, l.ParentGroup,
@@ -281,15 +281,15 @@ public class VendorCumulativeAnalysisRule : BaseTdsRule
     {
         Parameters = new Dictionary<string, object>
         {
-            { "ContractAggregateThreshold", 100000.0 },
-            { "PurchaseAggregateThreshold", 5000000.0 }
+            { "ContractAggregateThreshold", 100000m },
+            { "PurchaseAggregateThreshold", 5000000m }
         };
     }
 
     public override async Task<IReadOnlyList<TdsCheckResult>> EvaluateAsync(TdsAuditContext context, CancellationToken cancellationToken = default)
     {
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
-        var contractThreshold = GetParam("ContractAggregateThreshold", 100000.0);
+        var contractThreshold = GetParam("ContractAggregateThreshold", 100000m);
 
         const string sql = @"
             SELECT v.PartyLedgerName, l.PAN as PartyPan,
@@ -355,8 +355,8 @@ public class ThresholdBorderTransactionsRule : BaseTdsRule
     {
         Parameters = new Dictionary<string, object>
         {
-            { "LowerBound", 27000.0 },
-            { "UpperBound", 29999.0 },
+            { "LowerBound", 27000m },
+            { "UpperBound", 29999m },
             { "ClusterCountThreshold", 2 }
         };
     }
@@ -364,8 +364,8 @@ public class ThresholdBorderTransactionsRule : BaseTdsRule
     public override async Task<IReadOnlyList<TdsCheckResult>> EvaluateAsync(TdsAuditContext context, CancellationToken cancellationToken = default)
     {
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
-        var lower = GetParam("LowerBound", 27000.0);
-        var upper = GetParam("UpperBound", 29999.0);
+        var lower = GetParam("LowerBound", 27000m);
+        var upper = GetParam("UpperBound", 29999m);
         var clusterLimit = GetParam("ClusterCountThreshold", 2);
 
         const string sql = @"

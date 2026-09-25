@@ -19,14 +19,14 @@ public class MissingTdsEntriesRule : BaseTdsRule
     {
         Parameters = new Dictionary<string, object>
         {
-            { "HighValueThreshold", 100000.0 }
+            { "HighValueThreshold", 100000m }
         };
     }
 
     public override async Task<IReadOnlyList<TdsCheckResult>> EvaluateAsync(TdsAuditContext context, CancellationToken cancellationToken = default)
     {
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
-        var threshold = GetParam("HighValueThreshold", 100000.0);
+        var threshold = GetParam("HighValueThreshold", 100000m);
 
         const string sql = @"
             SELECT v.Id as VoucherId, v.VoucherNumber, v.VoucherDate, v.VoucherTypeName, v.TotalAmount, v.PartyLedgerName,
