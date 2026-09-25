@@ -92,7 +92,9 @@ public partial class App : Application
         var dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audit_assistant_data.db");
         
         // Data layer registrations
-        services.AddSingleton(new SqliteConnectionFactory(dbPath));
+        var sqliteFactory = new SqliteConnectionFactory(dbPath);
+        services.AddSingleton(sqliteFactory);
+        services.AddSingleton<ISqliteConnectionFactory>(sqliteFactory);
         services.AddSingleton<IDatabaseInitializer>(sp => new DatabaseInitializer(
             sp.GetRequiredService<SqliteConnectionFactory>(),
             sp.GetRequiredService<ILogger<DatabaseInitializer>>(),

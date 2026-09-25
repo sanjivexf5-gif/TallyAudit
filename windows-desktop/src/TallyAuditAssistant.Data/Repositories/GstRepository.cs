@@ -219,22 +219,23 @@ public class GstRepository : IGstRepository, IGstExceptionService
         ";
 
         var row = await connection.QuerySingleOrDefaultAsync(new CommandDefinition(sql, new { CompanyId = companyId }, cancellationToken: cancellationToken));
-        if (row == null || row.Total == null || row.Total is DBNull)
+
+        if (row is IDictionary<string, object> dict && dict.TryGetValue("Total", out var totalVal) && totalVal != null && totalVal != DBNull.Value)
         {
-            return new GstAuditSummary();
+            return new GstAuditSummary
+            {
+                TotalTransactionsChecked = Convert.ToInt32(totalVal),
+                PassedCount = dict.TryGetValue("Passed", out var p) && p != null && p != DBNull.Value ? Convert.ToInt32(p) : 0,
+                ExceptionCount = dict.TryGetValue("Exceptions", out var e) && e != null && e != DBNull.Value ? Convert.ToInt32(e) : 0,
+                HighSeverityCount = dict.TryGetValue("HighSeverity", out var hs) && hs != null && hs != DBNull.Value ? Convert.ToInt32(hs) : 0,
+                MediumSeverityCount = dict.TryGetValue("MediumSeverity", out var ms) && ms != null && ms != DBNull.Value ? Convert.ToInt32(ms) : 0,
+                LowSeverityCount = dict.TryGetValue("LowSeverity", out var ls) && ls != null && ls != DBNull.Value ? Convert.ToInt32(ls) : 0,
+                UnableToDetermineCount = dict.TryGetValue("UnableToDetermine", out var utd) && utd != null && utd != DBNull.Value ? Convert.ToInt32(utd) : 0,
+                EvaluatedAt = DateTime.UtcNow
+            };
         }
 
-        return new GstAuditSummary
-        {
-            TotalTransactionsChecked = row.Total != null && !(row.Total is DBNull) ? Convert.ToInt32(row.Total) : 0,
-            PassedCount = row.Passed != null && !(row.Passed is DBNull) ? Convert.ToInt32(row.Passed) : 0,
-            ExceptionCount = row.Exceptions != null && !(row.Exceptions is DBNull) ? Convert.ToInt32(row.Exceptions) : 0,
-            HighSeverityCount = row.HighSeverity != null && !(row.HighSeverity is DBNull) ? Convert.ToInt32(row.HighSeverity) : 0,
-            MediumSeverityCount = row.MediumSeverity != null && !(row.MediumSeverity is DBNull) ? Convert.ToInt32(row.MediumSeverity) : 0,
-            LowSeverityCount = row.LowSeverity != null && !(row.LowSeverity is DBNull) ? Convert.ToInt32(row.LowSeverity) : 0,
-            UnableToDetermineCount = row.UnableToDetermine != null && !(row.UnableToDetermine is DBNull) ? Convert.ToInt32(row.UnableToDetermine) : 0,
-            EvaluatedAt = DateTime.UtcNow
-        };
+        return new GstAuditSummary();
     }
 
     public async Task<GstVoucherDetail?> GetVoucherDetailAsync(string voucherId, CancellationToken cancellationToken = default)

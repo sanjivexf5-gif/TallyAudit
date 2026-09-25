@@ -121,15 +121,20 @@ public class DuplicateRepository : IDuplicateRepository
 
         var row = await connection.QuerySingleOrDefaultAsync(new CommandDefinition(sql, new { CompanyId = companyId }, cancellationToken: cancellationToken));
 
-        return new DuplicateAuditSummary
+        if (row is IDictionary<string, object> dict)
         {
-            TotalDuplicatePairsFound = row != null && row.TotalPairs != null && !(row.TotalPairs is DBNull) ? Convert.ToInt32(row.TotalPairs) : 0,
-            ExactDuplicatesCount = row != null && row.ExactCount != null && !(row.ExactCount is DBNull) ? Convert.ToInt32(row.ExactCount) : 0,
-            LikelyDuplicatesCount = row != null && row.LikelyCount != null && !(row.LikelyCount is DBNull) ? Convert.ToInt32(row.LikelyCount) : 0,
-            PossibleDuplicatesCount = row != null && row.PossibleCount != null && !(row.PossibleCount is DBNull) ? Convert.ToInt32(row.PossibleCount) : 0,
-            TotalPotentialExposureRupees = row != null && row.TotalExposure != null && !(row.TotalExposure is DBNull) ? Convert.ToDecimal(row.TotalExposure) : 0m,
-            EvaluatedAt = DateTime.UtcNow
-        };
+            return new DuplicateAuditSummary
+            {
+                TotalDuplicatePairsFound = dict.TryGetValue("TotalPairs", out var tp) && tp != null && tp != DBNull.Value ? Convert.ToInt32(tp) : 0,
+                ExactDuplicatesCount = dict.TryGetValue("ExactCount", out var ec) && ec != null && ec != DBNull.Value ? Convert.ToInt32(ec) : 0,
+                LikelyDuplicatesCount = dict.TryGetValue("LikelyCount", out var lc) && lc != null && lc != DBNull.Value ? Convert.ToInt32(lc) : 0,
+                PossibleDuplicatesCount = dict.TryGetValue("PossibleCount", out var pc) && pc != null && pc != DBNull.Value ? Convert.ToInt32(pc) : 0,
+                TotalPotentialExposureRupees = dict.TryGetValue("TotalExposure", out var te) && te != null && te != DBNull.Value ? Convert.ToDecimal(te) : 0m,
+                EvaluatedAt = DateTime.UtcNow
+            };
+        }
+
+        return new DuplicateAuditSummary { EvaluatedAt = DateTime.UtcNow };
     }
 
     public async Task UpdateReviewStatusAsync(string matchId, ReviewStatus status, string reviewer, string? notes, CancellationToken cancellationToken = default)

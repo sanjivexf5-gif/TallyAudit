@@ -87,7 +87,7 @@ public class TallyClient : ITallyClient
         catch (TaskCanceledException ex)
         {
             sw.Stop();
-            _logger.LogError("Tally request timed out after {Elapsed}ms at {Url}", sw.ElapsedMilliseconds, endpointUrl);
+            _logger.LogError(ex, "Tally request timed out after {Elapsed}ms at {Url}", sw.ElapsedMilliseconds, endpointUrl);
             return new TallyRawResponse(
                 IsSuccess: false,
                 HttpStatusCode: 408,
