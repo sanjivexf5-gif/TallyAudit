@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TallyAuditAssistant.Core.Domain.Sync;
@@ -91,7 +93,7 @@ public partial class SyncViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public async Task StartFullSyncAsync()
+    private async Task StartFullSyncAsync()
     {
         IsSyncing = true;
         IsPaused = false;
@@ -102,7 +104,7 @@ public partial class SyncViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public async Task StartIncrementalSyncAsync()
+    private async Task StartIncrementalSyncAsync()
     {
         IsSyncing = true;
         IsPaused = false;
@@ -113,21 +115,21 @@ public partial class SyncViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public async Task PauseSyncAsync()
+    private async Task PauseSyncAsync()
     {
         await _syncManager.PauseAsync();
         IsPaused = true;
     }
 
     [RelayCommand]
-    public async Task ResumeSyncAsync()
+    private async Task ResumeSyncAsync()
     {
         await _syncManager.ResumeAsync();
         IsPaused = false;
     }
 
     [RelayCommand]
-    public async Task CancelSyncAsync()
+    private async Task CancelSyncAsync()
     {
         await _syncManager.CancelAsync();
         IsSyncing = false;
@@ -135,7 +137,7 @@ public partial class SyncViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public async Task RetrySyncAsync()
+    private async Task RetrySyncAsync()
     {
         IsSyncing = true;
         IsPaused = false;

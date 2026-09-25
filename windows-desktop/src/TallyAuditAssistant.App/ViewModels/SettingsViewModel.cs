@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TallyAuditAssistant.Core.Interfaces;
@@ -41,7 +43,7 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public async Task SaveSettingsAsync()
+    private async Task SaveSettingsAsync()
     {
         await _settingsService.SetTallyHostAsync(TallyHost);
         await _settingsService.SetTallyPortAsync(TallyPort);

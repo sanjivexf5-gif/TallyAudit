@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TallyAuditAssistant.Core.Domain.Audit;
@@ -52,7 +54,7 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void Navigate(string section)
+    private void Navigate(string section)
     {
         CurrentSection = section;
         CurrentViewModel = section switch

@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TallyAuditAssistant.Core.Domain.Audit;
@@ -54,7 +56,7 @@ public partial class DashboardViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public async Task RefreshDashboardAsync()
+    private async Task RefreshDashboardAsync()
     {
         await LoadDashboardDataAsync();
     }

@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TallyAuditAssistant.Core.Domain.Audit;
@@ -103,7 +105,7 @@ public partial class TallyConnectionViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public async Task ScanForTallyAsync()
+    private async Task ScanForTallyAsync()
     {
         IsScanning = true;
         StatusMessage = "Scanning for TallyPrime process and open ports (9000-9005)...";
@@ -162,7 +164,7 @@ public partial class TallyConnectionViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public async Task TestManualConnectionAsync()
+    private async Task TestManualConnectionAsync()
     {
         IsScanning = true;
         StatusMessage = $"Testing connection to http://{Host}:{Port}...";
