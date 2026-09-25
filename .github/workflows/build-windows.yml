@@ -1,3 +1,50 @@
-git add .github/workflows/build-windows.yml windows-desktop/src/TallyAuditAssistant.App/TallyAuditAssistant.App.csproj
-git commit -m "Fix GitHub Actions build workflow for pure .NET 8 Windows Desktop app"
-git push origin main
+name: Build Tally Audit Assistant
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build & Test Windows Application
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Display .NET information
+        run: dotnet --info
+
+      - name: Restore dependencies
+        run: dotnet restore windows-desktop/src/TallyAuditAssistant.App/TallyAuditAssistant.App.csproj
+
+      - name: Build application
+        run: dotnet build windows-desktop/src/TallyAuditAssistant.App/TallyAuditAssistant.App.csproj -c Release --no-restore
+
+      - name: Publish Windows x64 application
+        run: >
+          dotnet publish
+          windows-desktop/src/TallyAuditAssistant.App/TallyAuditAssistant.App.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o ./publish
+
+      - name: Upload Windows application
+        uses: actions/upload-artifact@v4
+        with:
+          name: TallyAuditAssistant-Windows-x64
+          path: ./publish/
