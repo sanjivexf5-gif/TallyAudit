@@ -492,9 +492,11 @@ public partial class DashboardViewModel : ObservableObject
             html.AppendLine("   </div>");
             html.AppendLine(" </div>");
 
+            var gstinDisplay = current.GSTIN ?? "—";
+            var panDisplay = current.PAN ?? "—";
             html.AppendLine(" <div class='card'>");
             html.AppendLine($"   <h2>Audit Target: {current.TallyCompanyName}</h2>");
-            html.AppendLine($"   <div style='color:#4B5563; margin-bottom: 16px;'>GSTIN: {current.GSTIN ?? \"—\"} &nbsp;|&nbsp; PAN: {current.PAN ?? \"—\"}</div>");
+            html.AppendLine($"   <div style='color:#4B5563; margin-bottom: 16px;'>GSTIN: {gstinDisplay} &nbsp;|&nbsp; PAN: {panDisplay}</div>");
             
             html.AppendLine("   <div class='grid'>");
             html.AppendLine($"     <div class='metric-box'><div class='metric-title'>Trans. Analysed</div><div class='metric-value'>{TotalVouchersSynchronized}</div></div>");
@@ -512,14 +514,20 @@ public partial class DashboardViewModel : ObservableObject
             foreach (var ex in allExceptions)
             {
                 var sevClass = ex.Severity >= SeverityLevel.High ? "tag-high" : (ex.Severity == SeverityLevel.Medium ? "tag-med" : "tag-low");
+                var vNo = ex.VoucherNumber ?? "—";
+                var vDate = ex.VoucherDate?.ToString("dd-MMM-yyyy") ?? "—";
+                var lName = ex.LedgerName ?? "—";
+                var amt = ex.FlaggedAmount?.ToString("C") ?? "—";
+                var correction = ex.SuggestedCorrection ?? string.Empty;
+
                 html.AppendLine("     <tr>");
-                html.AppendLine($"       <td><strong>{ex.RuleName}</strong><br><span style='font-size:10px; color:#6B7280;'>{ex.SuggestedCorrection}</span></td>");
+                html.AppendLine($"       <td><strong>{ex.RuleName}</strong><br><span style='font-size:10px; color:#6B7280;'>{correction}</span></td>");
                 html.AppendLine($"       <td>{ex.Category}</td>");
                 html.AppendLine($"       <td><span class='{sevClass}'>{ex.Severity}</span></td>");
-                html.AppendLine($"       <td>{ex.VoucherNumber ?? \"—\"}</td>");
-                html.AppendLine($"       <td>{ex.VoucherDate?.ToString(\"dd-MMM-yyyy\") ?? \"—\"}</td>");
-                html.AppendLine($"       <td>{ex.LedgerName ?? \"—\"}</td>");
-                html.AppendLine($"       <td>{ex.FlaggedAmount?.ToString(\"C\") ?? \"—\"}</td>");
+                html.AppendLine($"       <td>{vNo}</td>");
+                html.AppendLine($"       <td>{vDate}</td>");
+                html.AppendLine($"       <td>{lName}</td>");
+                html.AppendLine($"       <td>{amt}</td>");
                 html.AppendLine($"       <td>{ex.Status}</td>");
                 html.AppendLine("     </tr>");
             }
@@ -537,14 +545,20 @@ public partial class DashboardViewModel : ObservableObject
                 foreach (var ex in recExceptions)
                 {
                     var sevClass = ex.Severity >= SeverityLevel.High ? "tag-high" : (ex.Severity == SeverityLevel.Medium ? "tag-med" : "tag-low");
+                    var vNo = ex.VoucherNumber ?? "—";
+                    var vDate = ex.VoucherDate?.ToString("dd-MMM-yyyy") ?? "—";
+                    var lName = ex.LedgerName ?? "—";
+                    var amt = ex.FlaggedAmount?.ToString("C") ?? "—";
+                    var correction = ex.SuggestedCorrection ?? string.Empty;
+
                     html.AppendLine("     <tr>");
-                    html.AppendLine($"       <td><strong>{ex.RuleName}</strong><br><span style='font-size:10px; color:#6B7280;'>{ex.SuggestedCorrection}</span></td>");
+                    html.AppendLine($"       <td><strong>{ex.RuleName}</strong><br><span style='font-size:10px; color:#6B7280;'>{correction}</span></td>");
                     html.AppendLine($"       <td>{ex.Category}</td>");
                     html.AppendLine($"       <td><span class='{sevClass}'>{ex.Severity}</span></td>");
-                    html.AppendLine($"       <td>{ex.VoucherNumber ?? \"—\"}</td>");
-                    html.AppendLine($"       <td>{ex.VoucherDate?.ToString(\"dd-MMM-yyyy\") ?? \"—\"}</td>");
-                    html.AppendLine($"       <td>{ex.LedgerName ?? \"—\"}</td>");
-                    html.AppendLine($"       <td><strong style='color:#DC2626;'>{ex.FlaggedAmount?.ToString(\"C\") ?? \"—\"}</strong></td>");
+                    html.AppendLine($"       <td>{vNo}</td>");
+                    html.AppendLine($"       <td>{vDate}</td>");
+                    html.AppendLine($"       <td>{lName}</td>");
+                    html.AppendLine($"       <td><strong style='color:#DC2626;'>{amt}</strong></td>");
                     html.AppendLine($"       <td>{ex.Status}</td>");
                     html.AppendLine("     </tr>");
                 }
