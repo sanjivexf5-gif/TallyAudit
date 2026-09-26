@@ -216,7 +216,6 @@
                             
                             <ContentPresenter x:Name="contentPresenter" Grid.Column="0" Margin="{TemplateBinding Padding}" 
                                               Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" 
-                                              ContentTemplateSelector="{TemplateBinding SelectionBoxItemTemplateSelector}" 
                                               ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" 
                                               HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" 
                                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}" 
