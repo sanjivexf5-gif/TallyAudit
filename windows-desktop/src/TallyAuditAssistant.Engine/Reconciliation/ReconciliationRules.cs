@@ -33,7 +33,7 @@ public class TrialBalanceConsistencyRule : BaseReconciliationRule
                    COALESCE(SUM(CASE WHEN v.Id IS NOT NULL AND e.IsDebit = 0 THEN ABS(e.Amount) ELSE 0 END), 0) as TotalCredits
             FROM Ledgers l
             LEFT JOIN VoucherEntries e ON (e.LedgerName = l.Name)
-            LEFT JOIN Vouchers v ON (v.Id = e.VoucherId AND v.CompanyId = l.CompanyId AND v.VoucherDate BETWEEN @FromDate AND @ToDate)
+            LEFT JOIN Vouchers v ON (v.Id = e.VoucherId AND v.CompanyId = l.CompanyId AND v.VoucherTypeName NOT LIKE '%Contra%' AND v.VoucherDate BETWEEN @FromDate AND @ToDate)
             WHERE l.CompanyId = @CompanyId
             GROUP BY l.Id;
         ";
