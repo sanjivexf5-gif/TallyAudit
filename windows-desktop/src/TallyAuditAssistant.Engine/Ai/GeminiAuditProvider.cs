@@ -53,6 +53,11 @@ public class GeminiAuditProvider : IAuditAiProvider
 
     public async Task<string> GenerateTextAsync(string systemPrompt, string userPrompt, CancellationToken cancellationToken = default)
     {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return "The AI operation was cancelled.";
+        }
+
         try
         {
             var apiKey = await GetApiKeyAsync(cancellationToken);

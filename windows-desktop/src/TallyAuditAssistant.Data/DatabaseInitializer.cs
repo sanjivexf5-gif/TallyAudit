@@ -171,6 +171,7 @@ public class DatabaseInitializer : IDatabaseInitializer
                 AuditorNote TEXT,
                 AuditorAssignedTo TEXT,
                 FlaggedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                DetectedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
                 ReviewedAt DATETIME
             );
 
@@ -226,6 +227,19 @@ public class DatabaseInitializer : IDatabaseInitializer
             ('GST-003', 1, 'Ineligible ITC on Personal or Motor Vehicle Expense', 'Voucher contains ITC claim on blocked credits under Section 17(5).', 3, 'Inspect tax ledger allocation and reverse ITC if not eligible for business purposes.', '1.0.0', 1),
             ('TDS-001', 2, 'Threshold Exceeded Without TDS Deduction', 'Contractor payment under Sec 194C exceeds single threshold Rs.30,000 or aggregate Rs.1,00,000 without corresponding TDS entry.', 3, 'Check if lower deduction certificate (Form 13) or non-deduction declaration exists.', '1.0.0', 1),
             ('TDS-002', 2, 'Missing PAN Higher Rate Deduction Check', 'Party with TDS liability does not have a valid PAN recorded (triggers Sec 206AA 20% rate).', 4, 'Obtain PAN from vendor or verify why 20% higher deduction rate was not charged.', '1.0.0', 1),
+            ('TDS-CHK-01', 2, 'Potential Statutory TDS Applicability', 'Identifies inward commercial/professional heads.', 3, 'Review contract terms.', '1.0.0', 1),
+            ('TDS-CHK-02', 2, 'Single Transaction Threshold', 'Monitors single-bill thresholds.', 3, 'Review invoice withholding.', '1.0.0', 1),
+            ('TDS-CHK-03', 2, 'Deductee PAN Availability', 'Verifies 10-char PAN.', 4, 'Check Section 206AA.', '1.0.0', 1),
+            ('TDS-CHK-04', 2, 'TDS Chart Mapping Check', 'Ensures Duties & Taxes parenting.', 2, 'Reclassify chart hierarchy.', '1.0.0', 1),
+            ('TDS-CHK-05', 2, 'TDS Deduction Math Check', 'Recalculates rate * base value.', 3, 'Verify posted deduction.', '1.0.0', 1),
+            ('TDS-CHK-06', 2, 'TDS Section Classification', 'Cross-checks expense vs TDS head.', 3, 'Review 194C vs 194J.', '1.0.0', 1),
+            ('TDS-CHK-07', 2, 'Payee Aggregate Threshold', 'Aggregates multi-voucher totals.', 3, 'Check aggregate limits.', '1.0.0', 1),
+            ('TDS-CHK-08', 2, 'Expense Head Category Audit', 'Analyzes annual debit turnovers.', 2, 'Review disallowance risk.', '1.0.0', 1),
+            ('TDS-CHK-09', 2, 'TDS Payable Remittance Check', 'Tracks credit accumulations.', 4, 'Check challan deposits.', '1.0.0', 1),
+            ('TDS-CHK-10', 2, 'High-Value Commercial Bills', 'Flags high-value service bills.', 3, 'Check withholding entries.', '1.0.0', 1),
+            ('TDS-CHK-11', 2, 'Unusual TDS Rate Pattern', 'Detects non-statutory rates.', 2, 'Verify applied rate.', '1.0.0', 1),
+            ('TDS-CHK-12', 2, 'TDS Reversal Anomaly', 'Detects debit reversals.', 3, 'Check journal entries.', '1.0.0', 1),
+            ('TDS-CHK-13', 2, 'Threshold Border Analysis', 'Detects clustered border invoices.', 2, 'Rule out invoice splitting.', '1.0.0', 1),
             ('ACC-001', 0, 'Negative Cash Balance on Transaction Date', 'Daily cumulative cash ledger balance falls below zero at end of transaction day.', 4, 'Check for unrecorded cash receipts or backdated payment vouchers.', '1.0.0', 1),
             ('ACC-002', 0, 'Direct Entry in Suspense Ledger', 'Vouchers posted directly to Suspense or Rounding Off accounts exceeding normal variance.', 2, 'Reclassify suspense entries to appropriate vendor or expense heads.', '1.0.0', 1),
             ('DUP-001', 6, 'Duplicate Supplier Bill Reference', 'Identical reference invoice number recorded more than once for the same supplier.', 3, 'Cross-check against vendor statement to ensure invoice is not double-booked.', '1.0.0', 1),

@@ -221,7 +221,13 @@ public class RoundOffAnomaliesRule : BaseGstRule
               AND ABS(e.Amount) > @MaxLimit;
         ";
 
-        var rows = await conn.QueryAsync(new CommandDefinition(sql, new { context.CompanyId, context.FromDate, context.ToDate, MaxLimit = maxLimit }, cancellationToken: cancellationToken));
+        var rows = await conn.QueryAsync(new CommandDefinition(sql, new
+        {
+            context.CompanyId,
+            FromDate = context.FromDate.ToString("yyyy-MM-dd"),
+            ToDate = context.ToDate.ToString("yyyy-MM-dd"),
+            MaxLimit = maxLimit
+        }, cancellationToken: cancellationToken));
 
         foreach (var r in rows)
         {

@@ -184,13 +184,20 @@ public class SuspenseLedgerActivityRule : BaseAuditRule
             SELECT v.Id, v.VoucherTypeName, v.VoucherNumber, v.VoucherDate, e.LedgerName, e.Amount
             FROM VoucherEntries e
             JOIN Vouchers v ON e.VoucherId = v.Id
+            LEFT JOIN Ledgers l ON (l.CompanyId = v.CompanyId AND l.Name = e.LedgerName)
             WHERE v.CompanyId = @CompanyId 
               AND v.VoucherDate BETWEEN @FromDate AND @ToDate
-              AND (LOWER(e.LedgerName) LIKE '%suspense%' OR LOWER(e.LedgerName) LIKE '%round%')
+              AND (LOWER(e.LedgerName) LIKE '%suspense%' OR LOWER(e.LedgerName) LIKE '%clearing%' OR (l.ParentGroup IS NOT NULL AND LOWER(l.ParentGroup) LIKE '%suspense%'))
               AND ABS(e.Amount) >= @Tolerance;
         ";
 
-        var entries = await connection.QueryAsync(new CommandDefinition(sql, new { context.CompanyId, context.FromDate, context.ToDate, Tolerance = tolerance }, cancellationToken: cancellationToken));
+        var entries = await connection.QueryAsync(new CommandDefinition(sql, new
+        {
+            context.CompanyId,
+            FromDate = context.FromDate.ToString("yyyy-MM-dd"),
+            ToDate = context.ToDate.ToString("yyyy-MM-dd"),
+            Tolerance = tolerance
+        }, cancellationToken: cancellationToken));
 
         foreach (var e in entries)
         {

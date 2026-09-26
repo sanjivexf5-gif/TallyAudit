@@ -31,11 +31,11 @@ public class DuplicateRepository : IDuplicateRepository
         const string sql = @"
             INSERT INTO Exceptions (
                 Id, CompanyId, RuleId, RuleName, Category, Severity, VoucherId, LedgerId,
-                VoucherNumber, VoucherDate, FlaggedAmount, Explanation, EvidenceJson, Status
+                VoucherNumber, VoucherDate, FlaggedAmount, Explanation, EvidenceJson, Status, DetectedAt
             )
             VALUES (
                 @MatchId, @CompanyId, @RuleId, @RuleName, @Category, @Severity, @VoucherId, @LedgerId,
-                @VoucherNumber, @VoucherDate, @FlaggedAmount, @Explanation, @EvidenceJson, @Status
+                @VoucherNumber, @VoucherDate, @FlaggedAmount, @Explanation, @EvidenceJson, @Status, @DetectedAt
             )
             ON CONFLICT(Id) DO UPDATE SET
                 Explanation = excluded.Explanation,
@@ -72,7 +72,8 @@ public class DuplicateRepository : IDuplicateRepository
                 FlaggedAmount = Math.Abs(pair.PotentialDuplicate.TotalAmount),
                 pair.Explanation,
                 pair.EvidenceJson,
-                Status = pair.ReviewStatus.ToString()
+                Status = pair.ReviewStatus.ToString(),
+                DetectedAt = DateTime.UtcNow
             }, tx, cancellationToken: cancellationToken));
         }
 

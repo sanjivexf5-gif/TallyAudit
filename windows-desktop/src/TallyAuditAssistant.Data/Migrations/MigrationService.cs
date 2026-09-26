@@ -260,6 +260,7 @@ public class MigrationService : IMigrationService
                 AuditorNote TEXT,
                 AuditorAssignedTo TEXT,
                 FlaggedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                DetectedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
                 ReviewedAt DATETIME
             );
 
@@ -455,6 +456,22 @@ public class MigrationService : IMigrationService
                 {
                     await conn.ExecuteAsync(
                         new CommandDefinition("ALTER TABLE Ledgers ADD COLUMN TdsRate DECIMAL(5,2);", transaction: tx, cancellationToken: ct));
+                }
+            });
+
+        yield return new MigrationDefinition(
+            "007_AddDetectedAtToExceptions",
+            "1.6.0",
+            "Ensure DetectedAt column exists on Exceptions table",
+            "SELECT 1;",
+            async (conn, tx, ct) =>
+            {
+                var columns = await conn.QueryAsync<string>(
+                    new CommandDefinition("SELECT name FROM pragma_table_info('Exceptions');", transaction: tx, cancellationToken: ct));
+                if (!columns.Contains("DetectedAt", StringComparer.OrdinalIgnoreCase))
+                {
+                    await conn.ExecuteAsync(
+                        new CommandDefinition("ALTER TABLE Exceptions ADD COLUMN DetectedAt DATETIME DEFAULT CURRENT_TIMESTAMP;", transaction: tx, cancellationToken: ct));
                 }
             });
     }

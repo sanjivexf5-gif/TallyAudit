@@ -111,6 +111,11 @@ public class TdsRepository : ITdsRepository, ITdsExceptionService
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
         using var tx = connection.BeginTransaction();
 
+        const string ensureRuleSql = @"
+            INSERT OR IGNORE INTO AuditRules (RuleId, Category, Name, Description, Severity, SuggestedReview, Version, IsEnabled)
+            VALUES (@RuleId, 2, @RuleName, 'TDS Statutory Audit Rule', 3, 'Review TDS deduction', '1.0.0', 1);
+        ";
+
         const string sql = @"
             INSERT INTO Exceptions (
                 Id, CompanyId, RuleId, RuleName, Category, Severity, VoucherId, LedgerId,
@@ -128,6 +133,8 @@ public class TdsRepository : ITdsRepository, ITdsExceptionService
 
         foreach (var r in results)
         {
+            await connection.ExecuteAsync(new CommandDefinition(ensureRuleSql, new { RuleId = r.RuleId, RuleName = r.RuleName }, tx, cancellationToken: cancellationToken));
+
             await connection.ExecuteAsync(new CommandDefinition(sql, new
             {
                 r.ResultId,

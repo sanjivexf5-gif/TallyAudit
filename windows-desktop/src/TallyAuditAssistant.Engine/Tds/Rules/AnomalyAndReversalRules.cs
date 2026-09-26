@@ -89,14 +89,14 @@ public class UnusualTdsRatesRule : BaseTdsRule
     {
         Parameters = new Dictionary<string, object>
         {
-            { "ValidRates", "0.1,1,2,3.75,5,7.5,10,20,30" }
+            { "ValidRates", "0.1,1,2,3.75,5,10,20,30" }
         };
     }
 
     public override async Task<IReadOnlyList<TdsCheckResult>> EvaluateAsync(TdsAuditContext context, CancellationToken cancellationToken = default)
     {
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
-        var validRatesStr = GetParam("ValidRates", "0.1,1,2,3.75,5,7.5,10,20,30");
+        var validRatesStr = GetParam("ValidRates", "0.1,1,2,3.75,5,10,20,30");
         var validRates = validRatesStr.Split(',').Select(s => decimal.TryParse(s.Trim(), out var v) ? v : -1).Where(v => v >= 0).ToHashSet();
 
         const string sql = @"
