@@ -50,37 +50,43 @@ public class TaxableValueVsTaxAmountRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            decimal? rateNullable = r.GstRate;
+            string? voucherId = GetString(r, "VoucherId");
+            string? voucherNumber = GetString(r, "VoucherNumber");
+            DateTime? voucherDate = GetDateTime(r, "VoucherDate");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            string? partyName = GetString(r, "PartyLedgerName");
+            decimal? rateNullable = GetNullableDecimal(r, "GstRate");
+
             if (!rateNullable.HasValue || rateNullable.Value <= 0)
             {
                 results.Add(CreateUnableToDetermine(
                     context.CompanyId,
                     "Tax rate is not explicitly declared on master heads for voucher; unable to compute expected tax.",
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName,
-                    partyName: r.PartyLedgerName
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
+                    voucherTypeName: voucherTypeName,
+                    partyName: partyName
                 ));
                 continue;
             }
 
             decimal rate = rateNullable.Value;
-            decimal baseAmt = r.TaxableBase;
-            decimal bookedTax = r.BookedTax;
+            decimal baseAmt = GetDecimal(r, "TaxableBase");
+            decimal bookedTax = GetDecimal(r, "BookedTax");
             decimal expectedTax = Math.Round(baseAmt * (rate / 100m), 2);
             decimal diff = Math.Abs(bookedTax - expectedTax);
 
-            if (diff > tolRs && (diff / expectedTax * 100m) > (decimal)tolPct)
+            if (diff > tolRs && (expectedTax == 0 ? diff > tolRs : (diff / expectedTax * 100m) > (decimal)tolPct))
             {
-                var exp = $"Flagged because booked tax of {bookedTax:C2} on voucher {r.VoucherNumber} deviates by {diff:C2} from expected tax of {expectedTax:C2} ({rate}% on base {baseAmt:C2}), exceeding allowable tolerance.";
+                var exp = $"Flagged because booked tax of {bookedTax:C2} on voucher {voucherNumber} deviates by {diff:C2} from expected tax of {expectedTax:C2} ({rate}% on base {baseAmt:C2}), exceeding allowable tolerance.";
                 results.Add(CreateException(
                     context.CompanyId, exp, Severity,
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName,
-                    partyName: r.PartyLedgerName,
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
+                    voucherTypeName: voucherTypeName,
+                    partyName: partyName,
                     taxableAmount: baseAmt,
                     taxAmount: bookedTax,
                     evidence: new { TaxableBase = baseAmt, AppliedRate = rate, ExpectedTax = expectedTax, BookedTax = bookedTax, Variance = diff }
@@ -113,7 +119,7 @@ public class GstRateConsistencyRule : BaseGstRule
     {
         var rawRates = GetParam("StandardRates", "0,0.1,0.25,1.5,3,5,6,12,18,28");
         var standardRates = rawRates.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(s => double.TryParse(s, out var v) ? v : -1.0)
+            .Select(s => decimal.TryParse(s, out var v) ? v : -1m)
             .Where(v => v >= 0)
             .ToHashSet();
 
@@ -130,17 +136,17 @@ public class GstRateConsistencyRule : BaseGstRule
 
         foreach (var l in ledgers)
         {
-            decimal? rate = l.GstRate;
+            string? name = GetString(l, "Name");
+            decimal? rate = GetNullableDecimal(l, "GstRate");
             if (!rate.HasValue) continue;
 
-            double val = (double)rate.Value;
-            if (!standardRates.Contains(val))
+            if (!standardRates.Contains(rate.Value))
             {
-                var exp = $"Flagged because ledger '{l.Name}' has a non-standard GST rate of {val}%. Standard statutory tariff rates are: {rawRates}%.";
+                var exp = $"Flagged because ledger '{name}' has a non-standard GST rate of {rate.Value}%. Standard statutory tariff rates are: {rawRates}%.";
                 results.Add(CreateException(
                     context.CompanyId, exp, Severity,
-                    partyName: l.Name,
-                    evidence: new { LedgerName = l.Name, ConfiguredRate = val, AllowedRates = rawRates }
+                    partyName: name,
+                    evidence: new { LedgerName = name, ConfiguredRate = rate.Value, AllowedRates = rawRates }
                 ));
             }
         }
@@ -170,7 +176,7 @@ public class UnusualTaxRatesRule : BaseGstRule
     {
         var raw = GetParam("PermittedRates", "0,0.1,0.25,1.5,3,5,6,12,18,28");
         var permitted = raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(s => double.TryParse(s, out var v) ? v : -1.0)
+            .Select(s => decimal.TryParse(s, out var v) ? v : -1m)
             .Where(v => v >= 0)
             .ToHashSet();
 
@@ -190,19 +196,28 @@ public class UnusualTaxRatesRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            double rate = (double)r.GstRate;
-            if (!permitted.Contains(rate))
+            string? voucherId = GetString(r, "VoucherId");
+            string? voucherNumber = GetString(r, "VoucherNumber");
+            DateTime? voucherDate = GetDateTime(r, "VoucherDate");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            string? partyName = GetString(r, "PartyLedgerName");
+            string? ledgerName = GetString(r, "LedgerName");
+            decimal? rateNullable = GetNullableDecimal(r, "GstRate");
+            decimal taxableAmount = GetDecimal(r, "TotalAmount");
+
+            if (rateNullable.HasValue && !permitted.Contains(rateNullable.Value))
             {
-                var exp = $"Flagged because voucher {r.VoucherNumber} uses ledger '{r.LedgerName}' configured with an unusual tax rate of {rate}%.";
+                decimal rate = rateNullable.Value;
+                var exp = $"Flagged because voucher {voucherNumber} uses ledger '{ledgerName}' configured with an unusual tax rate of {rate}%.";
                 results.Add(CreateException(
                     context.CompanyId, exp, Severity,
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName,
-                    partyName: r.PartyLedgerName,
-                    taxableAmount: r.TotalAmount,
-                    evidence: new { VoucherNumber = r.VoucherNumber, Ledger = r.LedgerName, Rate = rate }
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
+                    voucherTypeName: voucherTypeName,
+                    partyName: partyName,
+                    taxableAmount: taxableAmount,
+                    evidence: new { VoucherNumber = voucherNumber, Ledger = ledgerName, Rate = rate }
                 ));
             }
         }

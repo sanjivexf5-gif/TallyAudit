@@ -46,8 +46,13 @@ public class PossibleRcmExceptionsRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            string entryLedger = (string)r.EntryLedger;
-            string party = (string)(r.PartyLedgerName ?? "");
+            string? voucherId = GetString(r, "VoucherId");
+            string? voucherNumber = GetString(r, "VoucherNumber");
+            DateTime? voucherDate = GetDateTime(r, "VoucherDate");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            string party = GetString(r, "PartyLedgerName") ?? "";
+            string entryLedger = GetString(r, "EntryLedger") ?? "";
+            decimal entryAmount = GetDecimal(r, "EntryAmount");
 
             bool matchesRcm = keywords.Any(k => 
                 entryLedger.IndexOf(k, StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -55,16 +60,16 @@ public class PossibleRcmExceptionsRule : BaseGstRule
 
             if (matchesRcm)
             {
-                var exp = $"Flagged because inward transaction {r.VoucherNumber} includes '{entryLedger}' ({r.EntryAmount:C2}) which matches notified RCM categories (keywords: {rawKeywords}) requiring verification of reverse charge tax liability under Section 9(3).";
+                var exp = $"Flagged because inward transaction {voucherNumber} includes '{entryLedger}' ({entryAmount:C2}) which matches notified RCM categories (keywords: {rawKeywords}) requiring verification of reverse charge tax liability under Section 9(3).";
                 results.Add(CreateException(
                     context.CompanyId, exp, Severity,
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName,
-                    partyName: r.PartyLedgerName,
-                    taxableAmount: r.EntryAmount,
-                    evidence: new { Category = "Notified RCM Head", ExpenseHead = entryLedger, Amount = r.EntryAmount }
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
+                    voucherTypeName: voucherTypeName,
+                    partyName: party,
+                    taxableAmount: entryAmount,
+                    evidence: new { Category = "Notified RCM Head", ExpenseHead = entryLedger, Amount = entryAmount }
                 ));
             }
         }
@@ -105,11 +110,14 @@ public class GstLedgerMappingIssuesRule : BaseGstRule
 
         foreach (var l in ledgers)
         {
-            var exp = $"Flagged because GST duty ledger '{l.Name}' is grouped under '{l.ParentGroup}' instead of the standard 'Duties & Taxes' hierarchy.";
+            string name = GetString(l, "Name") ?? "";
+            string parentGroup = GetString(l, "ParentGroup") ?? "";
+
+            var exp = $"Flagged because GST duty ledger '{name}' is grouped under '{parentGroup}' instead of the standard 'Duties & Taxes' hierarchy.";
             results.Add(CreateException(
                 context.CompanyId, exp, Severity,
-                partyName: l.Name,
-                evidence: new { Ledger = l.Name, CurrentGroup = l.ParentGroup, RequiredGroup = "Duties & Taxes" }
+                partyName: name,
+                evidence: new { Ledger = name, CurrentGroup = parentGroup, RequiredGroup = "Duties & Taxes" }
             ));
         }
 
@@ -152,16 +160,25 @@ public class TaxLedgerPostingAnomaliesRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            var exp = $"Flagged because journal voucher {r.VoucherNumber} contains only standalone tax head debits/credits without an underlying taxable supply transaction.";
+            string? voucherId = GetString(r, "VoucherId");
+            string? voucherNumber = GetString(r, "VoucherNumber");
+            DateTime? voucherDate = GetDateTime(r, "VoucherDate");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            string? partyName = GetString(r, "PartyLedgerName");
+            decimal totalAmount = GetDecimal(r, "TotalAmount");
+            long entryCount = GetLong(r, "EntryCount");
+            long taxEntriesCount = GetLong(r, "TaxEntriesCount");
+
+            var exp = $"Flagged because journal voucher {voucherNumber} contains only standalone tax head debits/credits without an underlying taxable supply transaction.";
             results.Add(CreateException(
                 context.CompanyId, exp, Severity,
-                voucherId: r.VoucherId,
-                voucherNumber: r.VoucherNumber,
-                voucherDate: r.VoucherDate,
-                voucherTypeName: r.VoucherTypeName,
-                partyName: r.PartyLedgerName,
-                taxAmount: r.TotalAmount,
-                evidence: new { Voucher = r.VoucherNumber, TotalEntries = r.EntryCount, TaxEntries = r.TaxEntriesCount }
+                voucherId: voucherId,
+                voucherNumber: voucherNumber,
+                voucherDate: voucherDate,
+                voucherTypeName: voucherTypeName,
+                partyName: partyName,
+                taxAmount: totalAmount,
+                evidence: new { Voucher = voucherNumber, TotalEntries = entryCount, TaxEntries = taxEntriesCount }
             ));
         }
 
@@ -207,17 +224,23 @@ public class RoundOffAnomaliesRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            decimal amt = r.RoundAmount;
-            var exp = $"Flagged because round-off amount of {amt:C2} on voucher {r.VoucherNumber} exceeds standard fractional tolerance limit of {maxLimit:C2}. Section 170 allows rounding off to nearest rupee.";
+            string? voucherId = GetString(r, "VoucherId");
+            string? voucherNumber = GetString(r, "VoucherNumber");
+            DateTime? voucherDate = GetDateTime(r, "VoucherDate");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            string? partyName = GetString(r, "PartyLedgerName");
+            decimal amt = GetDecimal(r, "RoundAmount");
+
+            var exp = $"Flagged because round-off amount of {amt:C2} on voucher {voucherNumber} exceeds standard fractional tolerance limit of {maxLimit:C2}. Section 170 allows rounding off to nearest rupee.";
             results.Add(CreateException(
                 context.CompanyId, exp, Severity,
-                voucherId: r.VoucherId,
-                voucherNumber: r.VoucherNumber,
-                voucherDate: r.VoucherDate,
-                voucherTypeName: r.VoucherTypeName,
-                partyName: r.PartyLedgerName,
+                voucherId: voucherId,
+                voucherNumber: voucherNumber,
+                voucherDate: voucherDate,
+                voucherTypeName: voucherTypeName,
+                partyName: partyName,
                 taxableAmount: amt,
-                evidence: new { Voucher = r.VoucherNumber, RoundOffAmount = amt, PermittedMax = maxLimit }
+                evidence: new { Voucher = voucherNumber, RoundOffAmount = amt, PermittedMax = maxLimit }
             ));
         }
 

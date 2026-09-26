@@ -46,21 +46,26 @@ public class CgstSgstIgstConsistencyRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            decimal cgst = r.Cgst;
-            decimal sgst = r.Sgst;
-            decimal igst = r.Igst;
+            string? voucherId = GetString(r, "VoucherId");
+            string? voucherNumber = GetString(r, "VoucherNumber");
+            DateTime? voucherDate = GetDateTime(r, "VoucherDate");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            string? partyName = GetString(r, "PartyLedgerName");
+            decimal cgst = GetDecimal(r, "Cgst");
+            decimal sgst = GetDecimal(r, "Sgst");
+            decimal igst = GetDecimal(r, "Igst");
 
             // Scenario A: IGST mixed with CGST or SGST
             if (igst > 0 && (cgst > 0 || sgst > 0))
             {
-                var exp = $"Flagged because voucher {r.VoucherNumber} inappropriately combines IGST ({igst:C2}) with CGST ({cgst:C2}) / SGST ({sgst:C2}) on the same document.";
+                var exp = $"Flagged because voucher {voucherNumber} inappropriately combines IGST ({igst:C2}) with CGST ({cgst:C2}) / SGST ({sgst:C2}) on the same document.";
                 results.Add(CreateException(
                     context.CompanyId, exp, Severity,
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName,
-                    partyName: r.PartyLedgerName,
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
+                    voucherTypeName: voucherTypeName,
+                    partyName: partyName,
                     cgst: cgst,
                     sgst: sgst,
                     igst: igst,
@@ -73,14 +78,14 @@ public class CgstSgstIgstConsistencyRule : BaseGstRule
                 decimal diff = Math.Abs(cgst - sgst);
                 if (diff > tolerance)
                 {
-                    var exp = $"Flagged because CGST ({cgst:C2}) and SGST ({sgst:C2}) on voucher {r.VoucherNumber} have a variance of {diff:C2}, exceeding the allowable rounding tolerance of {tolerance:C2}. Central and State tax components must be equal.";
+                    var exp = $"Flagged because CGST ({cgst:C2}) and SGST ({sgst:C2}) on voucher {voucherNumber} have a variance of {diff:C2}, exceeding the allowable rounding tolerance of {tolerance:C2}. Central and State tax components must be equal.";
                     results.Add(CreateException(
                         context.CompanyId, exp, SeverityLevel.High,
-                        voucherId: r.VoucherId,
-                        voucherNumber: r.VoucherNumber,
-                        voucherDate: r.VoucherDate,
-                        voucherTypeName: r.VoucherTypeName,
-                        partyName: r.PartyLedgerName,
+                        voucherId: voucherId,
+                        voucherNumber: voucherNumber,
+                        voucherDate: voucherDate,
+                        voucherTypeName: voucherTypeName,
+                        partyName: partyName,
                         cgst: cgst,
                         sgst: sgst,
                         evidence: new { CGST = cgst, SGST = sgst, Discrepancy = diff, AllowedTolerance = tolerance }
@@ -155,36 +160,42 @@ public class InterstateIntrastateTaxConsistencyRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            string? partyGstin = r.PartyGstin;
+            string? voucherId = GetString(r, "VoucherId");
+            string? voucherNumber = GetString(r, "VoucherNumber");
+            DateTime? voucherDate = GetDateTime(r, "VoucherDate");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            string? partyName = GetString(r, "PartyLedgerName");
+            string? partyGstin = GetString(r, "PartyGstin");
+
             if (string.IsNullOrWhiteSpace(partyGstin) || partyGstin.Length < 2)
             {
                 results.Add(CreateUnableToDetermine(
                     context.CompanyId,
-                    $"Party '{r.PartyLedgerName}' lacks a valid 15-digit GSTIN with state code prefix; cannot determine interstate/intrastate classification.",
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName,
-                    partyName: r.PartyLedgerName
+                    $"Party '{partyName}' lacks a valid 15-digit GSTIN with state code prefix; cannot determine interstate/intrastate classification.",
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
+                    voucherTypeName: voucherTypeName,
+                    partyName: partyName
                 ));
                 continue;
             }
 
             string partyState = partyGstin.Substring(0, 2);
             bool isIntrastate = string.Equals(compState, partyState, StringComparison.OrdinalIgnoreCase);
-            decimal dualTax = r.DualTax;
-            decimal igst = r.Igst;
+            decimal dualTax = GetDecimal(r, "DualTax");
+            decimal igst = GetDecimal(r, "Igst");
 
             if (isIntrastate && igst > 0 && dualTax == 0)
             {
                 var exp = $"Flagged because supplier and recipient are both located in state code '{compState}' (Intra-state), but IGST of {igst:C2} was charged instead of CGST + SGST.";
                 results.Add(CreateException(
                     context.CompanyId, exp, Severity,
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName,
-                    partyName: r.PartyLedgerName,
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
+                    voucherTypeName: voucherTypeName,
+                    partyName: partyName,
                     partyGstin: partyGstin,
                     igst: igst,
                     evidence: new { CompanyState = compState, CounterpartyState = partyState, Issue = "IGST applied on Intrastate Supply" }
@@ -195,11 +206,11 @@ public class InterstateIntrastateTaxConsistencyRule : BaseGstRule
                 var exp = $"Flagged because supplier state '{compState}' differs from recipient state '{partyState}' (Inter-state), but CGST/SGST of {dualTax:C2} was charged instead of IGST.";
                 results.Add(CreateException(
                     context.CompanyId, exp, Severity,
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName,
-                    partyName: r.PartyLedgerName,
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
+                    voucherTypeName: voucherTypeName,
+                    partyName: partyName,
                     partyGstin: partyGstin,
                     cgst: dualTax / 2,
                     sgst: dualTax / 2,
@@ -263,19 +274,24 @@ public class PlaceOfSupplyInconsistencyRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            string? partyState = r.PartyState;
-            string? partyGstin = r.PartyGstin;
+            string? voucherId = GetString(r, "VoucherId");
+            string? voucherNumber = GetString(r, "VoucherNumber");
+            DateTime? voucherDate = GetDateTime(r, "VoucherDate");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            string? partyName = GetString(r, "PartyLedgerName");
+            string? partyState = GetString(r, "PartyState");
+            string? partyGstin = GetString(r, "PartyGstin");
 
             if (string.IsNullOrWhiteSpace(partyState) && (string.IsNullOrWhiteSpace(partyGstin) || partyGstin.Length < 2))
             {
                 results.Add(CreateUnableToDetermine(
                     context.CompanyId,
                     "Place of supply state and recipient state are not specified on voucher or party master in Tally.",
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName,
-                    partyName: r.PartyLedgerName
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
+                    voucherTypeName: voucherTypeName,
+                    partyName: partyName
                 ));
             }
         }

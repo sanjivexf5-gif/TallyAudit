@@ -44,23 +44,29 @@ public class GstCreditDebitNoteAnomalyRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            string? refNum = r.ReferenceNumber;
-            DateTime vDate = r.VoucherDate;
+            string? voucherId = GetString(r, "VoucherId");
+            string? voucherNumber = GetString(r, "VoucherNumber");
+            string? refNum = GetString(r, "ReferenceNumber");
+            DateTime? vDate = GetDateTime(r, "VoucherDate");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            string? partyName = GetString(r, "PartyLedgerName");
+            string? partyGstin = GetString(r, "PartyGstin");
+            decimal totalAmount = GetDecimal(r, "TotalAmount");
 
             // Anomaly 1: Missing original reference invoice
             if (string.IsNullOrWhiteSpace(refNum))
             {
-                var exp = $"Flagged because {r.VoucherTypeName} '{r.VoucherNumber}' of {r.TotalAmount:C2} lacks an original supplier/sales tax invoice reference link. Under Section 34, credit/debit notes must reference the original invoice.";
+                var exp = $"Flagged because {voucherTypeName} '{voucherNumber}' of {totalAmount:C2} lacks an original supplier/sales tax invoice reference link. Under Section 34, credit/debit notes must reference the original invoice.";
                 results.Add(CreateException(
                     context.CompanyId, exp, Severity,
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName,
-                    partyName: r.PartyLedgerName,
-                    partyGstin: r.PartyGstin,
-                    taxableAmount: r.TotalAmount,
-                    evidence: new { VoucherType = r.VoucherTypeName, Number = r.VoucherNumber, MissingField = "Original Tax Invoice Reference" }
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: vDate,
+                    voucherTypeName: voucherTypeName,
+                    partyName: partyName,
+                    partyGstin: partyGstin,
+                    taxableAmount: totalAmount,
+                    evidence: new { VoucherType = voucherTypeName, Number = voucherNumber, MissingField = "Original Tax Invoice Reference" }
                 ));
             }
         }
@@ -104,12 +110,18 @@ public class DuplicateGstInvoiceNumberRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            var exp = $"Flagged because supplier invoice reference '{r.ReferenceNumber}' for vendor '{r.PartyLedgerName}' appears {r.Occurrences} times across vouchers ({r.VoucherNumbers}).";
+            string? partyName = GetString(r, "PartyLedgerName");
+            string? refNum = GetString(r, "ReferenceNumber");
+            long occurrences = GetLong(r, "Occurrences");
+            decimal totalSum = GetDecimal(r, "TotalSum");
+            string? voucherNumbers = GetString(r, "VoucherNumbers");
+
+            var exp = $"Flagged because supplier invoice reference '{refNum}' for vendor '{partyName}' appears {occurrences} times across vouchers ({voucherNumbers}).";
             results.Add(CreateException(
                 context.CompanyId, exp, Severity,
-                partyName: r.PartyLedgerName,
-                taxableAmount: r.TotalSum,
-                evidence: new { Party = r.PartyLedgerName, InvoiceRef = r.ReferenceNumber, Count = r.Occurrences, Vouchers = r.VoucherNumbers }
+                partyName: partyName,
+                taxableAmount: totalSum,
+                evidence: new { Party = partyName, InvoiceRef = refNum, Count = occurrences, Vouchers = voucherNumbers }
             ));
         }
 
@@ -151,15 +163,23 @@ public class DuplicateGstTransactionRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            var exp = $"Flagged because {r.DuplicatesCount} separate {r.VoucherTypeName} vouchers ({r.Numbers}) share identical GSTIN '{r.PartyGstin}', date, and amount of {r.TotalAmount:C2}.";
+            string? partyGstin = GetString(r, "PartyGstin");
+            DateTime? voucherDate = GetDateTime(r, "VoucherDate");
+            decimal totalAmount = GetDecimal(r, "TotalAmount");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            long duplicatesCount = GetLong(r, "DuplicatesCount");
+            string? numbers = GetString(r, "Numbers");
+            string? partyName = GetString(r, "PartyLedgerName");
+
+            var exp = $"Flagged because {duplicatesCount} separate {voucherTypeName} vouchers ({numbers}) share identical GSTIN '{partyGstin}', date, and amount of {totalAmount:C2}.";
             results.Add(CreateException(
                 context.CompanyId, exp, Severity,
-                voucherDate: r.VoucherDate,
-                voucherTypeName: r.VoucherTypeName,
-                partyName: r.PartyLedgerName,
-                partyGstin: r.PartyGstin,
-                taxableAmount: r.TotalAmount,
-                evidence: new { GSTIN = r.PartyGstin, Amount = r.TotalAmount, Date = r.VoucherDate, Vouchers = r.Numbers }
+                voucherDate: voucherDate,
+                voucherTypeName: voucherTypeName,
+                partyName: partyName,
+                partyGstin: partyGstin,
+                taxableAmount: totalAmount,
+                evidence: new { GSTIN = partyGstin, Amount = totalAmount, Date = voucherDate, Vouchers = numbers }
             ));
         }
 
@@ -202,17 +222,25 @@ public class NegativeTaxableAmountRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            var exp = $"Flagged because invoice {r.VoucherNumber} ({r.VoucherTypeName}) has a negative total amount of {r.TotalAmount:C2}. Negative adjustments must be issued via statutory Credit/Debit Notes.";
+            string? voucherId = GetString(r, "VoucherId");
+            string? voucherNumber = GetString(r, "VoucherNumber");
+            DateTime? voucherDate = GetDateTime(r, "VoucherDate");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            string? partyName = GetString(r, "PartyLedgerName");
+            string? partyGstin = GetString(r, "PartyGstin");
+            decimal totalAmount = GetDecimal(r, "TotalAmount");
+
+            var exp = $"Flagged because invoice {voucherNumber} ({voucherTypeName}) has a negative total amount of {totalAmount:C2}. Negative adjustments must be issued via statutory Credit/Debit Notes.";
             results.Add(CreateException(
                 context.CompanyId, exp, Severity,
-                voucherId: r.VoucherId,
-                voucherNumber: r.VoucherNumber,
-                voucherDate: r.VoucherDate,
-                voucherTypeName: r.VoucherTypeName,
-                partyName: r.PartyLedgerName,
-                partyGstin: r.PartyGstin,
-                taxableAmount: r.TotalAmount,
-                evidence: new { Invoice = r.VoucherNumber, NegativeAmount = r.TotalAmount, Type = r.VoucherTypeName }
+                voucherId: voucherId,
+                voucherNumber: voucherNumber,
+                voucherDate: voucherDate,
+                voucherTypeName: voucherTypeName,
+                partyName: partyName,
+                partyGstin: partyGstin,
+                taxableAmount: totalAmount,
+                evidence: new { Invoice = voucherNumber, NegativeAmount = totalAmount, Type = voucherTypeName }
             ));
         }
 

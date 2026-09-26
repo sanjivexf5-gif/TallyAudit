@@ -385,6 +385,7 @@ public class SyncManager : ISyncManager
 
     private async Task CheckPauseAsync(CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
         if (_isPaused)
         {
             await _pauseSemaphore.WaitAsync(ct);

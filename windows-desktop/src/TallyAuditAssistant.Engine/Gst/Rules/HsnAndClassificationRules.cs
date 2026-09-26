@@ -41,14 +41,18 @@ public class HsnSacPresenceRule : BaseGstRule
 
         foreach (var l in ledgers)
         {
-            string? code = (string?)l.HsnCode;
+            string name = GetString(l, "Name") ?? "";
+            string parentGroup = GetString(l, "ParentGroup") ?? "";
+            decimal? gstRate = GetNullableDecimal(l, "GstRate");
+            string? code = GetString(l, "HsnCode");
+
             if (string.IsNullOrWhiteSpace(code))
             {
-                var exp = $"Flagged because taxable master head '{l.Name}' (Parent: {l.ParentGroup}, Rate: {l.GstRate ?? 0}%) has no HSN/SAC tariff classification code specified.";
+                var exp = $"Flagged because taxable master head '{name}' (Parent: {parentGroup}, Rate: {gstRate ?? 0m}%) has no HSN/SAC tariff classification code specified.";
                 results.Add(CreateException(
                     context.CompanyId, exp, Severity,
-                    partyName: l.Name,
-                    evidence: new { Ledger = l.Name, ParentGroup = l.ParentGroup, Rate = l.GstRate, HSN = "Missing" }
+                    partyName: name,
+                    evidence: new { Ledger = name, ParentGroup = parentGroup, Rate = gstRate, HSN = "Missing" }
                 ));
             }
             else
@@ -56,11 +60,11 @@ public class HsnSacPresenceRule : BaseGstRule
                 string clean = code.Trim();
                 if (clean.Length < minDigits || !clean.All(char.IsDigit))
                 {
-                    var exp = $"Flagged because HSN/SAC code '{clean}' for ledger '{l.Name}' has only {clean.Length} digits, which is less than the statutory minimum of {minDigits} digits.";
+                    var exp = $"Flagged because HSN/SAC code '{clean}' for ledger '{name}' has only {clean.Length} digits, which is less than the statutory minimum of {minDigits} digits.";
                     results.Add(CreateException(
                         context.CompanyId, exp, SeverityLevel.Low,
-                        partyName: l.Name,
-                        evidence: new { Ledger = l.Name, RecordedCode = clean, Length = clean.Length, RequiredMin = minDigits }
+                        partyName: name,
+                        evidence: new { Ledger = name, RecordedCode = clean, Length = clean.Length, RequiredMin = minDigits }
                     ));
                 }
             }

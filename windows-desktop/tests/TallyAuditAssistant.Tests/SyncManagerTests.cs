@@ -115,16 +115,16 @@ public class SyncManagerTests
         mockMaster.Setup(m => m.GetLedgersAsync(It.IsAny<string>(), It.IsAny<long?>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<TallyLedgerDto>());
 
         var mockVoucher = new Mock<ITallyVoucherService>();
-        async IAsyncEnumerable<TallyVoucherDto> SlowMockStream()
+        async IAsyncEnumerable<TallyVoucherDto> SlowMockStream([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken token = default)
         {
             for (int i = 0; i < 50; i++)
             {
-                await Task.Delay(50);
+                await Task.Delay(50, token);
                 yield return new TallyVoucherDto { VoucherNumber = $"V-{i}", TotalAmount = 100 };
             }
         }
         mockVoucher.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                   .Returns(SlowMockStream());
+                   .Returns((string c, DateTime f, DateTime t, int s, CancellationToken token) => SlowMockStream(token));
 
         var syncManager = new SyncManager(
             mockConn.Object,

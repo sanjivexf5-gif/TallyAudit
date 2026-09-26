@@ -44,7 +44,14 @@ public class GstinFormatCheckRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            string gstin = ((string)r.PartyGstin ?? "").Trim().ToUpper();
+            string? voucherId = GetString(r, "VoucherId");
+            string? voucherNumber = GetString(r, "VoucherNumber");
+            DateTime? voucherDate = GetDateTime(r, "VoucherDate");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            string? partyName = GetString(r, "PartyLedgerName");
+            decimal? totalAmount = GetNullableDecimal(r, "TotalAmount");
+            string gstin = (GetString(r, "PartyGstin") ?? "").Trim().ToUpper();
+
             if (string.IsNullOrEmpty(gstin))
             {
                 continue;
@@ -52,16 +59,16 @@ public class GstinFormatCheckRule : BaseGstRule
 
             if (!regex.IsMatch(gstin))
             {
-                var exp = $"Flagged because party '{r.PartyLedgerName}' on voucher {r.VoucherNumber} has an invalid GSTIN '{gstin}' that does not conform to the 15-digit statutory regex pattern ({pattern}).";
+                var exp = $"Flagged because party '{partyName}' on voucher {voucherNumber} has an invalid GSTIN '{gstin}' that does not conform to the 15-digit statutory regex pattern ({pattern}).";
                 results.Add(CreateException(
                     context.CompanyId, exp, Severity,
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName,
-                    partyName: r.PartyLedgerName,
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
+                    voucherTypeName: voucherTypeName,
+                    partyName: partyName,
                     partyGstin: gstin,
-                    taxableAmount: r.TotalAmount,
+                    taxableAmount: totalAmount,
                     evidence: new { Pattern = pattern, RecordedGSTIN = gstin, Length = gstin.Length }
                 ));
             }
@@ -112,41 +119,46 @@ public class MissingGstinOnB2BRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            string type = (string)(r.VoucherTypeName ?? "");
+            string? voucherId = GetString(r, "VoucherId");
+            string? voucherNumber = GetString(r, "VoucherNumber");
+            DateTime? voucherDate = GetDateTime(r, "VoucherDate");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            string party = GetString(r, "PartyLedgerName") ?? "";
+            string? gstin = GetString(r, "PartyGstin");
+            decimal totalAmount = GetDecimal(r, "TotalAmount");
+
+            string type = voucherTypeName ?? "";
             bool isPurchase = type.IndexOf("Purchase", StringComparison.OrdinalIgnoreCase) >= 0;
             bool isSales = type.IndexOf("Sales", StringComparison.OrdinalIgnoreCase) >= 0;
 
             if ((isPurchase && !incPur) || (isSales && !incSale) || (!isPurchase && !isSales))
                 continue;
 
-            string party = (string)(r.PartyLedgerName ?? "");
-            string? gstin = (string?)r.PartyGstin;
-
             if (string.IsNullOrWhiteSpace(party))
             {
                 results.Add(CreateUnableToDetermine(
                     context.CompanyId,
                     "Party ledger is not identified on this commercial voucher, preventing B2B registration verification.",
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
+                    voucherTypeName: voucherTypeName
                 ));
                 continue;
             }
 
             if (string.IsNullOrWhiteSpace(gstin))
             {
-                var exp = $"Flagged because commercial voucher {r.VoucherNumber} of amount {r.TotalAmount:C2} is booked against party '{party}' which has no GSTIN recorded in the master ledger.";
+                var exp = $"Flagged because commercial voucher {voucherNumber} of amount {totalAmount:C2} is booked against party '{party}' which has no GSTIN recorded in the master ledger.";
                 results.Add(CreateException(
                     context.CompanyId, exp, Severity,
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName,
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
+                    voucherTypeName: voucherTypeName,
                     partyName: party,
-                    taxableAmount: r.TotalAmount,
-                    evidence: new { VoucherNumber = r.VoucherNumber, Party = party, TotalAmount = r.TotalAmount, Threshold = threshold }
+                    taxableAmount: totalAmount,
+                    evidence: new { VoucherNumber = voucherNumber, Party = party, TotalAmount = totalAmount, Threshold = threshold }
                 ));
             }
         }
@@ -194,9 +206,13 @@ public class GstRegistrationTypeInconsistencyRule : BaseGstRule
 
         foreach (var r in rows)
         {
-            string party = (string)r.PartyLedgerName;
-            string? gstin = (string?)r.PartyGstin;
-            decimal tax = r.TotalTaxCharged;
+            string? voucherId = GetString(r, "VoucherId");
+            string? voucherNumber = GetString(r, "VoucherNumber");
+            DateTime? voucherDate = GetDateTime(r, "VoucherDate");
+            string? voucherTypeName = GetString(r, "VoucherTypeName");
+            string party = GetString(r, "PartyLedgerName") ?? "";
+            string? gstin = GetString(r, "PartyGstin");
+            decimal tax = GetDecimal(r, "TotalTaxCharged");
 
             // Check: party name or group mentions composition dealer or unregistered, but tax was collected
             bool isCompositionParty = party.IndexOf("Composition", StringComparison.OrdinalIgnoreCase) >= 0;
@@ -204,13 +220,13 @@ public class GstRegistrationTypeInconsistencyRule : BaseGstRule
 
             if (isCompositionParty && tax > 0 && flagComp)
             {
-                var exp = $"Flagged because supplier '{party}' is flagged as a Composition dealer but voucher {r.VoucherNumber} includes tax collections of {tax:C2}. Under Section 10(4), composition dealers cannot collect GST.";
+                var exp = $"Flagged because supplier '{party}' is flagged as a Composition dealer but voucher {voucherNumber} includes tax collections of {tax:C2}. Under Section 10(4), composition dealers cannot collect GST.";
                 results.Add(CreateException(
                     context.CompanyId, exp, Severity,
-                    voucherId: r.VoucherId,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
-                    voucherTypeName: r.VoucherTypeName,
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
+                    voucherTypeName: voucherTypeName,
                     partyName: party,
                     partyGstin: gstin,
                     taxAmount: tax,

@@ -97,7 +97,7 @@ public abstract class BaseGstRule : IGstRule
         try { return Convert.ToInt64(val); } catch { return defaultVal; }
     }
 
-    protected GstCheckResult CreateException(
+    public GstCheckResult CreateException(
         string companyId,
         string explanation,
         SeverityLevel severity,
@@ -142,7 +142,7 @@ public abstract class BaseGstRule : IGstRule
         };
     }
 
-    protected GstCheckResult CreateUnableToDetermine(
+    public GstCheckResult CreateUnableToDetermine(
         string companyId,
         string reason,
         string? voucherId = null,
@@ -172,7 +172,7 @@ public abstract class BaseGstRule : IGstRule
         };
     }
 
-    protected GstCheckResult CreatePassed(
+    public GstCheckResult CreatePassed(
         string companyId,
         string? voucherId = null,
         string? voucherNumber = null,
