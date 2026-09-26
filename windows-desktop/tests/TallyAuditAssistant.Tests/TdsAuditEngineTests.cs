@@ -90,6 +90,13 @@ public class TdsAuditEngineTests : IAsyncLifetime
         await conn.ExecuteAsync(@"
             INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit)
             VALUES 
+            -- V1 entries: Freight 45,000 without TDS
+            ('E9', 'V1', 'Freight & Transport Charges', 45000, 1),
+
+            -- V2 entries: Technical consultancy 85,000 without PAN
+            ('E10', 'V2', 'Legal & Professional Fees', 85000, 1),
+            ('E11', 'V2', 'Unregistered Technical Experts', -85000, 0),
+
             -- V3 entries: Base 50,000, TDS 2,000
             ('E1', 'V3', 'Legal & Professional Fees', 50000, 1),
             ('E2', 'V3', 'TDS on Professional Fees @ 10% (194J)', -2000, 0),

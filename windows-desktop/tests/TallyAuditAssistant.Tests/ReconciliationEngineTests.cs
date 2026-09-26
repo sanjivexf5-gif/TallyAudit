@@ -57,7 +57,11 @@ public class ReconciliationEngineTests : IAsyncLifetime
             ('L7', @Comp, 'Input SGST Ledger', 'Duties & Taxes', NULL, NULL, 0.00, 18000.00, 'GST', NULL, 0),
 
             -- Cash and Bank Ledgers
-            ('L8', @Comp, 'HDFC Bank Accounts', 'Bank Accounts', NULL, NULL, 50000.00, 100000.00, NULL, NULL, 0);
+            ('L8', @Comp, 'HDFC Bank Accounts', 'Bank Accounts', NULL, NULL, 50000.00, 100000.00, NULL, NULL, 0),
+
+            -- TDS Expense and Liability Ledgers
+            ('L9', @Comp, 'Professional consulting services', 'Indirect Expenses', NULL, NULL, 0.00, 100000.00, NULL, NULL, 0),
+            ('L10', @Comp, 'TDS Professional Ledger', 'Duties & Taxes', NULL, NULL, 0.00, -500.00, 'TDS', NULL, 0);
         ", new { Comp = _companyId });
 
         // Seed vouchers representing distinct transaction flows

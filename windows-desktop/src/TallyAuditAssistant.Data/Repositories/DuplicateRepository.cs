@@ -23,6 +23,11 @@ public class DuplicateRepository : IDuplicateRepository
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
         using var tx = connection.BeginTransaction();
 
+        const string ensureRuleSql = @"
+            INSERT OR IGNORE INTO AuditRules (RuleId, Category, Name, Description, Severity, SuggestedReview, Version, IsEnabled)
+            VALUES (@RuleId, 6, @RuleName, 'Duplicate transaction detection', 3, 'Review duplicate transaction', '1.0.0', 1);
+        ";
+
         const string sql = @"
             INSERT INTO Exceptions (
                 Id, CompanyId, RuleId, RuleName, Category, Severity, VoucherId, LedgerId,
@@ -40,6 +45,11 @@ public class DuplicateRepository : IDuplicateRepository
 
         foreach (var pair in matchPairs)
         {
+            string ruleId = $"DUP-{pair.Tier}";
+            string ruleName = $"{pair.TierLabel} ({pair.ConfidenceScore:F0}%)";
+
+            await connection.ExecuteAsync(new CommandDefinition(ensureRuleSql, new { RuleId = ruleId, RuleName = ruleName }, tx, cancellationToken: cancellationToken));
+
             string severity = pair.Tier switch
             {
                 DuplicateConfidenceTier.ExactDuplicate => "High",
@@ -51,8 +61,8 @@ public class DuplicateRepository : IDuplicateRepository
             {
                 pair.MatchId,
                 pair.CompanyId,
-                RuleId = $"DUP-{pair.Tier}",
-                RuleName = $"{pair.TierLabel} ({pair.ConfidenceScore:F0}%)",
+                RuleId = ruleId,
+                RuleName = ruleName,
                 Category = $"Duplicate - {pair.VoucherCategory}",
                 Severity = severity,
                 VoucherId = pair.PotentialDuplicate.VoucherId,

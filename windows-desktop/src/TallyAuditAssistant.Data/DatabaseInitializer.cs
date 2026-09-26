@@ -229,6 +229,9 @@ public class DatabaseInitializer : IDatabaseInitializer
             ('ACC-001', 0, 'Negative Cash Balance on Transaction Date', 'Daily cumulative cash ledger balance falls below zero at end of transaction day.', 4, 'Check for unrecorded cash receipts or backdated payment vouchers.', '1.0.0', 1),
             ('ACC-002', 0, 'Direct Entry in Suspense Ledger', 'Vouchers posted directly to Suspense or Rounding Off accounts exceeding normal variance.', 2, 'Reclassify suspense entries to appropriate vendor or expense heads.', '1.0.0', 1),
             ('DUP-001', 6, 'Duplicate Supplier Bill Reference', 'Identical reference invoice number recorded more than once for the same supplier.', 3, 'Cross-check against vendor statement to ensure invoice is not double-booked.', '1.0.0', 1),
+            ('DUP-ExactDuplicate', 6, 'Exact Duplicate Transaction', 'Identical voucher number, date, amount, and party ledger.', 4, 'Verify whether transaction was double-posted.', '1.0.0', 1),
+            ('DUP-LikelyDuplicate', 6, 'Likely Duplicate Transaction', 'Similar voucher details recorded within close date proximity.', 3, 'Inspect supporting invoice documents.', '1.0.0', 1),
+            ('DUP-PossibleDuplicate', 6, 'Possible Duplicate Transaction', 'Matching amount and party with potential narrative variance.', 2, 'Review voucher entry audit trail.', '1.0.0', 1),
             ('ANO-001', 5, 'Unusual High-Value Round-Number Payment', 'Cash or bank disbursements in exact multiples of Rs.10,000 exceeding Rs.50,000.', 1, 'Review supporting vouchers and internal payment authorization.', '1.0.0', 1);
 
             INSERT OR IGNORE INTO Settings (Key, Value) VALUES ('TallyHost', 'localhost');

@@ -42,10 +42,11 @@ public class TrialBalanceConsistencyRule : BaseReconciliationRule
 
         foreach (var l in ledgers)
         {
-            decimal opening = l.OpeningBalance;
-            decimal closing = l.ClosingBalance;
-            decimal debits = l.TotalDebits;
-            decimal credits = l.TotalCredits;
+            string? lId = l.Id?.ToString();
+            decimal opening = Convert.ToDecimal(l.OpeningBalance);
+            decimal closing = Convert.ToDecimal(l.ClosingBalance);
+            decimal debits = Convert.ToDecimal(l.TotalDebits);
+            decimal credits = Convert.ToDecimal(l.TotalCredits);
 
             // In bookkeeping, Asset/Expense typically have debit balances, Liability/Equity/Income have credit balances.
             // A basic check is whether the net transactional movement reconciles with the net balance movement.
@@ -60,7 +61,7 @@ public class TrialBalanceConsistencyRule : BaseReconciliationRule
                     context.CompanyId,
                     explanation,
                     SeverityLevel.Medium,
-                    ledgerId: l.Id,
+                    ledgerId: lId,
                     flaggedAmount: diff,
                     evidenceObj: new
                     {
@@ -108,16 +109,21 @@ public class LedgerVoucherReconciliationRule : BaseReconciliationRule
 
         foreach (var v in emptyVouchers)
         {
-            var explanation = $"Potential exception: Commercial voucher {v.VoucherNumber} ({v.VoucherTypeName}) has no corresponding double-entry ledger postings.";
+            string? vId = v.Id?.ToString();
+            string? vNum = v.VoucherNumber?.ToString();
+            DateTime? vDate = v.VoucherDate != null ? (DateTime?)Convert.ToDateTime(v.VoucherDate) : null;
+            decimal? vAmt = v.TotalAmount != null ? (decimal?)Convert.ToDecimal(v.TotalAmount) : null;
+
+            var explanation = $"Potential exception: Commercial voucher {vNum} ({v.VoucherTypeName}) has no corresponding double-entry ledger postings.";
             results.Add(CreateReconciliationResult(
                 context.CompanyId,
                 explanation,
                 SeverityLevel.High,
-                voucherId: v.Id,
-                voucherNumber: v.VoucherNumber,
-                voucherDate: v.VoucherDate,
-                flaggedAmount: v.TotalAmount,
-                evidenceObj: new { v.VoucherNumber, v.VoucherTypeName, v.TotalAmount }
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
+                flaggedAmount: vAmt,
+                evidenceObj: new { VoucherNumber = vNum, v.VoucherTypeName, TotalAmount = vAmt }
             ));
         }
 
@@ -305,20 +311,23 @@ public class TdsExpenseVerificationRule : BaseReconciliationRule
                    e2.LedgerName as TdsLedger, ABS(e2.Amount) as TdsAmount
             FROM Vouchers v
             JOIN VoucherEntries e ON e.VoucherId = v.Id
-            JOIN Ledgers l ON (l.CompanyId = v.CompanyId AND l.Name = e.LedgerName)
             JOIN VoucherEntries e2 ON e2.VoucherId = v.Id
-            JOIN Ledgers l2 ON (l2.CompanyId = v.CompanyId AND l2.Name = e2.LedgerName)
+            LEFT JOIN Ledgers l ON (l.CompanyId = v.CompanyId AND l.Name = e.LedgerName)
+            LEFT JOIN Ledgers l2 ON (l2.CompanyId = v.CompanyId AND l2.Name = e2.LedgerName)
             WHERE v.CompanyId = @CompanyId AND v.VoucherDate BETWEEN @FromDate AND @ToDate
-              AND (l.Name LIKE '%Professional%' OR l.Name LIKE '%Legal%' OR l.Name LIKE '%Audit%' OR l.Name LIKE '%Technical%' OR l.Name LIKE '%Consult%' OR l.Name LIKE '%Contractor%' OR l.Name LIKE '%Rent%')
-              AND (l2.TaxType = 'TDS' OR l2.Name LIKE '%TDS%' OR l2.Name LIKE '%Tax Deducted%');
+              AND (e.LedgerName LIKE '%Professional%' OR e.LedgerName LIKE '%Legal%' OR e.LedgerName LIKE '%Audit%' OR e.LedgerName LIKE '%Technical%' OR e.LedgerName LIKE '%Consult%' OR e.LedgerName LIKE '%Contractor%' OR e.LedgerName LIKE '%Rent%' OR (l.Name IS NOT NULL AND (l.Name LIKE '%Professional%' OR l.Name LIKE '%Legal%' OR l.Name LIKE '%Audit%' OR l.Name LIKE '%Technical%' OR l.Name LIKE '%Consult%' OR l.Name LIKE '%Contractor%' OR l.Name LIKE '%Rent%')))
+              AND (e2.LedgerName LIKE '%TDS%' OR e2.LedgerName LIKE '%Tax Deducted%' OR (l2.TaxType IS NOT NULL AND l2.TaxType = 'TDS') OR (l2.Name IS NOT NULL AND (l2.Name LIKE '%TDS%' OR l2.Name LIKE '%Tax Deducted%')));
         ";
 
         var records = await connection.QueryAsync(new CommandDefinition(sql, new { CompanyId = context.CompanyId, context.FromDate, context.ToDate }, cancellationToken: cancellationToken));
 
         foreach (var r in records)
         {
-            decimal exp = r.ExpenseAmount;
-            decimal tds = r.TdsAmount;
+            string? vId = r.Id?.ToString();
+            string? vNum = r.VoucherNumber?.ToString();
+            DateTime? vDate = r.VoucherDate != null ? (DateTime?)Convert.ToDateTime(r.VoucherDate) : null;
+            decimal exp = Convert.ToDecimal(r.ExpenseAmount);
+            decimal tds = Convert.ToDecimal(r.TdsAmount);
 
             // TDS Rates are typically 1% (contractor - individual), 2% (contractor - company), 10% (professional/rent)
             decimal r1 = Math.Round(exp * 0.01m, 2);
@@ -334,13 +343,13 @@ public class TdsExpenseVerificationRule : BaseReconciliationRule
                     context.CompanyId,
                     explanation,
                     SeverityLevel.Medium,
-                    voucherId: r.Id,
-                    voucherNumber: r.VoucherNumber,
-                    voucherDate: r.VoucherDate,
+                    voucherId: vId,
+                    voucherNumber: vNum,
+                    voucherDate: vDate,
                     flaggedAmount: tds,
                     evidenceObj: new
                     {
-                        Voucher = r.VoucherNumber,
+                        Voucher = vNum,
                         Expense = r.ExpenseLedger,
                         ExpenseAmount = exp,
                         TdsRecorded = tds,
@@ -590,16 +599,21 @@ public class BankCashReconciliationRule : BaseReconciliationRule
 
         foreach (var d in duplicates)
         {
-            var explanation = $"Potential exception: Suspicious duplicate cash/bank transaction of {d.TotalAmount:C2} detected between voucher '{d.VoucherNumber}' and '{d.DuplicateVoucherNumber}' on the same date.";
+            string? vId = d.Id?.ToString();
+            string? vNum = d.VoucherNumber?.ToString();
+            DateTime? vDate = d.VoucherDate != null ? (DateTime?)Convert.ToDateTime(d.VoucherDate) : null;
+            decimal? amt = d.TotalAmount != null ? (decimal?)Convert.ToDecimal(d.TotalAmount) : null;
+
+            var explanation = $"Potential exception: Suspicious duplicate cash/bank transaction of {amt:C2} detected between voucher '{vNum}' and '{d.DuplicateVoucherNumber}' on the same date.";
             results.Add(CreateReconciliationResult(
                 context.CompanyId,
                 explanation,
                 SeverityLevel.Medium,
-                voucherId: d.Id,
-                voucherNumber: d.VoucherNumber,
-                voucherDate: d.VoucherDate,
-                flaggedAmount: d.TotalAmount,
-                evidenceObj: new { OriginalVoucher = d.VoucherNumber, DuplicateVoucher = d.DuplicateVoucherNumber, Date = d.VoucherDate, Amount = d.TotalAmount, Party = d.PartyLedgerName }
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
+                flaggedAmount: amt,
+                evidenceObj: new { OriginalVoucher = vNum, DuplicateVoucher = d.DuplicateVoucherNumber, Date = vDate, Amount = amt, Party = d.PartyLedgerName }
             ));
         }
 
@@ -638,17 +652,23 @@ public class ContraVerificationRule : BaseReconciliationRule
 
         foreach (var m in misalignments)
         {
-            decimal diff = Math.Abs(m.TotalDebits - m.TotalCredits);
-            var explanation = $"Contra transaction transfer imbalance: Contra transfer voucher {m.VoucherNumber} has an unexplained inter-ledger mismatch of {diff:C2} (Debits: {m.TotalDebits:C2}, Credits: {m.TotalCredits:C2}).";
+            string? vId = m.Id?.ToString();
+            string? vNum = m.VoucherNumber?.ToString();
+            DateTime? vDate = m.VoucherDate != null ? (DateTime?)Convert.ToDateTime(m.VoucherDate) : null;
+            decimal debits = Convert.ToDecimal(m.TotalDebits);
+            decimal credits = Convert.ToDecimal(m.TotalCredits);
+            decimal diff = Math.Abs(debits - credits);
+
+            var explanation = $"Contra transaction transfer imbalance: Contra transfer voucher {vNum} has an unexplained inter-ledger mismatch of {diff:C2} (Debits: {debits:C2}, Credits: {credits:C2}).";
             results.Add(CreateReconciliationResult(
                 context.CompanyId,
                 explanation,
                 SeverityLevel.High,
-                voucherId: m.Id,
-                voucherNumber: m.VoucherNumber,
-                voucherDate: m.VoucherDate,
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
                 flaggedAmount: diff,
-                evidenceObj: new { Voucher = m.VoucherNumber, Debits = m.TotalDebits, Credits = m.TotalCredits, Difference = diff }
+                evidenceObj: new { Voucher = vNum, Debits = debits, Credits = credits, Difference = diff }
             ));
         }
 
