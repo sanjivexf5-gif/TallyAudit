@@ -15,8 +15,8 @@ public class LicensingServiceTests
     [Fact]
     public async Task GetCurrentLicense_WhenNoTokenExists_ReturnsUnactivatedTrial()
     {
-        _mockStorage.Setup(s => s.GetSecretAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(string.Empty);
+        _mockStorage.Setup(s => s.GetSecret(It.IsAny<string>()))
+            .Returns(string.Empty);
 
         var service = new LicenseService(_mockStorage.Object, _mockAuditTrail.Object, NullLogger<LicenseService>.Instance);
         var license = await service.GetCurrentLicenseAsync();

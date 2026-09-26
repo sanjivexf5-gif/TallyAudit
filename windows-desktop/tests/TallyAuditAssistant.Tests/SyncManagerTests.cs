@@ -71,6 +71,7 @@ public class SyncManagerTests
                     .ReturnsAsync((1, 0));
 
         var mockAuditRepo = new Mock<IAuditRepository>();
+        var mockSettings = new Mock<ISettingsService>();
 
         var syncManager = new SyncManager(
             mockConn.Object,
@@ -79,6 +80,7 @@ public class SyncManagerTests
             mockVoucher.Object,
             mockSyncRepo.Object,
             mockAuditRepo.Object,
+            mockSettings.Object,
             _logger);
 
         // Act
@@ -131,6 +133,7 @@ public class SyncManagerTests
             mockVoucher.Object,
             new Mock<ISyncRepository>().Object,
             new Mock<IAuditRepository>().Object,
+            new Mock<ISettingsService>().Object,
             _logger);
 
         // Act: Start sync then immediately cancel
