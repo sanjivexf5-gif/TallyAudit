@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:TallyAuditAssistant.App.ViewModels"
         xmlns:views="clr-namespace:TallyAuditAssistant.App.Views"
+        xmlns:converters="clr-namespace:TallyAuditAssistant.App.Converters"
         mc:Ignorable="d"
         Title="{Binding Title}" Height="768" Width="1200"
         MinHeight="600" MinWidth="900"
@@ -12,6 +13,8 @@
         Background="{StaticResource SurfaceBackgroundBrush}">
 
     <Window.Resources>
+        <converters:MultiEqualityToBoolConverter x:Key="MultiEqualityToBoolConverter" />
+
         <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
             <views:DashboardView />
         </DataTemplate>
@@ -74,7 +77,13 @@
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}" Value="{Binding DataContext.CurrentSection, RelativeSource={RelativeSource AncestorType=Window}}">
+                <DataTrigger Value="True">
+                    <DataTrigger.Binding>
+                        <MultiBinding Converter="{StaticResource MultiEqualityToBoolConverter}">
+                            <Binding Path="DataContext.CurrentSection" RelativeSource="{RelativeSource AncestorType=Window}" />
+                            <Binding Path="Tag" RelativeSource="{RelativeSource Self}" />
+                        </MultiBinding>
+                    </DataTrigger.Binding>
                     <Setter Property="Background" Value="{StaticResource PrimaryBrandBrush}" />
                     <Setter Property="Foreground" Value="White" />
                 </DataTrigger>
