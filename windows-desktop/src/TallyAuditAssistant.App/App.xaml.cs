@@ -112,17 +112,13 @@ public partial class App : Application
         services.AddSingleton<ITallyResponseParser, TallyResponseParser>();
         services.AddHttpClient<TallyClient>();
 
-        var useMockTally = configuration.GetValue<bool>("AuditSettings:UseMockTally");
-        if (useMockTally)
-        {
-            services.AddSingleton<ITallyClient, MockTallyClient>();
-            services.AddSingleton<ITallyCompanyService, MockTallyCompanyService>();
-        }
-        else
-        {
-            services.AddSingleton<ITallyClient, TallyClient>();
-            services.AddSingleton<ITallyCompanyService, TallyCompanyService>();
-        }
+        // Dynamic, runtime-switchable Tally services (no restart required)
+        services.AddSingleton<MockTallyClient>();
+        services.AddSingleton<MockTallyCompanyService>();
+        services.AddSingleton<TallyCompanyService>();
+
+        services.AddSingleton<ITallyClient, DynamicTallyClient>();
+        services.AddSingleton<ITallyCompanyService, DynamicTallyCompanyService>();
 
         services.AddSingleton<ITallyMasterService, TallyMasterService>();
         services.AddSingleton<ITallyVoucherService, TallyVoucherService>();

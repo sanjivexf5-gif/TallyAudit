@@ -8,6 +8,7 @@ namespace TallyAuditAssistant.TallyIntegration;
 public class TallyConnection : ITallyConnection
 {
     private readonly ITallyClient _tallyClient;
+    private readonly ISettingsService _settingsService;
     private readonly ILogger<TallyConnection> _logger;
 
     public ConnectionStatus CurrentStatus { get; private set; } = ConnectionStatus.Disconnected;
@@ -16,25 +17,32 @@ public class TallyConnection : ITallyConnection
 
     public event EventHandler<ConnectionStatus>? StatusChanged;
 
-    public TallyConnection(ITallyClient tallyClient, ILogger<TallyConnection> logger)
+    public TallyConnection(ITallyClient tallyClient, ISettingsService settingsService, ILogger<TallyConnection> logger)
     {
         _tallyClient = tallyClient;
+        _settingsService = settingsService;
         _logger = logger;
     }
 
-    public Task<bool> CheckIfProcessRunningAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> CheckIfProcessRunningAsync(CancellationToken cancellationToken = default)
     {
+        if (await _settingsService.IsMockModeEnabledAsync())
+        {
+            _logger.LogDebug("Mock Mode is enabled: Simulating running TallyPrime process");
+            return true;
+        }
+
         try
         {
             var processes = Process.GetProcessesByName("tally");
             var isRunning = processes.Length > 0;
             _logger.LogDebug("Tally process check: {Count} instance(s) found", processes.Length);
-            return Task.FromResult(isRunning);
+            return isRunning;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to inspect system process table");
-            return Task.FromResult(false);
+            return false;
         }
     }
 

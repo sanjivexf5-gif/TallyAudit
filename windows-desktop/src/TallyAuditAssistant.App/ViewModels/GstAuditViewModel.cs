@@ -29,6 +29,9 @@ public partial class GstAuditViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
+    [ObservableProperty]
+    private bool _isListEmpty = true;
+
     public ObservableCollection<AuditException> Exceptions { get; } = new();
 
     public GstAuditViewModel(IAuditRepository repository, ISettingsService settingsService)
@@ -66,6 +69,7 @@ public partial class GstAuditViewModel : ObservableObject
             {
                 Exceptions.Add(ex);
             }
+            IsListEmpty = Exceptions.Count == 0;
         }
         finally
         {

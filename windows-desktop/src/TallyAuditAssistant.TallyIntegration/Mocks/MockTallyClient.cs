@@ -27,19 +27,66 @@ public class MockTallyClient : ITallyClient
         string responseContent;
         if (payload.Contains("List of Companies"))
         {
-            responseContent = format == TallyRequestFormat.Json ? TallyTestFixtures.CompanyListJson : TallyTestFixtures.CompanyListXml;
+            responseContent = format == TallyRequestFormat.Json ? 
+                @"{
+  ""HEADER"": {
+    ""VERSION"": ""1"",
+    ""STATUS"": ""1""
+  },
+  ""BODY"": {
+    ""DATA"": {
+      ""COLLECTION"": [
+        { ""NAME"": ""Demo Industrial Solutions Pvt Ltd (FY 2025-26)"" },
+        { ""NAME"": ""Apex Industrial Solutions Pvt Ltd (FY 2025-26)"" },
+        { ""NAME"": ""Delta Retail Ventures LLP (FY 2025-26)"" }
+      ]
+    }
+  }
+}" : 
+                @"<ENVELOPE>
+  <HEADER><VERSION>1</VERSION><STATUS>1</STATUS></HEADER>
+  <BODY>
+    <DATA>
+      <COLLECTION>
+        <COMPANY><NAME>Demo Industrial Solutions Pvt Ltd (FY 2025-26)</NAME></COMPANY>
+        <COMPANY><NAME>Apex Industrial Solutions Pvt Ltd (FY 2025-26)</NAME></COMPANY>
+        <COMPANY><NAME>Delta Retail Ventures LLP (FY 2025-26)</NAME></COMPANY>
+      </COLLECTION>
+    </DATA>
+  </BODY>
+</ENVELOPE>";
         }
         else if (payload.Contains("CompanyProfileCollection"))
         {
-            responseContent = TallyTestFixtures.CompanyProfileXml;
+            responseContent = @"<ENVELOPE>
+  <HEADER><VERSION>1</VERSION><STATUS>1</STATUS></HEADER>
+  <BODY>
+    <DATA>
+      <COLLECTION>
+        <COMPANY>
+          <NAME>Demo Industrial Solutions Pvt Ltd (FY 2025-26)</NAME>
+          <FORMALNAME>Demo Industrial Solutions Pvt Ltd</FORMALNAME>
+          <GSTIN>27DEMO1234F1Z9</GSTIN>
+          <PAN>DEMOP1234F</PAN>
+          <STATENAME>Maharashtra</STATENAME>
+          <STATECODE>27</STATECODE>
+          <BOOKSBEGINNINGFROM>20250401</BOOKSBEGINNINGFROM>
+          <STARTINGFROM>20250401</STARTINGFROM>
+          <BASICCURRENCYSYMBOL>₹</BASICCURRENCYSYMBOL>
+          <ALTERID>10042</ALTERID>
+        </COMPANY>
+      </COLLECTION>
+    </DATA>
+  </BODY>
+</ENVELOPE>";
         }
         else if (payload.Contains("AuditLedgerCollection"))
         {
-            responseContent = TallyTestFixtures.LedgerCollectionXml;
+            responseContent = TallySyntheticDataGenerator.GenerateLedgersXml();
         }
         else if (payload.Contains("AuditVoucherCollection"))
         {
-            responseContent = TallyTestFixtures.VoucherCollectionXml;
+            responseContent = TallySyntheticDataGenerator.GenerateVouchersXml();
         }
         else
         {
@@ -80,6 +127,7 @@ public class MockTallyCompanyService : ITallyCompanyService
     {
         IReadOnlyList<string> mockList = new List<string>
         {
+            "Demo Industrial Solutions Pvt Ltd (FY 2025-26)",
             "Apex Industrial Solutions Pvt Ltd (FY 2025-26)",
             "Delta Retail Ventures LLP (FY 2025-26)"
         };
@@ -88,7 +136,7 @@ public class MockTallyCompanyService : ITallyCompanyService
 
     public Task<string?> GetActiveCompanyAsync(string? endpointUrl = null, CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<string?>("Apex Industrial Solutions Pvt Ltd (FY 2025-26)");
+        return Task.FromResult<string?>("Demo Industrial Solutions Pvt Ltd (FY 2025-26)");
     }
 
     public Task<Dictionary<string, string>> GetCompanyProfileAsync(string endpointUrl, string companyName, CancellationToken cancellationToken = default)
@@ -96,8 +144,8 @@ public class MockTallyCompanyService : ITallyCompanyService
         var profile = new Dictionary<string, string>
         {
             { "Name", companyName },
-            { "GSTIN", "27AAACA9999P1Z1" },
-            { "PAN", "AAACA9999P" },
+            { "GSTIN", "27DEMO1234F1Z9" },
+            { "PAN", "DEMOP1234F" },
             { "State", "Maharashtra (27)" },
             { "BooksBeginningFrom", "2025-04-01" }
         };
@@ -109,9 +157,9 @@ public class MockTallyCompanyService : ITallyCompanyService
         var profile = new TallyCompanyProfile
         {
             Name = companyName,
-            FormalName = "Apex Industrial Solutions Private Limited",
-            GSTIN = "27AAACA9999P1Z1",
-            PAN = "AAACA9999P",
+            FormalName = "Demo Industrial Solutions Pvt Ltd",
+            GSTIN = "27DEMO1234F1Z9",
+            PAN = "DEMOP1234F",
             StateName = "Maharashtra",
             StateCode = "27",
             BooksBeginningFrom = new DateTime(2025, 4, 1),

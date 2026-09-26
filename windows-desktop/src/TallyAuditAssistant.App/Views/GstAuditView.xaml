@@ -59,7 +59,7 @@
                         </DataGrid>
 
                         <!-- Empty State Overlay -->
-                        <Border Grid.Row="1" Background="#1E293B" Visibility="{Binding Exceptions.Count, Converter={x:Null}, FallbackValue=Collapsed}">
+                        <Border Grid.Row="1" Background="#1E293B" Visibility="{Binding IsListEmpty, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <TextBlock Text="No synchronized data available for this company and financial year." Foreground="{StaticResource TextMutedBrush}" FontSize="14" HorizontalAlignment="Center"/>
                                 <TextBlock Text="Run a complete audit from the main dashboard to generate GST findings." Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,6,0,0" HorizontalAlignment="Center"/>
