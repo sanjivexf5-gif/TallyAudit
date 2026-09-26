@@ -61,7 +61,16 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: windows-desktop/installer/TallyAuditAssistant.iss
-        continue-on-error: true
+
+      - name: Verify Windows Installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "./windows-desktop/installer_output/*.exe" -File | Select-Object -First 1
+          if ($null -eq $installer) {
+            throw "Windows installer EXE was not generated."
+          }
+          Write-Host "Installer validated: $($installer.FullName)"
+          Write-Host "Installer size: $($installer.Length / 1MB) MB"
 
       - name: Upload Windows Standalone Binaries
         uses: actions/upload-artifact@v4
@@ -75,4 +84,4 @@ jobs:
         with:
           name: TallyAuditAssistant-Installer-Setup
           path: ./windows-desktop/installer_output/
-          if-no-files-found: ignore
+          if-no-files-found: error
