@@ -33,19 +33,43 @@ public partial class MainWindowViewModel : ObservableObject
     public TallyConnectionViewModel ConnectionVM { get; }
     public SyncViewModel SyncVM { get; }
     public SettingsViewModel SettingsVM { get; }
+    public CompaniesViewModel CompaniesVM { get; }
+    public GstAuditViewModel GstVM { get; }
+    public TdsAuditViewModel TdsVM { get; }
+    public VouchersViewModel VouchersVM { get; }
+    public LedgersViewModel LedgersVM { get; }
+    public BankAuditViewModel BankVM { get; }
+    public ExceptionsViewModel ExceptionsVM { get; }
+    public ReportsViewModel ReportsVM { get; }
 
     public MainWindowViewModel(
         ITallyConnection tallyConnection,
         DashboardViewModel dashboardVM,
         TallyConnectionViewModel connectionVM,
         SyncViewModel syncVM,
-        SettingsViewModel settingsVM)
+        SettingsViewModel settingsVM,
+        CompaniesViewModel companiesVM,
+        GstAuditViewModel gstVM,
+        TdsAuditViewModel tdsVM,
+        VouchersViewModel vouchersVM,
+        LedgersViewModel ledgersVM,
+        BankAuditViewModel bankVM,
+        ExceptionsViewModel exceptionsVM,
+        ReportsViewModel reportsVM)
     {
         _tallyConnection = tallyConnection;
         DashboardVM = dashboardVM;
         ConnectionVM = connectionVM;
         SyncVM = syncVM;
         SettingsVM = settingsVM;
+        CompaniesVM = companiesVM;
+        GstVM = gstVM;
+        TdsVM = tdsVM;
+        VouchersVM = vouchersVM;
+        LedgersVM = ledgersVM;
+        BankVM = bankVM;
+        ExceptionsVM = exceptionsVM;
+        ReportsVM = reportsVM;
 
         _currentViewModel = dashboardVM;
 
@@ -56,15 +80,33 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private void Navigate(string section)
     {
-        CurrentSection = section;
-        CurrentViewModel = section switch
+        ObservableObject? nextVM = section switch
         {
             "Dashboard" => DashboardVM,
             "TallyConnection" => ConnectionVM,
+            "Companies" => CompaniesVM,
             "Sync" => SyncVM,
+            "GST" => GstVM,
+            "TDS" => TdsVM,
+            "Vouchers" => VouchersVM,
+            "Ledgers" => LedgersVM,
+            "Bank" => BankVM,
+            "Exceptions" => ExceptionsVM,
+            "Reports" => ReportsVM,
             "Settings" => SettingsVM,
-            _ => DashboardVM
+            _ => null
         };
+
+        if (nextVM != null)
+        {
+            CurrentSection = section;
+            CurrentViewModel = nextVM;
+        }
+        else
+        {
+            // Log the navigation error and keep current valid section
+            System.Diagnostics.Debug.WriteLine($"Navigation error: Unknown section '{section}' requested.");
+        }
     }
 
     private void OnTallyStatusChanged(object? sender, ConnectionStatus status)

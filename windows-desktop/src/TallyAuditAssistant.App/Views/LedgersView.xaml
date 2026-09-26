@@ -1,0 +1,59 @@
+<UserControl x:Class="TallyAuditAssistant.App.Views.LedgersView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             mc:Ignorable="d" 
+             d:DesignHeight="600" d:DesignWidth="900">
+    <Grid Margin="0,0,10,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="Synchronized Chart of Accounts / Ledgers" FontSize="22" FontWeight="Bold" Foreground="White"/>
+            <TextBlock Text="Explore ledgers, groups, opening balances, closing balances, and tax registrations synchronized from TallyPrime." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,12"/>
+        </StackPanel>
+
+        <!-- Search & Filter bar -->
+        <Border Grid.Row="1" Background="{StaticResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="12" Margin="0,0,0,16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Search Ledgers: " Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBox Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Width="300" Padding="6,4" VerticalAlignment="Center"/>
+                </StackPanel>
+                <Button Grid.Column="1" Content="🔄 Refresh List" Command="{Binding LoadLedgersCommand}" Padding="10,4"/>
+            </Grid>
+        </Border>
+
+        <!-- Ledgers DataGrid -->
+        <Border Grid.Row="2" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="12">
+            <Grid>
+                <DataGrid ItemsSource="{Binding Ledgers}" GridLinesVisibility="None" HeadersVisibility="Column">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Ledger Name" Binding="{Binding Name}" Width="2*"/>
+                        <DataGridTextColumn Header="Parent Group" Binding="{Binding ParentGroup}" Width="1.5*"/>
+                        <DataGridTextColumn Header="GSTIN" Binding="{Binding GSTIN}" Width="150"/>
+                        <DataGridTextColumn Header="PAN" Binding="{Binding PAN}" Width="120"/>
+                        <DataGridTextColumn Header="Opening Bal" Binding="{Binding OpeningBalance, StringFormat={}{0:C}}" Width="120"/>
+                        <DataGridTextColumn Header="Closing Bal" Binding="{Binding ClosingBalance, StringFormat={}{0:C}}" Width="120"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Empty State Overlay -->
+                <Border Background="#1E293B" Visibility="{Binding Ledgers.Count, Converter={x:Null}, FallbackValue=Collapsed}">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="No synchronized data available for this company and financial year." Foreground="{StaticResource TextMutedBrush}" FontSize="14" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Ensure TallyPrime is open, connect, and run synchronize first." Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,6,0,0" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

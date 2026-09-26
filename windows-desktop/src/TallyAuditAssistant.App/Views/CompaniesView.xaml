@@ -1,0 +1,71 @@
+<UserControl x:Class="TallyAuditAssistant.App.Views.CompaniesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             mc:Ignorable="d" 
+             d:DesignHeight="600" d:DesignWidth="800">
+    <Grid Margin="0,0,10,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="Synchronized Companies" FontSize="22" FontWeight="Bold" Foreground="White"/>
+            <TextBlock Text="View and select synchronized company datasets available for offline audit operations." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,12"/>
+            <Border Padding="12" Background="#1E293B" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Active Audit Target: " FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBlock Text="{Binding ActiveCompanyName}" FontWeight="Bold" Foreground="#38BDF8" Margin="4,0,0,0"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Companies List -->
+            <Border Grid.Column="0" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="12" Margin="0,0,12,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Text="Synced Database Records" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding Companies}" SelectedItem="{Binding SelectedCompany}" GridLinesVisibility="None" HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Company Name" Binding="{Binding TallyCompanyName}" Width="*"/>
+                            <DataGridTextColumn Header="GSTIN" Binding="{Binding GSTIN}" Width="150"/>
+                            <DataGridTextColumn Header="Last Synced" Binding="{Binding LastSyncDate, StringFormat={}{0:g}}" Width="150"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+
+            <!-- Details & Activation -->
+            <Border Grid.Column="1" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="16">
+                <StackPanel>
+                    <TextBlock Text="Selected Company Profile" FontWeight="Bold" Foreground="White" Margin="0,0,0,14"/>
+                    
+                    <TextBlock Text="Formal Name" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBlock Text="{Binding SelectedCompany.FormalName, TargetNullValue='—'}" FontWeight="SemiBold" Foreground="White" Margin="0,2,0,12" TextWrapping="Wrap"/>
+
+                    <TextBlock Text="GSTIN / Registration" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBlock Text="{Binding SelectedCompany.GSTIN, TargetNullValue='—'}" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,2,0,12"/>
+
+                    <TextBlock Text="PAN / Income Tax" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBlock Text="{Binding SelectedCompany.PAN, TargetNullValue='—'}" FontWeight="SemiBold" Foreground="White" Margin="0,2,0,12"/>
+
+                    <TextBlock Text="State Jurisdiction" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBlock Text="{Binding SelectedCompany.StateName, TargetNullValue='—'}" FontWeight="SemiBold" Foreground="White" Margin="0,2,0,16"/>
+
+                    <Button Content="Set as Active Company" Command="{Binding SelectCompanyCommand}" HorizontalAlignment="Stretch" Margin="0,10,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

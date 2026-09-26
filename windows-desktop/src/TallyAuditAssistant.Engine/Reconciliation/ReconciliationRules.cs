@@ -41,8 +41,8 @@ public class TrialBalanceConsistencyRule : BaseReconciliationRule
         var ledgers = await connection.QueryAsync(new CommandDefinition(sql, new
         {
             CompanyId = context.CompanyId,
-            FromDate = context.FromDate.ToString("yyyy-MM-dd"),
-            ToDate = context.ToDate.ToString("yyyy-MM-dd")
+            FromDate = context.FromDate,
+            ToDate = context.ToDate
         }, cancellationToken: cancellationToken));
 
         foreach (var l in ledgers)

@@ -24,6 +24,62 @@
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <views:SettingsView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:CompaniesViewModel}">
+            <views:CompaniesView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:GstAuditViewModel}">
+            <views:GstAuditView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:TdsAuditViewModel}">
+            <views:TdsAuditView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:VouchersViewModel}">
+            <views:VouchersView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:LedgersViewModel}">
+            <views:LedgersView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:BankAuditViewModel}">
+            <views:BankAuditView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ExceptionsViewModel}">
+            <views:ExceptionsView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ReportsViewModel}">
+            <views:ReportsView />
+        </DataTemplate>
+
+        <Style x:Key="SidebarButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="0,2" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#1E293B" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}" Value="{Binding DataContext.CurrentSection, RelativeSource={RelativeSource AncestorType=Window}}">
+                    <Setter Property="Background" Value="{StaticResource PrimaryBrandBrush}" />
+                    <Setter Property="Foreground" Value="White" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -84,18 +140,18 @@
             <!-- Navigation Sidebar -->
             <Border Grid.Column="0" Background="#090D16" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
                 <StackPanel Margin="8,12">
-                    <Button Content="📊  Dashboard" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Dashboard" Margin="0,2"/>
-                    <Button Content="🔌  Tally Connection" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="TallyConnection" Margin="0,2"/>
-                    <Button Content="🏢  Companies" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Companies" Margin="0,2"/>
-                    <Button Content="🔄  Synchronize" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Sync" Margin="0,2"/>
-                    <Button Content="⚖️  GST Audit" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="GST" Margin="0,2"/>
-                    <Button Content="📑  TDS Audit" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="TDS" Margin="0,2"/>
-                    <Button Content="📜  Vouchers" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Vouchers" Margin="0,2"/>
-                    <Button Content="📖  Ledgers" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Ledgers" Margin="0,2"/>
-                    <Button Content="🏦  Bank Audit" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Bank" Margin="0,2"/>
-                    <Button Content="⚠️  Exceptions" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Exceptions" Margin="0,2"/>
-                    <Button Content="📈  Reports" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Reports" Margin="0,2"/>
-                    <Button Content="⚙️  Settings" HorizontalContentAlignment="Left" Command="{Binding NavigateCommand}" CommandParameter="Settings" Margin="0,2"/>
+                    <Button Content="📊  Dashboard" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Dashboard" Tag="Dashboard"/>
+                    <Button Content="🔌  Tally Connection" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="TallyConnection" Tag="TallyConnection"/>
+                    <Button Content="🏢  Companies" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Companies" Tag="Companies"/>
+                    <Button Content="🔄  Synchronize" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Sync" Tag="Sync"/>
+                    <Button Content="⚖️  GST Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="GST" Tag="GST"/>
+                    <Button Content="📑  TDS Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="TDS" Tag="TDS"/>
+                    <Button Content="📜  Vouchers" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Vouchers" Tag="Vouchers"/>
+                    <Button Content="📖  Ledgers" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Ledgers" Tag="Ledgers"/>
+                    <Button Content="🏦  Bank Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Bank" Tag="Bank"/>
+                    <Button Content="⚠️  Exceptions" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Exceptions" Tag="Exceptions"/>
+                    <Button Content="📈  Reports" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Reports" Tag="Reports"/>
+                    <Button Content="⚙️  Settings" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Settings" Tag="Settings"/>
                 </StackPanel>
             </Border>
 

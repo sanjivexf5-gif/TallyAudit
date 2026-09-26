@@ -140,6 +140,14 @@ public partial class App : Application
         services.AddSingleton<TallyConnectionViewModel>();
         services.AddSingleton<SyncViewModel>();
         services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<CompaniesViewModel>();
+        services.AddSingleton<GstAuditViewModel>();
+        services.AddSingleton<TdsAuditViewModel>();
+        services.AddSingleton<VouchersViewModel>();
+        services.AddSingleton<LedgersViewModel>();
+        services.AddSingleton<BankAuditViewModel>();
+        services.AddSingleton<ExceptionsViewModel>();
+        services.AddSingleton<ReportsViewModel>();
 
         // Views
         services.AddSingleton<MainWindow>();

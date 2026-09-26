@@ -7,21 +7,6 @@
              mc:Ignorable="d" 
              d:DesignHeight="800" d:DesignWidth="1150">
     <UserControl.Resources>
-        <!-- Inline Styling Helpers to keep things pristine -->
-        <Style TargetType="TabItem">
-            <Setter Property="Background" Value="#1E293B"/>
-            <Setter Property="Foreground" Value="#94A3B8"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Padding" Value="20,10"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#4F46E5"/>
-                    <Setter Property="Foreground" Value="White"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
     </UserControl.Resources>
 
     <Grid Margin="12">

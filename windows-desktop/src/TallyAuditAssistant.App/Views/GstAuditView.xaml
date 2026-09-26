@@ -1,0 +1,127 @@
+<UserControl x:Class="TallyAuditAssistant.App.Views.GstAuditView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             mc:Ignorable="d" 
+             d:DesignHeight="600" d:DesignWidth="900">
+    <Grid Margin="0,0,10,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="Automated GST Compliance Audit" FontSize="22" FontWeight="Bold" Foreground="White"/>
+            <TextBlock Text="Reconciles outward supply CGST/SGST/IGST rates, identifies blocked input tax credits (ITC), and flags mismatched GSTIN entries." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,12"/>
+            <Border Padding="12" Background="#1E293B" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Company: " FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock Text="{Binding ActiveCompanyName}" FontWeight="Bold" Foreground="#38BDF8" Margin="4,0,16,0"/>
+                        <TextBlock Text="Exceptions Found: " FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock Text="{Binding Exceptions.Count}" FontWeight="Bold" Foreground="White" Margin="4,0,0,0"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="🔄 Refresh Findings" Command="{Binding LoadGstExceptionsCommand}" Padding="10,4"/>
+                </Grid>
+            </Border>
+        </StackPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="2*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- GST Findings Table / Empty State -->
+            <Grid Grid.Column="0" Margin="0,0,12,0">
+                <Border Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Text="Discovered Exceptions" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
+                        
+                        <!-- Table -->
+                        <DataGrid Grid.Row="1" ItemsSource="{Binding Exceptions}" SelectedItem="{Binding SelectedException}" GridLinesVisibility="None" HeadersVisibility="Column">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Rule" Binding="{Binding RuleName}" Width="*"/>
+                                <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="100"/>
+                                <DataGridTextColumn Header="Voucher No" Binding="{Binding VoucherNumber}" Width="100"/>
+                                <DataGridTextColumn Header="Amount" Binding="{Binding FlaggedAmount, StringFormat={}{0:C}}" Width="120"/>
+                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <!-- Empty State Overlay -->
+                        <Border Grid.Row="1" Background="#1E293B" Visibility="{Binding Exceptions.Count, Converter={x:Null}, FallbackValue=Collapsed}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="No synchronized data available for this company and financial year." Foreground="{StaticResource TextMutedBrush}" FontSize="14" HorizontalAlignment="Center"/>
+                                <TextBlock Text="Run a complete audit from the main dashboard to generate GST findings." Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,6,0,0" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Detailed Exception Panel -->
+            <Border Grid.Column="1" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <TextBlock Grid.Row="0" Text="Finding Review &amp; Remarks" FontWeight="Bold" Foreground="White" Margin="0,0,0,14"/>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="0,0,6,0" Visibility="{Binding SelectedException, Converter={x:Null}}">
+                            <TextBlock Text="RULE DESCRIPTION" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding SelectedException.RuleName}" FontWeight="Bold" Foreground="White" Margin="0,2,0,12" TextWrapping="Wrap"/>
+
+                            <TextBlock Text="AUDIT FINDING EXPLANATION" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding SelectedException.SuggestedCorrection}" Foreground="White" Margin="0,2,0,12" TextWrapping="Wrap"/>
+
+                            <TextBlock Text="FLAGGED TRANSACTION DETAILS" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
+                            <UniformGrid Columns="2" Margin="0,0,0,12">
+                                <StackPanel Margin="0,0,4,6">
+                                    <TextBlock Text="Voucher Number" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="{Binding SelectedException.VoucherNumber, TargetNullValue='—'}" FontWeight="SemiBold" Foreground="White"/>
+                                </StackPanel>
+                                <StackPanel Margin="4,0,0,6">
+                                    <TextBlock Text="Voucher Date" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="{Binding SelectedException.VoucherDate, StringFormat={}{0:dd-MMM-yyyy}, TargetNullValue='—'}" FontWeight="SemiBold" Foreground="White"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,4,0">
+                                    <TextBlock Text="Ledger / Party" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="{Binding SelectedException.LedgerName, TargetNullValue='—'}" FontWeight="SemiBold" Foreground="White" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                                <StackPanel Margin="4,0,0,0">
+                                    <TextBlock Text="Flagged Amount" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Text="{Binding SelectedException.FlaggedAmount, StringFormat={}{0:C}, TargetNullValue='—'}" FontWeight="SemiBold" Foreground="#10B981"/>
+                                </StackPanel>
+                            </UniformGrid>
+
+                            <Separator Background="{StaticResource BorderBrush}" Margin="0,0,0,12"/>
+
+                            <TextBlock Text="Review Notes &amp; Working Remarks" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
+                            <TextBox Text="{Binding AuditorNoteInput, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Height="80" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AcceptsReturn="True" Padding="6"/>
+                            <TextBlock Text="{Binding StatusMessage}" Foreground="#10B981" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0" Visibility="{Binding SelectedException, Converter={x:Null}}">
+                        <Button Content="✓ Accept / Resolve" Command="{Binding MarkAsAcceptedCommand}" Margin="0,0,8,0" Padding="12,6"/>
+                        <Button Content="👁 Mark Reviewed" Command="{Binding MarkAsReviewedCommand}" Padding="12,6"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>
