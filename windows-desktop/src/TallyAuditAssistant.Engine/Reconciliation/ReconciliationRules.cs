@@ -29,8 +29,8 @@ public class TrialBalanceConsistencyRule : BaseReconciliationRule
 
         const string sql = @"
             SELECT l.Id, l.Name, l.ParentGroup, l.OpeningBalance, l.ClosingBalance,
-                   COALESCE(SUM(CASE WHEN e.IsDebit = 1 THEN ABS(e.Amount) ELSE 0 END), 0) as TotalDebits,
-                   COALESCE(SUM(CASE WHEN e.IsDebit = 0 THEN ABS(e.Amount) ELSE 0 END), 0) as TotalCredits
+                   COALESCE(SUM(CASE WHEN v.Id IS NOT NULL AND e.IsDebit = 1 THEN ABS(e.Amount) ELSE 0 END), 0) as TotalDebits,
+                   COALESCE(SUM(CASE WHEN v.Id IS NOT NULL AND e.IsDebit = 0 THEN ABS(e.Amount) ELSE 0 END), 0) as TotalCredits
             FROM Ledgers l
             LEFT JOIN VoucherEntries e ON (e.LedgerName = l.Name)
             LEFT JOIN Vouchers v ON (v.Id = e.VoucherId AND v.CompanyId = l.CompanyId AND v.VoucherDate BETWEEN @FromDate AND @ToDate)

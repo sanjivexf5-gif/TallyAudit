@@ -226,7 +226,7 @@ public class RoundOffAnomaliesRule : BaseGstRule
             context.CompanyId,
             FromDate = context.FromDate.ToString("yyyy-MM-dd"),
             ToDate = context.ToDate.ToString("yyyy-MM-dd"),
-            MaxLimit = maxLimit
+            MaxLimit = Convert.ToDouble(maxLimit)
         }, cancellationToken: cancellationToken));
 
         foreach (var r in rows)

@@ -196,7 +196,7 @@ public class SuspenseLedgerActivityRule : BaseAuditRule
             context.CompanyId,
             FromDate = context.FromDate.ToString("yyyy-MM-dd"),
             ToDate = context.ToDate.ToString("yyyy-MM-dd"),
-            Tolerance = tolerance
+            Tolerance = Convert.ToDouble(tolerance)
         }, cancellationToken: cancellationToken));
 
         foreach (var e in entries)
