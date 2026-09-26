@@ -174,15 +174,98 @@ public class MockTallyIntegrationTests : IAsyncLifetime
 
     private class MockSettingsService : ISettingsService
     {
-        public Task<string> GetTallyHostAsync() => Task.FromResult("localhost");
-        public Task<int> GetTallyPortAsync() => Task.FromResult(9000);
-        public Task<string> GetSettingAsync(string key, string defaultValue) => Task.FromResult(defaultValue);
-        public Task SaveSettingAsync(string key, string value) => Task.CompletedTask;
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _settings = new();
+
+        public MockSettingsService()
+        {
+            _settings["TallyHost"] = "localhost";
+            _settings["TallyPort"] = "9000";
+            _settings["IsMockModeEnabled"] = "true";
+        }
+
+        public Task<string> GetSettingAsync(string key, string defaultValue = "", CancellationToken cancellationToken = default)
+        {
+            if (_settings.TryGetValue(key, out var val))
+            {
+                return Task.FromResult(val);
+            }
+            return Task.FromResult(defaultValue);
+        }
+
+        public Task SetSettingAsync(string key, string value, CancellationToken cancellationToken = default)
+        {
+            _settings[key] = value;
+            return Task.CompletedTask;
+        }
+
+        public Task<int> GetTallyPortAsync()
+        {
+            if (_settings.TryGetValue("TallyPort", out var val) && int.TryParse(val, out var port))
+            {
+                return Task.FromResult(port);
+            }
+            return Task.FromResult(9000);
+        }
+
+        public Task SetTallyPortAsync(int port)
+        {
+            _settings["TallyPort"] = port.ToString();
+            return Task.CompletedTask;
+        }
+
+        public Task<string> GetTallyHostAsync()
+        {
+            if (_settings.TryGetValue("TallyHost", out var val))
+            {
+                return Task.FromResult(val);
+            }
+            return Task.FromResult("localhost");
+        }
+
+        public Task SetTallyHostAsync(string host)
+        {
+            _settings["TallyHost"] = host;
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> IsMockModeEnabledAsync()
+        {
+            if (_settings.TryGetValue("IsMockModeEnabled", out var val) && bool.TryParse(val, out var enabled))
+            {
+                return Task.FromResult(enabled);
+            }
+            return Task.FromResult(true);
+        }
+
+        public Task SetMockModeEnabledAsync(bool enabled)
+        {
+            _settings["IsMockModeEnabled"] = enabled.ToString().ToLower();
+            return Task.CompletedTask;
+        }
     }
 
     private class MockTallyConnection : ITallyConnection
     {
-        public Task<bool> TestConnectionAsync(string host, int port, CancellationToken ct = default) => Task.FromResult(true);
-        public Task<string?> ProbePortRangeAsync(string host, int startPort, int endPort, CancellationToken ct = default) => Task.FromResult("http://localhost:9000");
+        public ConnectionStatus CurrentStatus { get; set; } = ConnectionStatus.Connected;
+        public TallyEndpointInfo? ActiveEndpoint { get; set; } = new TallyEndpointInfo("localhost", 9000, true, "Mock/Demo", "Demo Company", 5);
+        public string? LastErrorMessage { get; set; } = null;
+
+        public event EventHandler<ConnectionStatus>? StatusChanged;
+
+        public Task<bool> CheckIfProcessRunningAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(true);
+        }
+
+        public Task<TallyEndpointInfo?> ProbePortRangeAsync(string host = "localhost", int startPort = 9000, int endPort = 9005, CancellationToken cancellationToken = default)
+        {
+            var info = new TallyEndpointInfo(host, startPort, true, "Mock/Demo", "Demo Company", 5);
+            return Task.FromResult<TallyEndpointInfo?>(info);
+        }
+
+        public Task<bool> TestConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(true);
+        }
     }
 }
