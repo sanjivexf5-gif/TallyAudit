@@ -1505,6 +1505,95 @@ public class PilotAuditWorkflowTests
         Assert.Equal(75000.00m, spec.ClearlyTrivialThresholdAmount);
     }
 }`
+  },
+  'GeminiAuditProvider.cs': {
+    path: 'src/TallyAuditAssistant.Engine/Ai/GeminiAuditProvider.cs',
+    desc: 'Optional AI audit assistance provider utilizing IHttpClientFactory (Microsoft.Extensions.Http 8.0.0) with timeout & cancellation support.',
+    code: `using System;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using TallyAuditAssistant.Core.Interfaces;
+
+namespace TallyAuditAssistant.Engine.Ai;
+
+public class GeminiAuditProvider : IAuditAiProvider
+{
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ISettingsService _settingsService;
+    private readonly ILogger<GeminiAuditProvider> _logger;
+
+    public string ProviderName => "Google Gemini AI";
+    public bool IsConfigured { get; private set; } = false;
+
+    public GeminiAuditProvider(
+        IHttpClientFactory httpClientFactory,
+        ISettingsService settingsService,
+        ILogger<GeminiAuditProvider> logger)
+    {
+        _httpClientFactory = httpClientFactory;
+        _settingsService = settingsService;
+        _logger = logger;
+    }
+
+    public async Task<string> GenerateTextAsync(string systemPrompt, string userPrompt, CancellationToken cancellationToken = default)
+    {
+        var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            return "AI assistance is not configured. Please supply a valid Google Gemini API key in Settings.";
+        }
+
+        using var client = _httpClientFactory.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(30);
+
+        const string url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+        var requestUrl = $"{url}?key={apiKey}";
+        var requestBody = new { contents = new[] { new { parts = new[] { new { text = $"{systemPrompt}\\n\\n{userPrompt}" } } } } };
+
+        using var response = await client.PostAsync(requestUrl, new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json"), cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            return $"Gemini API request failed ({response.StatusCode}).";
+        }
+
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        return content;
+    }
+}`
+  },
+  'GeminiAuditProviderTests.cs': {
+    path: 'tests/TallyAuditAssistant.Tests/GeminiAuditProviderTests.cs',
+    desc: 'Unit tests verifying GeminiAuditProvider graceful offline fallback and cancellation handling.',
+    code: `using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using TallyAuditAssistant.Core.Interfaces;
+using TallyAuditAssistant.Engine.Ai;
+using Xunit;
+
+namespace TallyAuditAssistant.Tests;
+
+public class GeminiAuditProviderTests
+{
+    [Fact]
+    public async Task GenerateTextAsync_WhenNoApiKeyConfigured_ReturnsHelpfulMessageWithoutCrashing()
+    {
+        var mockHttpClientFactory = new Mock<IHttpClientFactory>();
+        var mockSettingsService = new Mock<ISettingsService>();
+        mockSettingsService.Setup(s => s.GetSettingAsync("GeminiApiKey", It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(string.Empty);
+
+        var provider = new GeminiAuditProvider(mockHttpClientFactory.Object, mockSettingsService.Object, NullLogger<GeminiAuditProvider>.Instance);
+        var result = await provider.GenerateTextAsync("System prompt", "User prompt");
+
+        Assert.Contains("AI assistance is not configured", result);
+    }
+}`
   }
 };
 

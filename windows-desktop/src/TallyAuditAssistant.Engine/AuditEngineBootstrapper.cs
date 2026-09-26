@@ -5,6 +5,7 @@ using TallyAuditAssistant.Data;
 using TallyAuditAssistant.Data.Repositories;
 using TallyAuditAssistant.Engine.Rules;
 using TallyAuditAssistant.Engine.Reconciliation;
+using TallyAuditAssistant.Engine.Ai;
 
 namespace TallyAuditAssistant.Engine;
 
