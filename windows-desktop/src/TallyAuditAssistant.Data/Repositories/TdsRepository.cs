@@ -106,6 +106,14 @@ public class TdsRepository : ITdsRepository, ITdsExceptionService
         await connection.ExecuteAsync(new CommandDefinition(sql, new { RuleId = ruleId, ParametersJson = parametersJson }, cancellationToken: cancellationToken));
     }
 
+    private static DateTime? ParseNullableDateTime(object? val)
+    {
+        if (val == null) return null;
+        if (val is DateTime dt) return dt;
+        if (DateTime.TryParse(val.ToString(), out DateTime parsed)) return parsed;
+        return null;
+    }
+
     public async Task SaveResultsBatchAsync(IEnumerable<TdsCheckResult> results, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
@@ -196,7 +204,7 @@ public class TdsRepository : ITdsRepository, ITdsExceptionService
                 CompanyId = (string)r.CompanyId,
                 VoucherId = (string?)r.VoucherId,
                 VoucherNumber = (string?)r.VoucherNumber,
-                VoucherDate = r.VoucherDate is DateTime dt1 ? dt1 : (r.VoucherDate != null && DateTime.TryParse(r.VoucherDate.ToString(), out var p1) ? p1 : null),
+                VoucherDate = ParseNullableDateTime(r.VoucherDate),
                 TransactionAmount = (decimal?)r.TransactionAmount,
                 Explanation = (string)r.Explanation,
                 EvidenceJson = (string)(r.EvidenceJson ?? "{}"),
@@ -270,7 +278,7 @@ public class TdsRepository : ITdsRepository, ITdsExceptionService
             VoucherTypeName = (string)v.VoucherTypeName,
             VoucherNumber = (string?)v.VoucherNumber,
             ReferenceNumber = (string?)v.ReferenceNumber,
-            VoucherDate = v.VoucherDate is DateTime dt2 ? dt2 : (v.VoucherDate != null && DateTime.TryParse(v.VoucherDate.ToString(), out var p2) ? p2 : DateTime.MinValue),
+            VoucherDate = ParseNullableDateTime(v.VoucherDate) ?? DateTime.MinValue,
             TotalAmount = (decimal)v.TotalAmount,
             Narration = (string?)v.Narration,
             PartyLedgerName = (string?)v.PartyLedgerName,
