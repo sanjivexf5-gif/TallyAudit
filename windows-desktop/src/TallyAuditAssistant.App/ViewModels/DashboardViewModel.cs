@@ -377,16 +377,22 @@ public partial class DashboardViewModel : ObservableObject
                 
                 foreach (var ex in exceptions)
                 {
+                    var vDate = ex.VoucherDate.HasValue ? ex.VoucherDate.Value.ToString("dd-MMM-yyyy") : "—";
+                    var vNo = !string.IsNullOrEmpty(ex.VoucherNumber) ? ex.VoucherNumber : "—";
+                    var lName = !string.IsNullOrEmpty(ex.LedgerName) ? ex.LedgerName : "—";
+                    var amt = ex.FlaggedAmount.HasValue ? ex.FlaggedAmount.Value : 0m;
+                    var note = !string.IsNullOrEmpty(ex.AuditorNote) ? ex.AuditorNote : "—";
+
                     sb.AppendLine("   <Row ss:Height=\"18\">");
                     sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{ex.RuleName}</Data></Cell>");
                     sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{ex.Category}</Data></Cell>");
                     sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{ex.Severity}</Data></Cell>");
-                    sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{ex.VoucherDate?.ToString("dd-MMM-yyyy") ?? "—"}</Data></Cell>");
-                    sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{ex.VoucherNumber ?? "—"}</Data></Cell>");
-                    sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{ex.LedgerName ?? "—"}</Data></Cell>");
-                    sb.AppendLine($"    <Cell><Data ss:Type=\"Number\">{ex.FlaggedAmount ?? 0}</Data></Cell>");
+                    sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{vDate}</Data></Cell>");
+                    sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{vNo}</Data></Cell>");
+                    sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{lName}</Data></Cell>");
+                    sb.AppendLine($"    <Cell><Data ss:Type=\"Number\">{amt}</Data></Cell>");
                     sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{ex.Status}</Data></Cell>");
-                    sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{ex.AuditorNote ?? "—"}</Data></Cell>");
+                    sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{note}</Data></Cell>");
                     sb.AppendLine("   </Row>");
                 }
                 
@@ -394,14 +400,17 @@ public partial class DashboardViewModel : ObservableObject
                 sb.AppendLine(" </Worksheet>");
             }
 
+            var gstinStr = !string.IsNullOrEmpty(current.GSTIN) ? current.GSTIN : "—";
+            var panStr = !string.IsNullOrEmpty(current.PAN) ? current.PAN : "—";
+
             sb.AppendLine(" <Worksheet ss:Name=\"Audit Summary\">");
             sb.AppendLine("  <Table ss:ExpandedColumnCount=\"2\">");
             sb.AppendLine("   <Column ss:Width=\"180\"/>");
             sb.AppendLine("   <Column ss:Width=\"240\"/>");
             sb.AppendLine("   <Row ss:Height=\"30\" ss:StyleID=\"Title\"><Cell ss:MergeAcross=\"1\"><Data ss:Type=\"String\">Tally Audit Assistant - Summary</Data></Cell></Row>");
             sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">Company Name</Data></Cell><Cell><Data ss:Type=\"String\">{current.TallyCompanyName}</Data></Cell></Row>");
-            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">GSTIN</Data></Cell><Cell><Data ss:Type=\"String\">{current.GSTIN ?? "—"}</Data></Cell></Row>");
-            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">PAN</Data></Cell><Cell><Data ss:Type=\"String\">{current.PAN ?? "—"}</Data></Cell></Row>");
+            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">GSTIN</Data></Cell><Cell><Data ss:Type=\"String\">{gstinStr}</Data></Cell></Row>");
+            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">PAN</Data></Cell><Cell><Data ss:Type=\"String\">{panStr}</Data></Cell></Row>");
             sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">Audit Period</Data></Cell><Cell><Data ss:Type=\"String\">{FinancialYear}</Data></Cell></Row>");
             sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">Total Trans. Analysed</Data></Cell><Cell><Data ss:Type=\"Number\">{TotalVouchersSynchronized}</Data></Cell></Row>");
             sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">Total Exceptions</Data></Cell><Cell><Data ss:Type=\"Number\">{allExceptions.Count}</Data></Cell></Row>");
@@ -479,6 +488,7 @@ public partial class DashboardViewModel : ObservableObject
             html.AppendLine("</head>");
             html.AppendLine("<body>");
             
+            var nowStr = DateTime.Now.ToString("dd-MMM-yyyy HH:mm");
             html.AppendLine(" <div class='card'>");
             html.AppendLine("   <div style='display: flex; justify-content: space-between;'>");
             html.AppendLine("     <div>");
@@ -486,14 +496,14 @@ public partial class DashboardViewModel : ObservableObject
             html.AppendLine("       <div style='color: #4B5563; font-size: 14px;'>EXECUTIVE AUDIT SUMMARY SUMMARY SUMMARY SUMMARY SUMMARY</div>");
             html.AppendLine("     </div>");
             html.AppendLine("     <div style='text-align: right; font-size: 12px;'>");
-            html.AppendLine($"       <div><strong>Date:</strong> {DateTime.Now:dd-MMM-yyyy HH:mm}</div>");
+            html.AppendLine($"       <div><strong>Date:</strong> {nowStr}</div>");
             html.AppendLine($"       <div><strong>FY Period:</strong> {FinancialYear}</div>");
             html.AppendLine("     </div>");
             html.AppendLine("   </div>");
             html.AppendLine(" </div>");
 
-            var gstinDisplay = current.GSTIN ?? "—";
-            var panDisplay = current.PAN ?? "—";
+            var gstinDisplay = !string.IsNullOrEmpty(current.GSTIN) ? current.GSTIN : "—";
+            var panDisplay = !string.IsNullOrEmpty(current.PAN) ? current.PAN : "—";
             html.AppendLine(" <div class='card'>");
             html.AppendLine($"   <h2>Audit Target: {current.TallyCompanyName}</h2>");
             html.AppendLine($"   <div style='color:#4B5563; margin-bottom: 16px;'>GSTIN: {gstinDisplay} &nbsp;|&nbsp; PAN: {panDisplay}</div>");
