@@ -33,11 +33,11 @@ public class DuplicateVoucherRule : BaseAuditRule
 
         foreach (var dup in duplicates)
         {
-            string vTypeName = dup.VoucherTypeName;
-            string vNum = dup.VoucherNumber;
-            long count = dup.Occurrences;
-            decimal amount = dup.TotalAmount;
-            string ids = dup.VoucherIds;
+            string vTypeName = GetString(dup, "VoucherTypeName") ?? string.Empty;
+            string vNum = GetString(dup, "VoucherNumber") ?? string.Empty;
+            long count = GetLong(dup, "Occurrences");
+            decimal amount = GetDecimal(dup, "TotalAmount");
+            string ids = GetString(dup, "VoucherIds") ?? string.Empty;
 
             var explanation = $"Flagged because voucher number '{vNum}' under voucher type '{vTypeName}' appears {count} times in the records with amount {amount:C2}.";
 
@@ -86,11 +86,11 @@ public class DuplicateInvoiceNumberRule : BaseAuditRule
 
         foreach (var dup in duplicates)
         {
-            string party = dup.PartyLedgerName;
-            string refNum = dup.ReferenceNumber;
-            long count = dup.Occurrences;
-            decimal amount = dup.TotalAmount;
-            string vNums = dup.VoucherNumbers;
+            string party = GetString(dup, "PartyLedgerName") ?? string.Empty;
+            string refNum = GetString(dup, "ReferenceNumber") ?? string.Empty;
+            long count = GetLong(dup, "Occurrences");
+            decimal amount = GetDecimal(dup, "TotalAmount");
+            string vNums = GetString(dup, "VoucherNumbers") ?? string.Empty;
 
             var explanation = $"Flagged because supplier invoice reference '{refNum}' for vendor '{party}' is entered {count} times across vouchers ({vNums}).";
 

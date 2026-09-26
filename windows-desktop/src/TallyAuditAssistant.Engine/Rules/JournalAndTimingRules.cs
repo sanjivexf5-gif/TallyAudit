@@ -35,16 +35,22 @@ public class UnusualJournalEntryRule : BaseAuditRule
 
         foreach (var e in entries)
         {
-            var explanation = $"Flagged because journal entry {e.VoucherNumber} moves liquidity through '{e.LedgerName}' ({e.Amount:C2}) instead of using a standard Payment, Receipt, or Contra voucher type.";
+            decimal amt = GetDecimal(e, "Amount");
+            string? vNum = GetString(e, "VoucherNumber");
+            string? vId = GetString(e, "Id");
+            DateTime? vDate = GetDateTime(e, "VoucherDate");
+            string lName = GetString(e, "LedgerName") ?? string.Empty;
+
+            var explanation = $"Flagged because journal entry {vNum} moves liquidity through '{lName}' ({amt:C2}) instead of using a standard Payment, Receipt, or Contra voucher type.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: e.Id,
-                voucherNumber: e.VoucherNumber,
-                voucherDate: e.VoucherDate,
-                flaggedAmount: e.Amount,
-                evidenceObj: new { e.VoucherNumber, LiquidityLedger = e.LedgerName, e.Amount }
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
+                flaggedAmount: amt,
+                evidenceObj: new { VoucherNumber = vNum, LiquidityLedger = lName, Amount = amt }
             ));
         }
 
@@ -63,12 +69,12 @@ public class LargeManualJournalRule : BaseAuditRule
     public LargeManualJournalRule(SqliteConnectionFactory connectionFactory) 
         : base(connectionFactory, SeverityLevel.High)
     {
-        Parameters["HighValueThreshold"] = 500000.0;
+        Parameters["HighValueThreshold"] = 500000.0m;
     }
 
     public override async Task<IReadOnlyList<AuditResult>> EvaluateAsync(AuditExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var threshold = GetParam("HighValueThreshold", 500000.0);
+        var threshold = GetParam("HighValueThreshold", 500000.0m);
         var results = new List<AuditResult>();
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
 
@@ -84,16 +90,22 @@ public class LargeManualJournalRule : BaseAuditRule
 
         foreach (var j in journals)
         {
-            var explanation = $"Flagged because this journal amount of {j.TotalAmount:C2} is significantly higher than the standard review threshold of {threshold:C2} for manual journal entries.";
+            decimal totalAmount = GetDecimal(j, "TotalAmount");
+            string? vNum = GetString(j, "VoucherNumber");
+            string? vId = GetString(j, "Id");
+            DateTime? vDate = GetDateTime(j, "VoucherDate");
+            string? narration = GetString(j, "Narration");
+
+            var explanation = $"Flagged because this journal amount of {totalAmount:C2} is significantly higher than the standard review threshold of {threshold:C2} for manual journal entries.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: j.Id,
-                voucherNumber: j.VoucherNumber,
-                voucherDate: j.VoucherDate,
-                flaggedAmount: j.TotalAmount,
-                evidenceObj: new { j.VoucherNumber, Amount = j.TotalAmount, Threshold = threshold, j.Narration }
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
+                flaggedAmount: totalAmount,
+                evidenceObj: new { VoucherNumber = vNum, Amount = totalAmount, Threshold = threshold, Narration = narration }
             ));
         }
 
@@ -129,18 +141,22 @@ public class BackdatedTransactionRule : BaseAuditRule
 
         foreach (var v in vouchers)
         {
-            DateTime vDate = v.VoucherDate;
-            DateTime bDate = v.BooksFromDate;
-            var explanation = $"Flagged because voucher {v.VoucherNumber} has date {vDate:dd-MMM-yyyy}, which precedes the company books commencement date ({bDate:dd-MMM-yyyy}).";
+            DateTime? vDate = GetDateTime(v, "VoucherDate");
+            DateTime? bDate = GetDateTime(v, "BooksFromDate");
+            decimal totalAmount = GetDecimal(v, "TotalAmount");
+            string? vNum = GetString(v, "VoucherNumber");
+            string? vId = GetString(v, "Id");
+
+            var explanation = $"Flagged because voucher {vNum} has date {vDate:dd-MMM-yyyy}, which precedes the company books commencement date ({bDate:dd-MMM-yyyy}).";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: v.Id,
-                voucherNumber: v.VoucherNumber,
+                voucherId: vId,
+                voucherNumber: vNum,
                 voucherDate: vDate,
-                flaggedAmount: v.TotalAmount,
-                evidenceObj: new { v.VoucherNumber, VoucherDate = vDate, BooksBeginningDate = bDate }
+                flaggedAmount: totalAmount,
+                evidenceObj: new { VoucherNumber = vNum, VoucherDate = vDate, BooksBeginningDate = bDate }
             ));
         }
 
@@ -159,12 +175,12 @@ public class YearEndAdjustmentRule : BaseAuditRule
     public YearEndAdjustmentRule(SqliteConnectionFactory connectionFactory) 
         : base(connectionFactory, SeverityLevel.Medium)
     {
-        Parameters["YearEndThreshold"] = 100000.0;
+        Parameters["YearEndThreshold"] = 100000.0m;
     }
 
     public override async Task<IReadOnlyList<AuditResult>> EvaluateAsync(AuditExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var threshold = GetParam("YearEndThreshold", 100000.0);
+        var threshold = GetParam("YearEndThreshold", 100000.0m);
         var results = new List<AuditResult>();
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
 
@@ -181,16 +197,22 @@ public class YearEndAdjustmentRule : BaseAuditRule
 
         foreach (var a in adjustments)
         {
-            var explanation = $"Flagged because this closing journal voucher of {a.TotalAmount:C2} was posted on year-end date (31-March) requiring period-end cut-off review.";
+            decimal totalAmount = GetDecimal(a, "TotalAmount");
+            string? vNum = GetString(a, "VoucherNumber");
+            string? vId = GetString(a, "Id");
+            DateTime? vDate = GetDateTime(a, "VoucherDate");
+            string? narration = GetString(a, "Narration");
+
+            var explanation = $"Flagged because this closing journal voucher of {totalAmount:C2} was posted on year-end date (31-March) requiring period-end cut-off review.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: a.Id,
-                voucherNumber: a.VoucherNumber,
-                voucherDate: a.VoucherDate,
-                flaggedAmount: a.TotalAmount,
-                evidenceObj: new { a.VoucherNumber, a.VoucherDate, Amount = a.TotalAmount, a.Narration }
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
+                flaggedAmount: totalAmount,
+                evidenceObj: new { VoucherNumber = vNum, VoucherDate = vDate, Amount = totalAmount, Narration = narration }
             ));
         }
 

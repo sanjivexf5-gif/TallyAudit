@@ -57,6 +57,51 @@ public abstract class BaseTdsRule : ITdsRule
         return defaultValue;
     }
 
+    protected static object? GetCol(object? row, string colName)
+    {
+        if (row is IDictionary<string, object> dict && dict.TryGetValue(colName, out var val))
+            return val;
+        return null;
+    }
+
+    protected static string? GetString(object? row, string colName)
+    {
+        var val = GetCol(row, colName);
+        return val?.ToString();
+    }
+
+    protected static decimal GetDecimal(object? row, string colName, decimal defaultVal = 0m)
+    {
+        var val = GetCol(row, colName);
+        if (val == null) return defaultVal;
+        if (val is decimal d) return d;
+        try { return Convert.ToDecimal(val); } catch { return defaultVal; }
+    }
+
+    protected static decimal? GetNullableDecimal(object? row, string colName)
+    {
+        var val = GetCol(row, colName);
+        if (val == null) return null;
+        if (val is decimal d) return d;
+        try { return Convert.ToDecimal(val); } catch { return null; }
+    }
+
+    protected static DateTime? GetDateTime(object? row, string colName)
+    {
+        var val = GetCol(row, colName);
+        if (val == null) return null;
+        if (val is DateTime dt) return dt;
+        if (DateTime.TryParse(val.ToString(), out var parsed)) return parsed;
+        return null;
+    }
+
+    protected static long GetLong(object? row, string colName, long defaultVal = 0L)
+    {
+        var val = GetCol(row, colName);
+        if (val == null) return defaultVal;
+        try { return Convert.ToInt64(val); } catch { return defaultVal; }
+    }
+
     protected TdsCheckResult CreateResult(
         string companyId,
         string explanation,

@@ -16,12 +16,12 @@ public class MissingGstInformationRule : BaseAuditRule
     public MissingGstInformationRule(SqliteConnectionFactory connectionFactory) 
         : base(connectionFactory, SeverityLevel.High)
     {
-        Parameters["B2BThreshold"] = 50000.0;
+        Parameters["B2BThreshold"] = 50000.0m;
     }
 
     public override async Task<IReadOnlyList<AuditResult>> EvaluateAsync(AuditExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var threshold = GetParam("B2BThreshold", 50000.0);
+        var threshold = GetParam("B2BThreshold", 50000.0m);
         var results = new List<AuditResult>();
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
 
@@ -39,16 +39,23 @@ public class MissingGstInformationRule : BaseAuditRule
 
         foreach (var v in vouchers)
         {
-            var explanation = $"Flagged because B2B transaction {v.VoucherNumber} of {v.TotalAmount:C2} is recorded against '{v.PartyLedgerName}' which lacks a valid 15-character GSTIN.";
+            decimal totalAmount = GetDecimal(v, "TotalAmount");
+            string? vNum = GetString(v, "VoucherNumber");
+            string? vId = GetString(v, "Id");
+            DateTime? vDate = GetDateTime(v, "VoucherDate");
+            string party = GetString(v, "PartyLedgerName") ?? string.Empty;
+            string gstin = GetString(v, "GSTIN") ?? "None";
+
+            var explanation = $"Flagged because B2B transaction {vNum} of {totalAmount:C2} is recorded against '{party}' which lacks a valid 15-character GSTIN.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: v.Id,
-                voucherNumber: v.VoucherNumber,
-                voucherDate: v.VoucherDate,
-                flaggedAmount: v.TotalAmount,
-                evidenceObj: new { v.VoucherNumber, Party = v.PartyLedgerName, Amount = v.TotalAmount, GSTIN = v.GSTIN ?? "None" }
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
+                flaggedAmount: totalAmount,
+                evidenceObj: new { VoucherNumber = vNum, Party = party, Amount = totalAmount, GSTIN = gstin }
             ));
         }
 
@@ -87,15 +94,19 @@ public class MissingPanWhereApplicableRule : BaseAuditRule
 
         foreach (var l in ledgers)
         {
-            decimal amt = l.TotalDeductionAmount;
-            var explanation = $"Flagged because vendor '{l.Name}' with active transaction movement ({amt:C2}) has no 10-character PAN recorded, which would require higher rate deduction under Section 206AA.";
+            decimal amt = GetDecimal(l, "TotalDeductionAmount");
+            string lName = GetString(l, "Name") ?? string.Empty;
+            string lId = GetString(l, "Id") ?? string.Empty;
+            string pan = GetString(l, "PAN") ?? "None";
+
+            var explanation = $"Flagged because vendor '{lName}' with active transaction movement ({amt:C2}) has no 10-character PAN recorded, which would require higher rate deduction under Section 206AA.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                ledgerId: l.Id,
+                ledgerId: lId,
                 flaggedAmount: amt,
-                evidenceObj: new { LedgerName = l.Name, TotalMovement = amt, PAN = l.PAN ?? "None" }
+                evidenceObj: new { LedgerName = lName, TotalMovement = amt, PAN = pan }
             ));
         }
 
@@ -131,13 +142,19 @@ public class MissingHsnSacRule : BaseAuditRule
 
         foreach (var l in ledgers)
         {
-            var explanation = $"Flagged because taxable master ledger '{l.Name}' (GST Rate: {l.GstRate ?? 0}%) lacks a standard 4 to 8 digit HSN/SAC tariff classification code.";
+            string lName = GetString(l, "Name") ?? string.Empty;
+            string lId = GetString(l, "Id") ?? string.Empty;
+            decimal gstRate = GetDecimal(l, "GstRate");
+            string? parentGroup = GetString(l, "ParentGroup");
+            string hsnCode = GetString(l, "HsnCode") ?? "None";
+
+            var explanation = $"Flagged because taxable master ledger '{lName}' (GST Rate: {gstRate}%) lacks a standard 4 to 8 digit HSN/SAC tariff classification code.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                ledgerId: l.Id,
-                evidenceObj: new { LedgerName = l.Name, l.ParentGroup, l.GstRate, HsnCode = l.HsnCode ?? "None" }
+                ledgerId: lId,
+                evidenceObj: new { LedgerName = lName, ParentGroup = parentGroup, GstRate = gstRate, HsnCode = hsnCode }
             ));
         }
 

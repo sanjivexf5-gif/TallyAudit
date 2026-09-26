@@ -43,9 +43,12 @@ public class GstTaxCalculationConsistencyRule : BaseAuditRule
 
         foreach (var v in vouchers)
         {
-            decimal cgst = v.CgstAmount;
-            decimal sgst = v.SgstAmount;
-            decimal igst = v.IgstAmount;
+            decimal cgst = GetDecimal(v, "CgstAmount");
+            decimal sgst = GetDecimal(v, "SgstAmount");
+            decimal igst = GetDecimal(v, "IgstAmount");
+            string? vNum = GetString(v, "VoucherNumber");
+            string? vId = GetString(v, "Id");
+            DateTime? vDate = GetDateTime(v, "VoucherDate");
 
             if (cgst > 0 && sgst > 0 && Math.Abs(cgst - sgst) > 1.0m)
             {
@@ -54,9 +57,9 @@ public class GstTaxCalculationConsistencyRule : BaseAuditRule
                     context.CompanyId,
                     explanation,
                     Severity,
-                    voucherId: v.Id,
-                    voucherNumber: v.VoucherNumber,
-                    voucherDate: v.VoucherDate,
+                    voucherId: vId,
+                    voucherNumber: vNum,
+                    voucherDate: vDate,
                     flaggedAmount: Math.Abs(cgst - sgst),
                     evidenceObj: new { CGST = cgst, SGST = sgst, Discrepancy = Math.Abs(cgst - sgst) }
                 ));
@@ -69,9 +72,9 @@ public class GstTaxCalculationConsistencyRule : BaseAuditRule
                     context.CompanyId,
                     explanation,
                     SeverityLevel.High,
-                    voucherId: v.Id,
-                    voucherNumber: v.VoucherNumber,
-                    voucherDate: v.VoucherDate,
+                    voucherId: vId,
+                    voucherNumber: vNum,
+                    voucherDate: vDate,
                     flaggedAmount: cgst + igst,
                     evidenceObj: new { CGST = cgst, IGST = igst }
                 ));
@@ -114,17 +117,24 @@ public class InputTaxCreditReviewRule : BaseAuditRule
 
         foreach (var v in vouchers)
         {
-            decimal tax = v.TaxAmount;
-            var explanation = $"ITC transaction requires review: Input Tax Credit of {tax:C2} claimed on '{v.PartyLedgerName}' which lacks a valid supplier GSTIN.";
+            decimal tax = GetDecimal(v, "TaxAmount");
+            string? vNum = GetString(v, "VoucherNumber");
+            string? vId = GetString(v, "Id");
+            DateTime? vDate = GetDateTime(v, "VoucherDate");
+            string party = GetString(v, "PartyLedgerName") ?? string.Empty;
+            string? taxLedger = GetString(v, "TaxLedger");
+            string supplierGstin = GetString(v, "GSTIN") ?? "None";
+
+            var explanation = $"ITC transaction requires review: Input Tax Credit of {tax:C2} claimed on '{party}' which lacks a valid supplier GSTIN.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: v.Id,
-                voucherNumber: v.VoucherNumber,
-                voucherDate: v.VoucherDate,
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
                 flaggedAmount: tax,
-                evidenceObj: new { Supplier = v.PartyLedgerName, TaxLedger = v.TaxLedger, ClaimedITC = tax, SupplierGstin = v.GSTIN ?? "None" }
+                evidenceObj: new { Supplier = party, TaxLedger = taxLedger, ClaimedITC = tax, SupplierGstin = supplierGstin }
             ));
         }
 
@@ -167,40 +177,44 @@ public class OutputGstReviewRule : BaseAuditRule
 
         foreach (var v in vouchers)
         {
-            string compState = v.CompanyState;
-            string partyState = v.PartyState;
-            long hasCgSt = v.HasCgSt;
-            long hasIgst = v.HasIgst;
-            decimal total = v.TotalAmount;
+            string compState = GetString(v, "CompanyState") ?? string.Empty;
+            string partyState = GetString(v, "PartyState") ?? string.Empty;
+            long hasCgSt = GetLong(v, "HasCgSt");
+            long hasIgst = GetLong(v, "HasIgst");
+            decimal total = GetDecimal(v, "TotalAmount");
+            string? vNum = GetString(v, "VoucherNumber");
+            string? vId = GetString(v, "Id");
+            DateTime? vDate = GetDateTime(v, "VoucherDate");
+            string party = GetString(v, "PartyLedgerName") ?? string.Empty;
 
             bool isInterstate = !compState.Equals(partyState, StringComparison.OrdinalIgnoreCase);
 
             if (isInterstate && hasCgSt > 0)
             {
-                var explanation = $"Potential GST classification inconsistency: Interstate sales transaction to '{v.PartyLedgerName}' ({partyState}) is charged CGST/SGST instead of IGST.";
+                var explanation = $"Potential GST classification inconsistency: Interstate sales transaction to '{party}' ({partyState}) is charged CGST/SGST instead of IGST.";
                 results.Add(CreateResult(
                     context.CompanyId,
                     explanation,
                     Severity,
-                    voucherId: v.Id,
-                    voucherNumber: v.VoucherNumber,
-                    voucherDate: v.VoucherDate,
+                    voucherId: vId,
+                    voucherNumber: vNum,
+                    voucherDate: vDate,
                     flaggedAmount: total,
-                    evidenceObj: new { Customer = v.PartyLedgerName, CustomerState = partyState, CompanyState = compState, ChargedTax = "CGST/SGST" }
+                    evidenceObj: new { Customer = party, CustomerState = partyState, CompanyState = compState, ChargedTax = "CGST/SGST" }
                 ));
             }
             else if (!isInterstate && hasIgst > 0)
             {
-                var explanation = $"Potential GST classification inconsistency: Intrastate sales transaction to '{v.PartyLedgerName}' ({partyState}) is charged IGST instead of CGST/SGST.";
+                var explanation = $"Potential GST classification inconsistency: Intrastate sales transaction to '{party}' ({partyState}) is charged IGST instead of CGST/SGST.";
                 results.Add(CreateResult(
                     context.CompanyId,
                     explanation,
                     Severity,
-                    voucherId: v.Id,
-                    voucherNumber: v.VoucherNumber,
-                    voucherDate: v.VoucherDate,
+                    voucherId: vId,
+                    voucherNumber: vNum,
+                    voucherDate: vDate,
                     flaggedAmount: total,
-                    evidenceObj: new { Customer = v.PartyLedgerName, CustomerState = partyState, CompanyState = compState, ChargedTax = "IGST" }
+                    evidenceObj: new { Customer = party, CustomerState = partyState, CompanyState = compState, ChargedTax = "IGST" }
                 ));
             }
         }
@@ -220,17 +234,17 @@ public class TdsApplicabilityThresholdRule : BaseAuditRule
     public TdsApplicabilityThresholdRule(SqliteConnectionFactory connectionFactory) 
         : base(connectionFactory, SeverityLevel.High)
     {
-        Parameters["SinglePaymentLimit"] = 30000.0;
+        Parameters["SinglePaymentLimit"] = 30000.0m;
     }
 
     public override async Task<IReadOnlyList<AuditResult>> EvaluateAsync(AuditExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var limit = GetParam("SinglePaymentLimit", 30000.0);
+        var limit = GetParam("SinglePaymentLimit", 30000.0m);
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
 
         const string settingSql = "SELECT Value FROM Settings WHERE Key = 'TdsSinglePaymentLimit' LIMIT 1";
         var settingVal = await connection.QuerySingleOrDefaultAsync<string>(settingSql);
-        if (double.TryParse(settingVal, out var parsedLimit))
+        if (decimal.TryParse(settingVal, out var parsedLimit))
         {
             limit = parsedLimit;
         }
@@ -257,17 +271,22 @@ public class TdsApplicabilityThresholdRule : BaseAuditRule
 
         foreach (var v in vouchers)
         {
-            decimal amt = v.TotalAmount;
-            var explanation = $"TDS threshold review required: Transaction amount of {amt:C2} under '{v.ExpenseLedger}' exceeds the single-bill limit of {limit:C2} but lacks any recorded TDS withholding.";
+            decimal amt = GetDecimal(v, "TotalAmount");
+            string? vNum = GetString(v, "VoucherNumber");
+            string? vId = GetString(v, "Id");
+            DateTime? vDate = GetDateTime(v, "VoucherDate");
+            string expLedger = GetString(v, "ExpenseLedger") ?? string.Empty;
+
+            var explanation = $"TDS threshold review required: Transaction amount of {amt:C2} under '{expLedger}' exceeds the single-bill limit of {limit:C2} but lacks any recorded TDS withholding.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: v.Id,
-                voucherNumber: v.VoucherNumber,
-                voucherDate: v.VoucherDate,
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
                 flaggedAmount: amt,
-                evidenceObj: new { ExpenseType = v.ExpenseLedger, TotalAmount = amt, SingleBillLimit = limit }
+                evidenceObj: new { ExpenseType = expLedger, TotalAmount = amt, SingleBillLimit = limit }
             ));
         }
 
@@ -286,17 +305,17 @@ public class LargeTransactionRule : BaseAuditRule
     public LargeTransactionRule(SqliteConnectionFactory connectionFactory) 
         : base(connectionFactory, SeverityLevel.Medium)
     {
-        Parameters["MaterialThreshold"] = 1000000.0;
+        Parameters["MaterialThreshold"] = 1000000.0m;
     }
 
     public override async Task<IReadOnlyList<AuditResult>> EvaluateAsync(AuditExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var threshold = GetParam("MaterialThreshold", 1000000.0);
+        var threshold = GetParam("MaterialThreshold", 1000000.0m);
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
 
         const string settingSql = "SELECT Value FROM Settings WHERE Key = 'LargeTransactionThreshold' LIMIT 1";
         var settingVal = await connection.QuerySingleOrDefaultAsync<string>(settingSql);
-        if (double.TryParse(settingVal, out var parsedThreshold))
+        if (decimal.TryParse(settingVal, out var parsedThreshold))
         {
             threshold = parsedThreshold;
         }
@@ -314,17 +333,23 @@ public class LargeTransactionRule : BaseAuditRule
 
         foreach (var v in vouchers)
         {
-            decimal amt = v.TotalAmount;
-            var explanation = $"Material value threshold outlier: This {v.VoucherTypeName} transaction has an exceptionally high value of {amt:C2}, exceeding the standard review limit of {threshold:C2}.";
+            decimal amt = GetDecimal(v, "TotalAmount");
+            string? vNum = GetString(v, "VoucherNumber");
+            string? vId = GetString(v, "Id");
+            DateTime? vDate = GetDateTime(v, "VoucherDate");
+            string vTypeName = GetString(v, "VoucherTypeName") ?? "Transaction";
+            string? party = GetString(v, "PartyLedgerName");
+
+            var explanation = $"Material value threshold outlier: This {vTypeName} transaction has an exceptionally high value of {amt:C2}, exceeding the standard review limit of {threshold:C2}.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: v.Id,
-                voucherNumber: v.VoucherNumber,
-                voucherDate: v.VoucherDate,
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
                 flaggedAmount: amt,
-                evidenceObj: new { v.VoucherTypeName, v.VoucherNumber, Amount = amt, Party = v.PartyLedgerName, Threshold = threshold }
+                evidenceObj: new { VoucherTypeName = vTypeName, VoucherNumber = vNum, Amount = amt, Party = party, Threshold = threshold }
             ));
         }
 
@@ -343,12 +368,12 @@ public class PeriodEndTransactionReviewRule : BaseAuditRule
     public PeriodEndTransactionReviewRule(SqliteConnectionFactory connectionFactory) 
         : base(connectionFactory, SeverityLevel.Medium)
     {
-        Parameters["MinPeriodEndAmount"] = 100000.0;
+        Parameters["MinPeriodEndAmount"] = 100000.0m;
     }
 
     public override async Task<IReadOnlyList<AuditResult>> EvaluateAsync(AuditExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var minAmount = GetParam("MinPeriodEndAmount", 100000.0);
+        var minAmount = GetParam("MinPeriodEndAmount", 100000.0m);
         var reviewDays = 5;
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
 
@@ -377,17 +402,22 @@ public class PeriodEndTransactionReviewRule : BaseAuditRule
 
         foreach (var v in vouchers)
         {
-            decimal amt = v.TotalAmount;
-            var explanation = $"Period-end cut-off review required: Transaction value of {amt:C2} posted near financial quarter closing date ({v.VoucherDate:dd-MMM-yyyy}).";
+            decimal amt = GetDecimal(v, "TotalAmount");
+            string? vNum = GetString(v, "VoucherNumber");
+            string? vId = GetString(v, "Id");
+            DateTime? vDate = GetDateTime(v, "VoucherDate");
+            string? party = GetString(v, "PartyLedgerName");
+
+            var explanation = $"Period-end cut-off review required: Transaction value of {amt:C2} posted near financial quarter closing date ({vDate:dd-MMM-yyyy}).";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: v.Id,
-                voucherNumber: v.VoucherNumber,
-                voucherDate: v.VoucherDate,
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
                 flaggedAmount: amt,
-                evidenceObj: new { Date = v.VoucherDate, Amount = amt, Party = v.PartyLedgerName }
+                evidenceObj: new { Date = vDate, Amount = amt, Party = party }
             ));
         }
 
@@ -426,13 +456,18 @@ public class MasterDataQualityCheckRule : BaseAuditRule
 
         foreach (var d in duplicates)
         {
-            var explanation = $"Master data requires review: Duplicate registration credentials found between ledger '{d.Name1}' and '{d.Name2}' (GSTIN: {d.GSTIN}).";
+            string name1 = GetString(d, "Name1") ?? string.Empty;
+            string name2 = GetString(d, "Name2") ?? string.Empty;
+            string gstin = GetString(d, "GSTIN") ?? string.Empty;
+            string id1 = GetString(d, "Id1") ?? string.Empty;
+
+            var explanation = $"Master data requires review: Duplicate registration credentials found between ledger '{name1}' and '{name2}' (GSTIN: {gstin}).";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                ledgerId: d.Id1,
-                evidenceObj: new { Ledger1 = d.Name1, Ledger2 = d.Name2, DuplicateGSTIN = d.GSTIN }
+                ledgerId: id1,
+                evidenceObj: new { Ledger1 = name1, Ledger2 = name2, DuplicateGSTIN = gstin }
             ));
         }
 
@@ -471,18 +506,21 @@ public class CrossDatasetConsistencyCheckRule : BaseAuditRule
 
         foreach (var d in discrepancies)
         {
-            decimal debits = d.TotalDebits;
-            decimal credits = d.TotalCredits;
+            decimal debits = GetDecimal(d, "TotalDebits");
+            decimal credits = GetDecimal(d, "TotalCredits");
             decimal diff = Math.Abs(debits - credits);
+            string? vNum = GetString(d, "VoucherNumber");
+            string? vId = GetString(d, "Id");
+            DateTime? vDate = GetDateTime(d, "VoucherDate");
 
-            var explanation = $"Cross-dataset balance discrepancy: Total debit postings ({debits:C2}) do not balance with credits ({credits:C2}) in voucher {d.VoucherNumber}.";
+            var explanation = $"Cross-dataset balance discrepancy: Total debit postings ({debits:C2}) do not balance with credits ({credits:C2}) in voucher {vNum}.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: d.Id,
-                voucherNumber: d.VoucherNumber,
-                voucherDate: d.VoucherDate,
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
                 flaggedAmount: diff,
                 evidenceObj: new { Debits = debits, Credits = credits, Discrepancy = diff }
             ));

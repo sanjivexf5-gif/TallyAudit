@@ -32,14 +32,14 @@ public class VoucherNumberingGapRule : BaseAuditRule
 
         var rows = (await connection.QueryAsync(new CommandDefinition(sql, new { context.CompanyId }, cancellationToken: cancellationToken))).ToList();
 
-        var grouped = rows.GroupBy(r => (string)r.VoucherTypeName);
+        var grouped = rows.GroupBy(r => GetString(r, "VoucherTypeName") ?? string.Empty);
         foreach (var group in grouped)
         {
-            var ordered = group.OrderBy(x => (long)x.Num).ToList();
+            var ordered = group.OrderBy(x => GetLong(x, "Num")).ToList();
             for (int i = 0; i < ordered.Count - 1; i++)
             {
-                long current = ordered[i].Num;
-                long next = ordered[i + 1].Num;
+                long current = GetLong(ordered[i], "Num");
+                long next = GetLong(ordered[i + 1], "Num");
                 if (next > current + 1 && next <= current + 10) // Small contiguous gap
                 {
                     var explanation = $"Flagged because a numbering sequence gap was detected in '{group.Key}' between voucher number {current} and {next} (Missing: {current + 1} to {next - 1}).";
@@ -69,12 +69,12 @@ public class UnusualTransactionAmountRule : BaseAuditRule
     public UnusualTransactionAmountRule(SqliteConnectionFactory connectionFactory) 
         : base(connectionFactory, SeverityLevel.Medium)
     {
-        Parameters["OutlierMultiplier"] = 3.5;
+        Parameters["OutlierMultiplier"] = 3.5m;
     }
 
     public override async Task<IReadOnlyList<AuditResult>> EvaluateAsync(AuditExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var multiplier = GetParam("OutlierMultiplier", 3.5);
+        var multiplier = GetParam("OutlierMultiplier", 3.5m);
         var results = new List<AuditResult>();
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
 
@@ -89,9 +89,9 @@ public class UnusualTransactionAmountRule : BaseAuditRule
 
         foreach (var s in stats)
         {
-            string vType = s.VoucherTypeName;
-            decimal avg = s.AvgAmount;
-            decimal threshold = avg * (decimal)multiplier;
+            string vType = GetString(s, "VoucherTypeName") ?? string.Empty;
+            decimal avg = GetDecimal(s, "AvgAmount");
+            decimal threshold = avg * multiplier;
 
             const string outlierSql = @"
                 SELECT Id, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName
@@ -103,16 +103,21 @@ public class UnusualTransactionAmountRule : BaseAuditRule
 
             foreach (var o in outliers)
             {
-                var explanation = $"Flagged because this {vType} voucher amount of {o.TotalAmount:C2} is more than {multiplier}x the category average ({avg:C2}).";
+                decimal totalAmount = GetDecimal(o, "TotalAmount");
+                string? vNum = GetString(o, "VoucherNumber");
+                string? vId = GetString(o, "Id");
+                DateTime? vDate = GetDateTime(o, "VoucherDate");
+
+                var explanation = $"Flagged because this {vType} voucher amount of {totalAmount:C2} is more than {multiplier}x the category average ({avg:C2}).";
                 results.Add(CreateResult(
                     context.CompanyId,
                     explanation,
                     Severity,
-                    voucherId: o.Id,
-                    voucherNumber: o.VoucherNumber,
-                    voucherDate: o.VoucherDate,
-                    flaggedAmount: o.TotalAmount,
-                    evidenceObj: new { VoucherType = vType, Amount = o.TotalAmount, CategoryAverage = avg, Multiplier = multiplier }
+                    voucherId: vId,
+                    voucherNumber: vNum,
+                    voucherDate: vDate,
+                    flaggedAmount: totalAmount,
+                    evidenceObj: new { VoucherType = vType, Amount = totalAmount, CategoryAverage = avg, Multiplier = multiplier }
                 ));
             }
         }
@@ -133,13 +138,13 @@ public class RoundNumberPatternRule : BaseAuditRule
         : base(connectionFactory, SeverityLevel.Low)
     {
         Parameters["RoundMultiple"] = 10000;
-        Parameters["MinimumAmount"] = 50000.0;
+        Parameters["MinimumAmount"] = 50000.0m;
     }
 
     public override async Task<IReadOnlyList<AuditResult>> EvaluateAsync(AuditExecutionContext context, CancellationToken cancellationToken = default)
     {
         var multiple = GetParam("RoundMultiple", 10000);
-        var minAmount = GetParam("MinimumAmount", 50000.0);
+        var minAmount = GetParam("MinimumAmount", 50000.0m);
         var results = new List<AuditResult>();
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
 
@@ -157,16 +162,22 @@ public class RoundNumberPatternRule : BaseAuditRule
 
         foreach (var v in vouchers)
         {
-            var explanation = $"Flagged because payment voucher {v.VoucherNumber} has an exact round figure of {v.TotalAmount:C2} (multiple of {multiple:C0}) without fractional paise.";
+            decimal totalAmount = GetDecimal(v, "TotalAmount");
+            string? vNum = GetString(v, "VoucherNumber");
+            string? vId = GetString(v, "Id");
+            DateTime? vDate = GetDateTime(v, "VoucherDate");
+            string? party = GetString(v, "PartyLedgerName");
+
+            var explanation = $"Flagged because payment voucher {vNum} has an exact round figure of {totalAmount:C2} (multiple of {multiple:C0}) without fractional paise.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: v.Id,
-                voucherNumber: v.VoucherNumber,
-                voucherDate: v.VoucherDate,
-                flaggedAmount: v.TotalAmount,
-                evidenceObj: new { v.VoucherNumber, Amount = v.TotalAmount, Party = v.PartyLedgerName, RoundMultiple = multiple }
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
+                flaggedAmount: totalAmount,
+                evidenceObj: new { VoucherNumber = vNum, Amount = totalAmount, Party = party, RoundMultiple = multiple }
             ));
         }
 
@@ -210,16 +221,22 @@ public class UnusualLedgerCombinationRule : BaseAuditRule
 
         foreach (var v in vouchers)
         {
-            var explanation = $"Flagged because voucher {v.VoucherNumber} directly combines equity/capital accounts with operating expense allocations in a single entry.";
+            decimal totalAmount = GetDecimal(v, "TotalAmount");
+            string? vNum = GetString(v, "VoucherNumber");
+            string? vId = GetString(v, "Id");
+            DateTime? vDate = GetDateTime(v, "VoucherDate");
+            string? vTypeName = GetString(v, "VoucherTypeName");
+
+            var explanation = $"Flagged because voucher {vNum} directly combines equity/capital accounts with operating expense allocations in a single entry.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: v.Id,
-                voucherNumber: v.VoucherNumber,
-                voucherDate: v.VoucherDate,
-                flaggedAmount: v.TotalAmount,
-                evidenceObj: new { v.VoucherNumber, v.VoucherTypeName, Amount = v.TotalAmount }
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
+                flaggedAmount: totalAmount,
+                evidenceObj: new { VoucherNumber = vNum, VoucherTypeName = vTypeName, Amount = totalAmount }
             ));
         }
 
@@ -263,17 +280,23 @@ public class ReversalAnomalyRule : BaseAuditRule
 
         foreach (var r in reversals)
         {
-            long days = r.DaysBetween;
-            var explanation = $"Flagged because credit note {r.VoucherNumber} reverses invoice dated {r.OriginalDate:dd-MMM-yyyy} after {days} days, exceeding the normal {maxDays}-day reversal window.";
+            long days = GetLong(r, "DaysBetween");
+            decimal totalAmount = GetDecimal(r, "TotalAmount");
+            string? vNum = GetString(r, "VoucherNumber");
+            string? vId = GetString(r, "Id");
+            DateTime? rDate = GetDateTime(r, "ReversalDate");
+            DateTime? oDate = GetDateTime(r, "OriginalDate");
+
+            var explanation = $"Flagged because credit note {vNum} reverses invoice dated {oDate:dd-MMM-yyyy} after {days} days, exceeding the normal {maxDays}-day reversal window.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: r.Id,
-                voucherNumber: r.VoucherNumber,
-                voucherDate: r.ReversalDate,
-                flaggedAmount: r.TotalAmount,
-                evidenceObj: new { r.VoucherNumber, DaysDelayed = days, ThresholdDays = maxDays }
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: rDate,
+                flaggedAmount: totalAmount,
+                evidenceObj: new { VoucherNumber = vNum, DaysDelayed = days, ThresholdDays = maxDays }
             ));
         }
 
@@ -309,16 +332,23 @@ public class CreditDebitNoteAnomalyRule : BaseAuditRule
 
         foreach (var n in notes)
         {
-            var explanation = $"Flagged because {n.VoucherTypeName} {n.VoucherNumber} has no original invoice reference number recorded for statutory tracking.";
+            decimal totalAmount = GetDecimal(n, "TotalAmount");
+            string? vNum = GetString(n, "VoucherNumber");
+            string? vId = GetString(n, "Id");
+            DateTime? vDate = GetDateTime(n, "VoucherDate");
+            string vTypeName = GetString(n, "VoucherTypeName") ?? "Credit/Debit Note";
+            string? party = GetString(n, "PartyLedgerName");
+
+            var explanation = $"Flagged because {vTypeName} {vNum} has no original invoice reference number recorded for statutory tracking.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: n.Id,
-                voucherNumber: n.VoucherNumber,
-                voucherDate: n.VoucherDate,
-                flaggedAmount: n.TotalAmount,
-                evidenceObj: new { n.VoucherTypeName, n.VoucherNumber, Amount = n.TotalAmount, Party = n.PartyLedgerName }
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
+                flaggedAmount: totalAmount,
+                evidenceObj: new { VoucherTypeName = vTypeName, VoucherNumber = vNum, Amount = totalAmount, Party = party }
             ));
         }
 

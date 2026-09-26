@@ -16,12 +16,12 @@ public class MissingNarrationRule : BaseAuditRule
     public MissingNarrationRule(SqliteConnectionFactory connectionFactory) 
         : base(connectionFactory, SeverityLevel.Low)
     {
-        Parameters["MinimumAmountThreshold"] = 10000.0;
+        Parameters["MinimumAmountThreshold"] = 10000.0m;
     }
 
     public override async Task<IReadOnlyList<AuditResult>> EvaluateAsync(AuditExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var minAmount = GetParam("MinimumAmountThreshold", 10000.0);
+        var minAmount = GetParam("MinimumAmountThreshold", 10000.0m);
         var results = new List<AuditResult>();
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
 
@@ -37,16 +37,23 @@ public class MissingNarrationRule : BaseAuditRule
 
         foreach (var v in vouchers)
         {
-            var explanation = $"Flagged because this {v.VoucherTypeName} of {v.TotalAmount:C2} has no descriptive narration recorded.";
+            decimal totalAmount = GetDecimal(v, "TotalAmount");
+            string? vNum = GetString(v, "VoucherNumber");
+            string? vId = GetString(v, "Id");
+            DateTime? vDate = GetDateTime(v, "VoucherDate");
+            string vTypeName = GetString(v, "VoucherTypeName") ?? "Voucher";
+            string? party = GetString(v, "PartyLedgerName");
+
+            var explanation = $"Flagged because this {vTypeName} of {totalAmount:C2} has no descriptive narration recorded.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: v.Id,
-                voucherNumber: v.VoucherNumber,
-                voucherDate: v.VoucherDate,
-                flaggedAmount: v.TotalAmount,
-                evidenceObj: new { v.VoucherTypeName, v.VoucherNumber, Amount = v.TotalAmount, Party = v.PartyLedgerName }
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
+                flaggedAmount: totalAmount,
+                evidenceObj: new { VoucherTypeName = vTypeName, VoucherNumber = vNum, Amount = totalAmount, Party = party }
             ));
         }
 
@@ -82,16 +89,22 @@ public class MissingPartyInfoRule : BaseAuditRule
 
         foreach (var v in vouchers)
         {
-            var explanation = $"Flagged because commercial voucher {v.VoucherNumber} ({v.VoucherTypeName}) lacks an identifiable named party or customer ledger.";
+            decimal totalAmount = GetDecimal(v, "TotalAmount");
+            string? vNum = GetString(v, "VoucherNumber");
+            string? vId = GetString(v, "Id");
+            DateTime? vDate = GetDateTime(v, "VoucherDate");
+            string vTypeName = GetString(v, "VoucherTypeName") ?? "Commercial Voucher";
+
+            var explanation = $"Flagged because commercial voucher {vNum} ({vTypeName}) lacks an identifiable named party or customer ledger.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: v.Id,
-                voucherNumber: v.VoucherNumber,
-                voucherDate: v.VoucherDate,
-                flaggedAmount: v.TotalAmount,
-                evidenceObj: new { v.VoucherTypeName, v.VoucherNumber, Amount = v.TotalAmount }
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
+                flaggedAmount: totalAmount,
+                evidenceObj: new { VoucherTypeName = vTypeName, VoucherNumber = vNum, Amount = totalAmount }
             ));
         }
 
@@ -127,15 +140,19 @@ public class NegativeLedgerBalanceRule : BaseAuditRule
 
         foreach (var l in ledgers)
         {
-            decimal clBal = l.ClosingBalance;
-            var explanation = $"Flagged because cash ledger '{l.Name}' reflects a negative closing balance of {clBal:C2}.";
+            decimal clBal = GetDecimal(l, "ClosingBalance");
+            string lName = GetString(l, "Name") ?? string.Empty;
+            string lId = GetString(l, "Id") ?? string.Empty;
+            string? parentGroup = GetString(l, "ParentGroup");
+
+            var explanation = $"Flagged because cash ledger '{lName}' reflects a negative closing balance of {clBal:C2}.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                ledgerId: l.Id,
+                ledgerId: lId,
                 flaggedAmount: clBal,
-                evidenceObj: new { LedgerName = l.Name, l.ParentGroup, NegativeClosingBalance = clBal }
+                evidenceObj: new { LedgerName = lName, ParentGroup = parentGroup, NegativeClosingBalance = clBal }
             ));
         }
 
@@ -154,12 +171,12 @@ public class SuspenseLedgerActivityRule : BaseAuditRule
     public SuspenseLedgerActivityRule(SqliteConnectionFactory connectionFactory) 
         : base(connectionFactory, SeverityLevel.Medium)
     {
-        Parameters["SuspenseToleranceLimit"] = 5000.0;
+        Parameters["SuspenseToleranceLimit"] = 5000.0m;
     }
 
     public override async Task<IReadOnlyList<AuditResult>> EvaluateAsync(AuditExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var tolerance = GetParam("SuspenseToleranceLimit", 5000.0);
+        var tolerance = GetParam("SuspenseToleranceLimit", 5000.0m);
         var results = new List<AuditResult>();
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
 
@@ -176,17 +193,22 @@ public class SuspenseLedgerActivityRule : BaseAuditRule
 
         foreach (var e in entries)
         {
-            decimal amt = e.Amount;
-            var explanation = $"Flagged because voucher {e.VoucherNumber} allocates {amt:C2} directly to '{e.LedgerName}', exceeding the review tolerance of {tolerance:C2}.";
+            decimal amt = GetDecimal(e, "Amount");
+            string? vNum = GetString(e, "VoucherNumber");
+            string? vId = GetString(e, "Id");
+            DateTime? vDate = GetDateTime(e, "VoucherDate");
+            string lName = GetString(e, "LedgerName") ?? "Suspense";
+
+            var explanation = $"Flagged because voucher {vNum} allocates {amt:C2} directly to '{lName}', exceeding the review tolerance of {tolerance:C2}.";
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
-                voucherId: e.Id,
-                voucherNumber: e.VoucherNumber,
-                voucherDate: e.VoucherDate,
+                voucherId: vId,
+                voucherNumber: vNum,
+                voucherDate: vDate,
                 flaggedAmount: amt,
-                evidenceObj: new { e.VoucherNumber, SuspenseLedger = e.LedgerName, AllocatedAmount = amt, Tolerance = tolerance }
+                evidenceObj: new { VoucherNumber = vNum, SuspenseLedger = lName, AllocatedAmount = amt, Tolerance = tolerance }
             ));
         }
 
