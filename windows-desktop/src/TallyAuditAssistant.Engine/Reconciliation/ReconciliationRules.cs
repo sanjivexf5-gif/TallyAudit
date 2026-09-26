@@ -160,28 +160,33 @@ public class GstRateReconciliationRule : BaseReconciliationRule
 
         foreach (var p in postings)
         {
-            decimal taxable = p.TaxableAmount;
-            decimal rate = p.GstRate;
-            decimal recordedTax = p.RecordedTax;
+            string? voucherId = p.Id?.ToString();
+            string? voucherNumber = p.VoucherNumber?.ToString();
+            DateTime? voucherDate = p.VoucherDate != null ? (DateTime?)Convert.ToDateTime(p.VoucherDate) : null;
+            string? productLedger = p.ProductLedger?.ToString();
+
+            decimal taxable = p.TaxableAmount != null ? Convert.ToDecimal(p.TaxableAmount) : 0m;
+            decimal rate = p.GstRate != null ? Convert.ToDecimal(p.GstRate) : 0m;
+            decimal recordedTax = p.RecordedTax != null ? Convert.ToDecimal(p.RecordedTax) : 0m;
 
             decimal expectedTax = Math.Round(taxable * (rate / 100m), 2);
             decimal diff = Math.Abs(expectedTax - recordedTax);
 
             if (diff > 5.00m) // Materiality limit ₹5.00
             {
-                var explanation = $"GST reconciliation difference: Recorded tax ({recordedTax:C2}) deviates from expected tax ({expectedTax:C2}) for product '{p.ProductLedger}' at {rate}% rate.";
+                var explanation = $"GST reconciliation difference: Recorded tax ({recordedTax:C2}) deviates from expected tax ({expectedTax:C2}) for product '{productLedger}' at {rate}% rate.";
                 results.Add(CreateReconciliationResult(
                     context.CompanyId,
                     explanation,
                     SeverityLevel.Medium,
-                    voucherId: p.Id,
-                    voucherNumber: p.VoucherNumber,
-                    voucherDate: p.VoucherDate,
+                    voucherId: voucherId,
+                    voucherNumber: voucherNumber,
+                    voucherDate: voucherDate,
                     flaggedAmount: diff,
                     evidenceObj: new
                     {
-                        Voucher = p.VoucherNumber,
-                        Product = p.ProductLedger,
+                        Voucher = voucherNumber,
+                        Product = productLedger,
                         TaxableValue = taxable,
                         GstRate = rate,
                         ExpectedTax = expectedTax,

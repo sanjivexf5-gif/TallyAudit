@@ -102,7 +102,7 @@ public abstract class BaseTdsRule : ITdsRule
         try { return Convert.ToInt64(val); } catch { return defaultVal; }
     }
 
-    protected TdsCheckResult CreateResult(
+    public TdsCheckResult CreateResult(
         string companyId,
         string explanation,
         SeverityLevel severity,

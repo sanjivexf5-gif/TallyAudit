@@ -27,7 +27,7 @@ public abstract class BaseReconciliationRule : IReconciliationRule
 
     public abstract Task<IReadOnlyList<AuditResult>> ExecuteAsync(AuditExecutionContext context, CancellationToken cancellationToken = default);
 
-    protected AuditResult CreateReconciliationResult(
+    public AuditResult CreateReconciliationResult(
         string companyId,
         string explanation,
         SeverityLevel severity,

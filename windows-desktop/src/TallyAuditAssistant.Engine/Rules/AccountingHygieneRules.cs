@@ -185,11 +185,12 @@ public class SuspenseLedgerActivityRule : BaseAuditRule
             FROM VoucherEntries e
             JOIN Vouchers v ON e.VoucherId = v.Id
             WHERE v.CompanyId = @CompanyId 
-              AND (e.LedgerName LIKE '%Suspense%' OR e.LedgerName LIKE '%Rounding Off%')
+              AND v.VoucherDate BETWEEN @FromDate AND @ToDate
+              AND (LOWER(e.LedgerName) LIKE '%suspense%' OR LOWER(e.LedgerName) LIKE '%round%')
               AND ABS(e.Amount) >= @Tolerance;
         ";
 
-        var entries = await connection.QueryAsync(new CommandDefinition(sql, new { context.CompanyId, Tolerance = tolerance }, cancellationToken: cancellationToken));
+        var entries = await connection.QueryAsync(new CommandDefinition(sql, new { context.CompanyId, context.FromDate, context.ToDate, Tolerance = tolerance }, cancellationToken: cancellationToken));
 
         foreach (var e in entries)
         {

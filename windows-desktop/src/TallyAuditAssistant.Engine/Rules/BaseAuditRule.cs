@@ -121,7 +121,7 @@ public abstract class BaseAuditRule : IAuditRule
         return null;
     }
 
-    protected AuditResult CreateResult(
+    public AuditResult CreateResult(
         string companyId,
         string explanation,
         SeverityLevel severity,

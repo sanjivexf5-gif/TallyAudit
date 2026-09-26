@@ -200,12 +200,12 @@ public class RoundOffAnomaliesRule : BaseGstRule
     public RoundOffAnomaliesRule(SqliteConnectionFactory connectionFactory)
         : base(connectionFactory, SeverityLevel.Low)
     {
-        Parameters["MaxRoundOffRupees"] = 10.0;
+        Parameters["MaxRoundOffRupees"] = 10.0m;
     }
 
     public override async Task<IReadOnlyList<GstCheckResult>> EvaluateAsync(GstAuditContext context, CancellationToken cancellationToken = default)
     {
-        var maxLimit = (decimal)GetParam("MaxRoundOffRupees", 10.0);
+        var maxLimit = GetParam("MaxRoundOffRupees", 10.0m);
         var results = new List<GstCheckResult>();
 
         using var conn = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
@@ -215,12 +215,13 @@ public class RoundOffAnomaliesRule : BaseGstRule
                    v.TotalAmount, v.PartyLedgerName, e.LedgerName, ABS(e.Amount) as RoundAmount
             FROM Vouchers v
             JOIN VoucherEntries e ON (e.VoucherId = v.Id)
-            WHERE v.CompanyId = @CompanyId 
-              AND (e.LedgerName LIKE '%Round Off%' OR e.LedgerName LIKE '%Rounding%')
+            WHERE v.CompanyId = @CompanyId
+              AND v.VoucherDate BETWEEN @FromDate AND @ToDate
+              AND (LOWER(e.LedgerName) LIKE '%round%')
               AND ABS(e.Amount) > @MaxLimit;
         ";
 
-        var rows = await conn.QueryAsync(new CommandDefinition(sql, new { context.CompanyId, MaxLimit = maxLimit }, cancellationToken: cancellationToken));
+        var rows = await conn.QueryAsync(new CommandDefinition(sql, new { context.CompanyId, context.FromDate, context.ToDate, MaxLimit = maxLimit }, cancellationToken: cancellationToken));
 
         foreach (var r in rows)
         {

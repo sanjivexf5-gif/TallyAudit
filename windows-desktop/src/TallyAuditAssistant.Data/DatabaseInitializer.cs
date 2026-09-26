@@ -93,6 +93,7 @@ public class DatabaseInitializer : IDatabaseInitializer
                 TaxType TEXT,
                 HsnCode TEXT,
                 GstRate DECIMAL(5,2),
+                TdsRate DECIMAL(5,2),
                 AlterId INTEGER
             );
 

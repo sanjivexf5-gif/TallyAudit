@@ -184,6 +184,7 @@ public class MigrationService : IMigrationService
                 TaxType TEXT,
                 HsnCode TEXT,
                 GstRate DECIMAL(5,2),
+                TdsRate DECIMAL(5,2),
                 AlterId INTEGER
             );
 
@@ -440,5 +441,21 @@ public class MigrationService : IMigrationService
             CREATE INDEX IF NOT EXISTS idx_evidence_plan ON AuditEvidence(PlanId, AuditArea);
             CREATE INDEX IF NOT EXISTS idx_wp_plan ON WorkingPapers(PlanId, AuditArea);
             ");
+
+        yield return new MigrationDefinition(
+            "006_AddTdsRateToLedgers",
+            "1.5.0",
+            "Ensure TdsRate column exists on Ledgers table",
+            "SELECT 1;",
+            async (conn, tx, ct) =>
+            {
+                var columns = await conn.QueryAsync<string>(
+                    new CommandDefinition("SELECT name FROM pragma_table_info('Ledgers');", transaction: tx, cancellationToken: ct));
+                if (!columns.Contains("TdsRate", StringComparer.OrdinalIgnoreCase))
+                {
+                    await conn.ExecuteAsync(
+                        new CommandDefinition("ALTER TABLE Ledgers ADD COLUMN TdsRate DECIMAL(5,2);", transaction: tx, cancellationToken: ct));
+                }
+            });
     }
 }
