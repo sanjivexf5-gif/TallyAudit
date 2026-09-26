@@ -65,6 +65,7 @@ public abstract class BaseAuditRule : IAuditRule
         {
             RuleId = RuleId,
             RuleName = Name,
+            Category = Category,
             CompanyId = companyId,
             VoucherId = voucherId,
             LedgerId = ledgerId,

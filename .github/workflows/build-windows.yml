@@ -1,9 +1,11 @@
-name: Build Tally Audit Assistant
+name: Build & Release Tally Audit Assistant
 
 on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -11,28 +13,31 @@ permissions:
 
 jobs:
   build-windows:
-    name: Build & Test Windows Application
+    name: Build, Test & Package Windows Release
     runs-on: windows-latest
 
     steps:
-      - name: Checkout source code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
+      - name: Setup .NET 8 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Display .NET information
+      - name: Display .NET SDK Environment
         run: dotnet --info
 
       - name: Restore dependencies
-        run: dotnet restore windows-desktop/src/TallyAuditAssistant.App/TallyAuditAssistant.App.csproj
+        run: dotnet restore windows-desktop/TallyAuditAssistant.sln
 
-      - name: Build application
-        run: dotnet build windows-desktop/src/TallyAuditAssistant.App/TallyAuditAssistant.App.csproj -c Release --no-restore
+      - name: Build solution (Release)
+        run: dotnet build windows-desktop/TallyAuditAssistant.sln -c Release --no-restore
 
-      - name: Publish Windows x64 application
+      - name: Run automated test suite
+        run: dotnet test windows-desktop/tests/TallyAuditAssistant.Tests/TallyAuditAssistant.Tests.csproj -c Release --no-build --verbosity normal
+
+      - name: Publish self-contained Windows x64 binary
         run: >
           dotnet publish
           windows-desktop/src/TallyAuditAssistant.App/TallyAuditAssistant.App.csproj
@@ -41,10 +46,33 @@ jobs:
           --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
           -o ./publish
 
-      - name: Upload Windows application
+      - name: Verify published executable
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "./publish/TallyAuditAssistant.App.exe")) {
+            throw "Executable TallyAuditAssistant.App.exe was not generated in publish directory!"
+          }
+          Write-Host "Executable validated: $((Get-Item ./publish/TallyAuditAssistant.App.exe).Length / 1MB) MB"
+
+      - name: Compile Inno Setup Windows Installer
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        with:
+          path: windows-desktop/installer/TallyAuditAssistant.iss
+        continue-on-error: true
+
+      - name: Upload Windows Standalone Binaries
         uses: actions/upload-artifact@v4
         with:
           name: TallyAuditAssistant-Windows-x64
           path: ./publish/
+          if-no-files-found: error
+
+      - name: Upload Windows Installer Setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: TallyAuditAssistant-Installer-Setup
+          path: ./windows-desktop/installer_output/
+          if-no-files-found: ignore

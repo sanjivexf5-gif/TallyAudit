@@ -3,106 +3,475 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="using:TallyAuditAssistant.App.Views"
              mc:Ignorable="d" 
-             d:DesignHeight="700" d:DesignWidth="950">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="0,0,10,0">
-            <!-- Header bar with Refresh button -->
-            <Grid Margin="0,0,0,20">
+             d:DesignHeight="800" d:DesignWidth="1150">
+    <UserControl.Resources>
+        <!-- Inline Styling Helpers to keep things pristine -->
+        <Style TargetType="TabItem">
+            <Setter Property="Background" Value="#1E293B"/>
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#4F46E5"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Executive Top Metadata Header -->
+        <Border Grid.Row="0" Padding="16" Background="#1E1B4B" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,16">
+            <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
+                
                 <StackPanel Grid.Column="0">
-                    <TextBlock Text="Auditor Executive Overview" FontSize="22" FontWeight="Bold" Foreground="White"/>
-                    <TextBlock Text="Continuous statutory audit monitoring and discrepancy detection for TallyPrime." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                    <TextBlock Text="{Binding ActiveCompanyName, StringFormat='Auditing: {0}'}" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                    <WrapPanel Margin="0,6,0,0">
+                        <TextBlock Text="{Binding FinancialYear, StringFormat='Period: {0}'}" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12" Margin="0,0,16,0"/>
+                        <TextBlock Text="{Binding LastSyncTime, StringFormat='Last Sync: {0}'}" Foreground="#94A3B8" FontSize="12" Margin="0,0,16,0"/>
+                        <TextBlock Text="{Binding LastAuditRunTime, StringFormat='Last Run: {0}'}" Foreground="#10B981" FontWeight="SemiBold" FontSize="12"/>
+                    </WrapPanel>
                 </StackPanel>
-                <Button Grid.Column="1" Content="🔄 Refresh Data" Command="{Binding RefreshDashboardCommand}" Padding="16,8"/>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="🔄 Refresh" Command="{Binding RefreshDashboardCommand}" Padding="12,6" Margin="0,0,8,0" Background="#334155" Foreground="White" BorderThickness="0"/>
+                    <Button Content="⚖️ RUN COMPREHENSIVE AUDIT" Command="{Binding RunCompleteAuditCommand}" IsEnabled="{Binding IsAuditing, Converter={x:Null}}" Padding="16,8" Background="#10B981" Foreground="White" FontWeight="Bold" BorderThickness="0"/>
+                </StackPanel>
             </Grid>
+        </Border>
 
-            <!-- Key Metric Cards Row -->
-            <Grid Margin="0,0,0,20">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
+        <!-- Multi-tab Workspace -->
+        <TabControl Grid.Row="1" Background="#0F172A" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+            
+            <!-- Tab 1: Audit Findings & Working Papers Workspace -->
+            <TabItem Header="📋 Audit Exceptions Workspace">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-                <!-- GST Card -->
-                <Border Grid.Column="0" Margin="0,0,10,0" Padding="16" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="GST EXCEPTIONS" FontSize="11" FontWeight="Bold" Foreground="#38BDF8"/>
-                        <TextBlock Text="{Binding GstExceptionsCount}" FontSize="28" FontWeight="Bold" Foreground="White" Margin="0,6,0,0"/>
-                        <TextBlock Text="ITC &amp; POS mismatches" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
+                    <!-- Advanced Filtering, Searching & Sorting Row -->
+                    <Border Grid.Row="0" Padding="12" Margin="0,0,0,12" Background="#1E293B" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
 
-                <!-- TDS Card -->
-                <Border Grid.Column="1" Margin="5,0,5,0" Padding="16" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="TDS EXCEPTIONS" FontSize="11" FontWeight="Bold" Foreground="#F59E0B"/>
-                        <TextBlock Text="{Binding TDSExceptionsCount}" FontSize="28" FontWeight="Bold" Foreground="White" Margin="0,6,0,0"/>
-                        <TextBlock Text="194C/J threshold alerts" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
+                            <!-- Live Search Text Box -->
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,0">
+                                <TextBlock Text="Search Voucher, Ledger or Rule Name..." FontSize="11" Foreground="#94A3B8" Margin="0,0,0,4"/>
+                                <TextBox Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" Padding="6" BorderBrush="{StaticResource BorderBrush}"/>
+                            </StackPanel>
 
-                <!-- Accounting Anomalies -->
-                <Border Grid.Column="2" Margin="5,0,5,0" Padding="16" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="ACCOUNTING ISSUES" FontSize="11" FontWeight="Bold" Foreground="#EC4899"/>
-                        <TextBlock Text="{Binding AccountingExceptionsCount}" FontSize="28" FontWeight="Bold" Foreground="White" Margin="0,6,0,0"/>
-                        <TextBlock Text="Negative cash &amp; suspense" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
+                            <!-- Category Filter ComboBox -->
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,12,0">
+                                <TextBlock Text="Category Filter" FontSize="11" Foreground="#94A3B8" Margin="0,0,0,4"/>
+                                <ComboBox SelectedItem="{Binding SelectedCategoryFilter, Mode=TwoWay}" Padding="6" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}">
+                                    <ComboBoxItem Content="All"/>
+                                    <ComboBoxItem Content="GST"/>
+                                    <ComboBoxItem Content="TDS"/>
+                                    <ComboBoxItem Content="DuplicateDetection"/>
+                                    <ComboBoxItem Content="GeneralAccounting"/>
+                                </ComboBox>
+                            </StackPanel>
 
-                <!-- High Priority Card -->
-                <Border Grid.Column="3" Margin="10,0,0,0" Padding="16" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock Text="HIGH / CRITICAL" FontSize="11" FontWeight="Bold" Foreground="#EF4444"/>
-                        <TextBlock Text="{Binding HighPriorityCount}" FontSize="28" FontWeight="Bold" Foreground="#EF4444" Margin="0,6,0,0"/>
-                        <TextBlock Text="Requires urgent review" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
-            </Grid>
+                            <!-- Review Status Filter -->
+                            <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,12,0">
+                                <TextBlock Text="Review Status Filter" FontSize="11" Foreground="#94A3B8" Margin="0,0,0,4"/>
+                                <ComboBox SelectedItem="{Binding SelectedStatusFilter, Mode=TwoWay}" Padding="6" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}">
+                                    <ComboBoxItem Content="All"/>
+                                    <ComboBoxItem Content="Unreviewed"/>
+                                    <ComboBoxItem Content="Reviewed"/>
+                                    <ComboBoxItem Content="Accepted"/>
+                                    <ComboBoxItem Content="Needs Follow-up"/>
+                                </ComboBox>
+                            </StackPanel>
 
-            <!-- Sync Info & Audit Completion Bar -->
-            <Border Padding="16" Margin="0,0,0,20" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="Audit Review Progress" FontWeight="SemiBold" FontSize="14" Foreground="White"/>
-                        <ProgressBar Height="10" Value="{Binding AuditCompletionPercentage}" Maximum="100" Margin="0,8,16,0" Foreground="{StaticResource PrimaryBrandBrush}" Background="#0F172A"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
-                        <TextBlock Text="{Binding AuditCompletionPercentage, StringFormat={}{0}% Completed}" FontWeight="Bold" FontSize="16" Foreground="#10B981" HorizontalAlignment="Right"/>
-                        <TextBlock Text="{Binding TotalVouchersSynchronized, StringFormat={}{0:N0} Vouchers Analyzed}" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
-                    </StackPanel>
+                            <!-- Severity Filter -->
+                            <StackPanel Grid.Row="0" Grid.Column="3">
+                                <TextBlock Text="Severity / Priority" FontSize="11" Foreground="#94A3B8" Margin="0,0,0,4"/>
+                                <ComboBox SelectedItem="{Binding SelectedSeverityFilter, Mode=TwoWay}" Padding="6" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}">
+                                    <ComboBoxItem Content="All"/>
+                                    <ComboBoxItem Content="Informational"/>
+                                    <ComboBoxItem Content="Low"/>
+                                    <ComboBoxItem Content="Medium"/>
+                                    <ComboBoxItem Content="High"/>
+                                    <ComboBoxItem Content="Critical"/>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <!-- Sorting Columns controls -->
+                            <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Margin="0,8,0,0">
+                                <TextBlock Text="Sort Column: " FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <ComboBox SelectedItem="{Binding SelectedSortColumn, Mode=TwoWay}" Width="110" Padding="4" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}">
+                                    <ComboBoxItem Content="Date"/>
+                                    <ComboBoxItem Content="Amount"/>
+                                    <ComboBoxItem Content="Priority"/>
+                                    <ComboBoxItem Content="Category"/>
+                                    <ComboBoxItem Content="Status"/>
+                                </ComboBox>
+
+                                <CheckBox IsChecked="{Binding IsSortDescending, Mode=TwoWay}" Content="Descending" Foreground="White" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Master-Detail workspace -->
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3*" />
+                            <ColumnDefinition Width="2*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left Column: Master Table -->
+                        <Border Grid.Column="0" Padding="12" Background="{StaticResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Identified Audit Exceptions" FontWeight="Bold" FontSize="14" Foreground="White" Margin="0,0,0,8"/>
+                                <DataGrid ItemsSource="{Binding RecentExceptions}" SelectedItem="{Binding SelectedException, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" Height="360"
+                                          Background="Transparent" RowBackground="#162032" AlternatingRowBackground="#1E293B"
+                                          BorderThickness="0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#334155"
+                                          Foreground="White" HeadersVisibility="Column">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Rule Finding" Binding="{Binding RuleName}" Width="160"/>
+                                        <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="80"/>
+                                        <DataGridTextColumn Header="Voucher No" Binding="{Binding VoucherNumber}" Width="90"/>
+                                        <DataGridTextColumn Header="Amount" Binding="{Binding FlaggedAmount, StringFormat={}{0:C2}}" Width="100"/>
+                                        <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="80"/>
+                                        <DataGridTextColumn Header="Review Status" Binding="{Binding Status}" Width="100"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Right Column: Working Papers & Detail panel -->
+                        <Border Grid.Column="1" Margin="12,0,0,0" Padding="14" Background="#111827" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Height="400">
+                                <StackPanel>
+                                    <TextBlock Text="AUDIT WORKING PAPER SUMMARY" FontWeight="Bold" FontSize="13" Foreground="#38BDF8" Margin="0,0,0,10"/>
+                                    
+                                    <TextBlock Text="{Binding SelectedException.RuleName, FallbackValue='No Exception Selected'}" FontWeight="Bold" FontSize="15" Foreground="White" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="{Binding SelectedException.Category, StringFormat='Category: {0}'}" FontSize="12" Foreground="#F59E0B" Margin="0,0,0,10"/>
+                                    
+                                    <!-- Structured Metadata Grid -->
+                                    <Border Background="#1E293B" CornerRadius="4" Padding="10" Margin="0,0,0,12" BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <!-- Row 0 -->
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Company: " FontSize="11" Foreground="#94A3B8" Margin="0,0,8,6" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ActiveCompanyName}" FontSize="11" Foreground="White" TextWrapping="Wrap" Margin="0,0,8,6"/>
+                                            <TextBlock Grid.Row="0" Grid.Column="2" Text="Audit Period: " FontSize="11" Foreground="#94A3B8" Margin="0,0,8,6" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Row="0" Grid.Column="3" Text="{Binding FinancialYear}" FontSize="11" Foreground="White" Margin="0,0,0,6"/>
+
+                                            <!-- Row 1 -->
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Voucher No: " FontSize="11" Foreground="#94A3B8" Margin="0,0,8,6" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedException.VoucherNumber, FallbackValue='—'}" FontSize="11" Foreground="White" Margin="0,0,8,6"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="2" Text="Voucher Date: " FontSize="11" Foreground="#94A3B8" Margin="0,0,8,6" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding SelectedException.VoucherDate, StringFormat=\{0:dd-MMM-yyyy\}, FallbackValue='—'}" FontSize="11" Foreground="White" Margin="0,0,0,6"/>
+
+                                            <!-- Row 2 -->
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Ledger/Party: " FontSize="11" Foreground="#94A3B8" Margin="0,0,8,6" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedException.LedgerName, FallbackValue='—'}" FontSize="11" Foreground="White" TextWrapping="Wrap" Margin="0,0,8,6"/>
+                                            <TextBlock Grid.Row="2" Grid.Column="2" Text="Voucher Type: " FontSize="11" Foreground="#94A3B8" Margin="0,0,8,6" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding SelectedException.EntityType, FallbackValue='—'}" FontSize="11" Foreground="White" Margin="0,0,0,6"/>
+
+                                            <!-- Row 3 -->
+                                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Flagged Amt: " FontSize="11" Foreground="#94A3B8" Margin="0,0,8,6" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedException.FlaggedAmount, StringFormat=\{0:C2\}, FallbackValue='—'}" FontSize="11" Foreground="#F43F5E" FontWeight="Bold" Margin="0,0,8,6"/>
+                                            <TextBlock Grid.Row="3" Grid.Column="2" Text="Severity: " FontSize="11" Foreground="#94A3B8" Margin="0,0,8,6" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Row="3" Grid.Column="3" Text="{Binding SelectedException.Severity, FallbackValue='—'}" FontSize="11" Foreground="White" Margin="0,0,0,6"/>
+
+                                            <!-- Row 4 -->
+                                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Review Status: " FontSize="11" Foreground="#94A3B8" Margin="0,0,8,0" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedException.Status, FallbackValue='—'}" FontSize="11" Foreground="#60A5FA" FontWeight="Bold" Margin="0,0,8,0"/>
+                                            <TextBlock Grid.Row="4" Grid.Column="2" Text="Reviewed At: " FontSize="11" Foreground="#94A3B8" Margin="0,0,8,0" FontWeight="SemiBold"/>
+                                            <TextBlock Grid.Row="4" Grid.Column="3" Text="{Binding SelectedException.ReviewedAt, StringFormat=\{0:dd-MMM-yyyy HH:mm\}, FallbackValue='Not reviewed'}" FontSize="11" Foreground="White" Margin="0,0,0,0"/>
+                                        </Grid>
+                                    </Border>
+                                    
+                                    <!-- Logical explanation -->
+                                    <Border Background="#1F2937" Padding="10" CornerRadius="4" Margin="0,0,0,12">
+                                        <StackPanel>
+                                            <TextBlock Text="Rule Analysis Explanation:" FontSize="10" Foreground="#94A3B8" FontWeight="SemiBold" Margin="0,0,0,3"/>
+                                            <TextBlock Text="{Binding SelectedException.SuggestedCorrection, FallbackValue='Highlight a rule finding on the left table to load dynamic voucher ledger splits, add notes or remarks, and log auditor decisions.'}" Foreground="White" FontSize="12" TextWrapping="Wrap" LineHeight="16"/>
+                                        </StackPanel>
+                                    </Border>
+                                    
+                                    <!-- Double Entry posting splits -->
+                                    <TextBlock Text="Ledger Posting Splits (Dynamic Drill-Down)" FontSize="11" FontWeight="Bold" Foreground="White" Margin="0,0,0,4"/>
+                                    <DataGrid ItemsSource="{Binding SelectedVoucherDrillDown.Entries}" AutoGenerateColumns="False" IsReadOnly="True" Height="100"
+                                              Background="#0F172A" RowBackground="#1E293B" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}" Foreground="White" Margin="0,0,0,12" HeadersVisibility="Column">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Ledger Head" Binding="{Binding LedgerName}" Width="*"/>
+                                            <DataGridTextColumn Header="Debit/Credit" Binding="{Binding IsDebit}" Width="80"/>
+                                            <DataGridTextColumn Header="Amount" Binding="{Binding Amount, StringFormat={}{0:C2}}" Width="90"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+
+                                    <!-- Review Status Toggle & Note -->
+                                    <TextBlock Text="Audit Remarks &amp; Working Paper Notes:" FontSize="11" Foreground="#94A3B8" Margin="0,0,0,4"/>
+                                    <TextBox Text="{Binding AuditorNoteInput, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" Height="50" TextWrapping="Wrap" Margin="0,0,0,10" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Padding="4"/>
+                                    
+                                    <TextBlock Text="Auditor Working Decision:" FontSize="11" Foreground="#94A3B8" Margin="0,0,0,6"/>
+                                    <UniformGrid Columns="2" Margin="0,0,0,6">
+                                        <Button Content="🟢 ACCEPTED" Command="{Binding MarkAsAcceptedCommand}" Margin="0,0,4,4" Padding="6,4" Background="#065F46" Foreground="White" FontWeight="Bold" FontSize="11" BorderThickness="0"/>
+                                        <Button Content="🔵 REVIEWED" Command="{Binding MarkAsReviewedCommand}" Margin="4,0,0,4" Padding="6,4" Background="#1E3A8A" Foreground="White" FontWeight="Bold" FontSize="11" BorderThickness="0"/>
+                                        <Button Content="🟡 ESCALATED" Command="{Binding MarkAsNeedsFollowUpCommand}" Margin="0,4,4,0" Padding="6,4" Background="#78350F" Foreground="White" FontWeight="Bold" FontSize="11" BorderThickness="0"/>
+                                        <Button Content="💾 SAVE NOTE" Command="{Binding SaveExceptionStatusCommand}" Margin="4,4,0,0" Padding="6,4" Background="#4B5563" Foreground="White" FontWeight="Bold" FontSize="11" BorderThickness="0"/>
+                                    </UniformGrid>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
                 </Grid>
-            </Border>
+            </TabItem>
 
-            <!-- Recent Exceptions Table -->
-            <Border Padding="16" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                <StackPanel>
-                    <TextBlock Text="Recently Flagged Audit Exceptions" FontWeight="Bold" FontSize="15" Foreground="White" Margin="0,0,0,12"/>
-                    <DataGrid ItemsSource="{Binding RecentExceptions}" AutoGenerateColumns="False" IsReadOnly="True" 
-                              Background="Transparent" RowBackground="#162032" AlternatingRowBackground="#1E293B"
-                              BorderThickness="0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#334155"
-                              Foreground="White" HeadersVisibility="Column">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Rule" Binding="{Binding RuleName}" Width="200"/>
-                            <DataGridTextColumn Header="Entity Type" Binding="{Binding EntityType}" Width="90"/>
-                            <DataGridTextColumn Header="Voucher / Ledger" Binding="{Binding VoucherNumber}" Width="140"/>
-                            <DataGridTextColumn Header="Amount" Binding="{Binding FlaggedAmount, StringFormat={}{0:C2}}" Width="110"/>
-                            <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="100"/>
-                            <DataGridTextColumn Header="Suggested Review" Binding="{Binding SuggestedCorrection}" Width="*"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </StackPanel>
-            </Border>
-        </StackPanel>
-    </ScrollViewer>
+            <!-- Tab 2: Audit Executive Metrics & Runs History -->
+            <TabItem Header="📊 Executive Metrics &amp; Run History">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Quantitative Counts row -->
+                        <Grid Grid.Row="0" Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Margin="0,0,8,0" Padding="14" Background="{StaticResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="GST FINDINGS" FontSize="11" FontWeight="Bold" Foreground="#38BDF8"/>
+                                    <TextBlock Text="{Binding GstExceptionsCount}" FontSize="24" FontWeight="Bold" Foreground="White" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Margin="4,0,4,0" Padding="14" Background="{StaticResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="TDS FINDINGS" FontSize="11" FontWeight="Bold" Foreground="#F59E0B"/>
+                                    <TextBlock Text="{Binding TdsExceptionsCount}" FontSize="24" FontWeight="Bold" Foreground="White" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Margin="4,0,4,0" Padding="14" Background="{StaticResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="DUPLICATE CANDIDATES" FontSize="11" FontWeight="Bold" Foreground="#A855F7"/>
+                                    <TextBlock Text="{Binding DuplicateExceptionsCount}" FontSize="24" FontWeight="Bold" Foreground="White" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="3" Margin="8,0,0,0" Padding="14" Background="{StaticResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="LEDGER CONSISTENCY" FontSize="11" FontWeight="Bold" Foreground="#EC4899"/>
+                                    <TextBlock Text="{Binding LedgerExceptionsCount}" FontSize="24" FontWeight="Bold" Foreground="White" Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- Detailed status counts row -->
+                        <Grid Grid.Row="1" Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Margin="0,0,8,0" Padding="12" Background="#1E293B" CornerRadius="6">
+                                <StackPanel>
+                                    <TextBlock Text="UNREVIEWED" FontSize="10" Foreground="#94A3B8" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding UnreviewedExceptionsCount}" FontSize="20" FontWeight="Bold" Foreground="#60A5FA" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Margin="4,0,4,0" Padding="12" Background="#1E293B" CornerRadius="6">
+                                <StackPanel>
+                                    <TextBlock Text="REVIEWED" FontSize="10" Foreground="#94A3B8" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding ReviewedExceptionsCount}" FontSize="20" FontWeight="Bold" Foreground="#34D399" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Margin="4,0,4,0" Padding="12" Background="#1E293B" CornerRadius="6">
+                                <StackPanel>
+                                    <TextBlock Text="ACCEPTED / RESOLVED" FontSize="10" Foreground="#94A3B8" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding AcceptedExceptionsCount}" FontSize="20" FontWeight="Bold" Foreground="#10B981" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="3" Margin="8,0,0,0" Padding="12" Background="#1E293B" CornerRadius="6">
+                                <StackPanel>
+                                    <TextBlock Text="NEEDS FOLLOW-UP" FontSize="10" Foreground="#94A3B8" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding NeedsFollowUpExceptionsCount}" FontSize="20" FontWeight="Bold" Foreground="#FBBF24" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- Automated Reconciliation Summary Dashboard -->
+                        <Border Grid.Row="2" Margin="0,0,0,16" Padding="16" Background="#1E293B" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="⚖️ Automated Reconciliation &amp; Cross-Verification Summary" FontWeight="Bold" FontSize="14" Foreground="#38BDF8" Margin="0,0,0,12"/>
+                                
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Col 0 -->
+                                    <Border Grid.Column="0" Margin="0,0,6,0" Padding="10" Background="#0F172A" CornerRadius="4">
+                                        <StackPanel>
+                                            <TextBlock Text="RECON. CHECKS" FontSize="10" Foreground="#94A3B8" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding ReconciliationTotalChecks}" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Col 1 -->
+                                    <Border Grid.Column="1" Margin="6,0,6,0" Padding="10" Background="#0F172A" CornerRadius="4">
+                                        <StackPanel>
+                                            <TextBlock Text="PASSED" FontSize="10" Foreground="#94A3B8" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding ReconciliationPassed}" FontSize="18" FontWeight="Bold" Foreground="#10B981" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Col 2 -->
+                                    <Border Grid.Column="2" Margin="6,0,6,0" Padding="10" Background="#0F172A" CornerRadius="4">
+                                        <StackPanel>
+                                            <TextBlock Text="DIFFERENCES" FontSize="10" Foreground="#94A3B8" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding ReconciliationDifferences}" FontSize="18" FontWeight="Bold" Foreground="#EF4444" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Col 3 -->
+                                    <Border Grid.Column="3" Margin="6,0,6,0" Padding="10" Background="#0F172A" CornerRadius="4">
+                                        <StackPanel>
+                                            <TextBlock Text="WARNINGS" FontSize="10" Foreground="#94A3B8" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding ReconciliationWarnings}" FontSize="18" FontWeight="Bold" Foreground="#F59E0B" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Col 4 -->
+                                    <Border Grid.Column="4" Margin="6,0,0,0" Padding="10" Background="#0F172A" CornerRadius="4">
+                                        <StackPanel>
+                                            <TextBlock Text="UNABLE TO CHECK" FontSize="10" Foreground="#94A3B8" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding ReconciliationUnableToCheck}" FontSize="18" FontWeight="Bold" Foreground="#6B7280" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Audit Run History Table -->
+                        <Border Grid.Row="3" Padding="16" Background="{StaticResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Audit Execution Runs History Log" FontWeight="Bold" FontSize="14" Foreground="White" Margin="0,0,0,8"/>
+                                <DataGrid ItemsSource="{Binding AuditRuns}" AutoGenerateColumns="False" IsReadOnly="True" Height="200"
+                                          Background="Transparent" RowBackground="#162032" AlternatingRowBackground="#1E293B"
+                                          BorderThickness="0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#334155"
+                                          Foreground="White" HeadersVisibility="Column">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Run ID" Binding="{Binding Id}" Width="150"/>
+                                        <DataGridTextColumn Header="Period Scope" Binding="{Binding Period}" Width="180"/>
+                                        <DataGridTextColumn Header="Started At" Binding="{Binding StartTime}" Width="150"/>
+                                        <DataGridTextColumn Header="Ended At" Binding="{Binding EndTime}" Width="150"/>
+                                        <DataGridTextColumn Header="Vouchers Checked" Binding="{Binding TransactionsAnalysed}" Width="120"/>
+                                        <DataGridTextColumn Header="Findings Generated" Binding="{Binding FindingsGenerated}" Width="120"/>
+                                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Tab 3: Reports & Working Papers Export -->
+            <TabItem Header="💾 Export Reports Workspace">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Working Papers &amp; Executive Summary Outputs" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,0,6"/>
+                    <TextBlock Grid.Row="0" Margin="0,24,0,16" Text="Generate formal report deliverables for internal or external auditors. All generated sheets are fully compatible with Microsoft Excel and modern PDF printers." FontSize="13" Foreground="#94A3B8" TextWrapping="Wrap"/>
+
+                    <UniformGrid Grid.Row="1" Rows="1" Columns="2" Height="150" VerticalAlignment="Top">
+                        <!-- Excel Card -->
+                        <Border Margin="0,0,12,0" Padding="16" Background="#162032" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0">
+                                    <TextBlock Text="Multi-Tab Excel Working Papers" FontSize="14" FontWeight="Bold" Foreground="White" Margin="0,0,0,6"/>
+                                    <TextBlock Text="Exports a structured .xls workbook with dedicated sheets for Audit Summary, GST findings, TDS findings, duplicates, and reviewer remarks." FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <Button Grid.Row="1" Content="📝 Export Multi-Tab Spreadsheet" Command="{Binding GenerateExcelReportCommand}" Padding="12,8" Background="#10B981" Foreground="White" FontWeight="Bold" BorderThickness="0" HorizontalAlignment="Left"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- PDF HTML Card -->
+                        <Border Margin="12,0,0,0" Padding="16" Background="#162032" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0">
+                                    <TextBlock Text="Printable PDF Executive Summary" FontSize="14" FontWeight="Bold" Foreground="White" Margin="0,0,0,6"/>
+                                    <TextBlock Text="Generates a print-ready modern PDF-styled HTML report containing summarized metrics, analysed transactions count, and key findings by priority." FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <Button Grid.Row="1" Content="📄 Export Printable Executive PDF" Command="{Binding GeneratePdfReportCommand}" Padding="12,8" Background="#4F46E5" Foreground="White" FontWeight="Bold" BorderThickness="0" HorizontalAlignment="Left"/>
+                            </Grid>
+                        </Border>
+                    </UniformGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
 </UserControl>

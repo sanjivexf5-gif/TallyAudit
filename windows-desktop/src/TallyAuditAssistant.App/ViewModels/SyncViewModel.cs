@@ -12,6 +12,7 @@ public partial class SyncViewModel : ObservableObject
 {
     private readonly ISyncManager _syncManager;
     private readonly ITallyCompanyService _companyService;
+    private readonly ISettingsService _settingsService;
 
     [ObservableProperty]
     private string _companyName = "Apex Industrial Solutions Pvt Ltd";
@@ -58,10 +59,11 @@ public partial class SyncViewModel : ObservableObject
     public ObservableCollection<string> LiveLogs { get; } = new();
     public ObservableCollection<SyncHistoryRecord> SyncHistory { get; } = new();
 
-    public SyncViewModel(ISyncManager syncManager, ITallyCompanyService companyService)
+    public SyncViewModel(ISyncManager syncManager, ITallyCompanyService companyService, ISettingsService settingsService)
     {
         _syncManager = syncManager;
         _companyService = companyService;
+        _settingsService = settingsService;
 
         _syncManager.ProgressChanged += OnProgressChanged;
         _syncManager.SyncLogEmitted += OnLogEmitted;
@@ -73,7 +75,12 @@ public partial class SyncViewModel : ObservableObject
     {
         try
         {
-            var active = await _companyService.GetActiveCompanyAsync();
+            var active = await _settingsService.GetSettingAsync("ActiveCompany", "");
+            if (string.IsNullOrEmpty(active))
+            {
+                active = await _companyService.GetActiveCompanyAsync();
+            }
+
             if (!string.IsNullOrEmpty(active))
             {
                 CompanyName = active;

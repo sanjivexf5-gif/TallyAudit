@@ -10,7 +10,8 @@ export type ReportType =
   | 'duplicate-transactions'
   | 'unusual-transactions'
   | 'pending-reviews'
-  | 'auditor-notes';
+  | 'auditor-notes'
+  | 'yoy-comparative-report';
 
 export interface AuditReportMetadata {
   company: string;
@@ -139,10 +140,23 @@ export const reportDefinitions: ReportDefinition[] = [
     category: 'Audit Trail',
     badgeColor: 'teal',
     iconName: 'FileSignature'
+  },
+  {
+    id: 'yoy-comparative-report',
+    title: '11. Year-over-Year Analytical Procedures Report',
+    subtitle: 'SA 520 Analytical Review, Multi-Year Metric Variances & Recurring Risk Findings',
+    description: 'Auditor documentation compliant with Standard on Auditing (SA) 520, analyzing comparative financial movement, voucher volume variations, and recurring compliance issues across financial periods.',
+    category: 'Executive',
+    badgeColor: 'sky',
+    iconName: 'GitCompare'
   }
 ];
 
-export function getReportMetadata(exceptions: WorkspaceExceptionItem[]): AuditReportMetadata {
+export function getReportMetadata(
+  exceptions: WorkspaceExceptionItem[],
+  companyName?: string,
+  financialYear?: string
+): AuditReportMetadata {
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + 
                   now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -153,11 +167,11 @@ export function getReportMetadata(exceptions: WorkspaceExceptionItem[]): AuditRe
   const dismissed = exceptions.filter(e => e.status === 'Dismissed with Reason').length;
 
   return {
-    company: 'Apex Industrial Solutions Pvt Ltd',
-    financialYear: 'FY 2025-26 (01-Apr-2025 to 31-Mar-2026)',
+    company: companyName || 'Apex Industrial Solutions Pvt Ltd',
+    financialYear: financialYear || 'FY 2025-26 (01-Apr-2025 to 31-Mar-2026)',
     reportGenerationDate: dateStr,
-    applicationVersion: 'v1.3.0-audit-engine (Offline Desktop Build)',
-    dataSynchronizationDate: '25-Sep-2026 09:14:00 AM (Local SQLite Storage Cache)',
+    applicationVersion: 'v1.4.0-audit-engine (Multi-Company Enterprise Build)',
+    dataSynchronizationDate: 'Local SQLite Multi-Company Isolated Database Snapshot',
     ruleVersionsUsed: {
       gst: 'GST Statutory Rules v1.2.0',
       tds: 'TDS Withholding Rules v2.0.1',

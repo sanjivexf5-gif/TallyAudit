@@ -111,7 +111,7 @@ public class AuditResultRepository : IAuditResultRepository
             r.CompanyId,
             r.RuleId,
             r.RuleName,
-            Category = (int)r.Severity, // fallback integer
+            Category = (int)r.Category,
             Severity = (int)r.Severity,
             EntityId = r.VoucherId ?? r.LedgerId ?? r.ResultId,
             EntityType = !string.IsNullOrEmpty(r.VoucherId) ? "Voucher" : "Ledger",
@@ -141,7 +141,7 @@ public class AuditResultRepository : IAuditResultRepository
             SELECT 
                 Id AS ResultId, RuleId, RuleName, CompanyId, VoucherId, LedgerId, 
                 VoucherNumber, VoucherDate, FlaggedAmount, FlaggedAt AS DetectedAt, 
-                Severity, Explanation, EvidenceJson AS Evidence, Status, 
+                Category, Severity, Explanation, EvidenceJson AS Evidence, Status, 
                 AuditorAssignedTo AS Reviewer, AuditorNote AS ReviewerNote 
             FROM Exceptions 
             WHERE CompanyId = @CompanyId
@@ -199,7 +199,7 @@ public class ExceptionRepository : IExceptionRepository
             SELECT 
                 Id AS ResultId, RuleId, RuleName, CompanyId, VoucherId, LedgerId, 
                 VoucherNumber, VoucherDate, FlaggedAmount, FlaggedAt AS DetectedAt, 
-                Severity, Explanation, EvidenceJson AS Evidence, Status, 
+                Category, Severity, Explanation, EvidenceJson AS Evidence, Status, 
                 AuditorAssignedTo AS Reviewer, AuditorNote AS ReviewerNote 
             FROM Exceptions 
             WHERE CompanyId = @CompanyId
@@ -207,6 +207,12 @@ public class ExceptionRepository : IExceptionRepository
 
         var parameters = new DynamicParameters();
         parameters.Add("CompanyId", companyId);
+
+        if (category.HasValue)
+        {
+            sql += " AND Category = @Category";
+            parameters.Add("Category", (int)category.Value);
+        }
 
         if (minSeverity.HasValue)
         {

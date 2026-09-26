@@ -1,3 +1,5 @@
+using System;
+using System.Collections.ObjectModel;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -55,6 +57,24 @@ public partial class TallyConnectionViewModel : ObservableObject
     [ObservableProperty]
     private string _testRunnerOutput = "Press 'Run Integration Test Suite' to execute automated tests against Tally fixtures.";
 
+    [ObservableProperty]
+    private ObservableCollection<string> _availableCompanies = new();
+
+    [ObservableProperty]
+    private string? _selectedCompany;
+
+    [ObservableProperty]
+    private DateTime _fromDate = DateTime.Today;
+
+    [ObservableProperty]
+    private DateTime _toDate = DateTime.Today;
+
+    [ObservableProperty]
+    private string _financialYear = "—";
+
+    [ObservableProperty]
+    private string _validationMessage = string.Empty;
+
     public TallyConnectionViewModel(
         ITallyConnection tallyConnection,
         ITallyCompanyService companyService,
@@ -102,6 +122,7 @@ public partial class TallyConnectionViewModel : ObservableObject
     {
         Host = await _settingsService.GetTallyHostAsync();
         Port = await _settingsService.GetTallyPortAsync();
+        await ScanForTallyAsync();
     }
 
     [RelayCommand]
@@ -122,22 +143,32 @@ public partial class TallyConnectionViewModel : ObservableObject
                 Latency = $"{endpoint.LatencyMs} ms";
                 DetectedVersion = endpoint.ServerVersion ?? "TallyPrime XML Server";
 
-                // Retrieve active open company and profile
-                var company = await _companyService.GetActiveCompanyAsync($"http://{Host}:{Port}");
-                ActiveCompany = company ?? "Active Company Found";
-
-                if (!string.IsNullOrEmpty(company))
+                var companies = await _companyService.GetOpenCompaniesAsync($"http://{Host}:{Port}");
+                AvailableCompanies.Clear();
+                foreach (var c in companies)
                 {
-                    var profile = await _companyService.GetCompanyProfileTypedAsync(company, $"http://{Host}:{Port}");
-                    if (profile != null)
-                    {
-                        CompanyGstin = profile.GSTIN ?? "Unregistered";
-                        CompanyState = profile.StateName ?? "—";
-                        CompanyBooksDate = profile.BooksBeginningFrom.ToString("dd-MMM-yyyy");
-                    }
+                    AvailableCompanies.Add(c);
                 }
 
-                StatusMessage = $"Successfully connected to TallyPrime on port {Port}!";
+                if (companies.Count > 0)
+                {
+                    StatusMessage = "Tally Connected";
+                    if (companies.Count == 1)
+                    {
+                        SelectedCompany = companies[0];
+                    }
+                    else
+                    {
+                        SelectedCompany = companies[0];
+                    }
+                }
+                else
+                {
+                    ActiveCompany = "—";
+                    SelectedCompany = null;
+                    StatusMessage = "Tally Connected (No open companies found. Please open a company in TallyPrime).";
+                }
+
                 await _settingsService.SetTallyPortAsync(Port);
             }
             else
@@ -149,12 +180,14 @@ public partial class TallyConnectionViewModel : ObservableObject
                 CompanyState = "—";
                 CompanyBooksDate = "—";
                 Latency = "—";
-                StatusMessage = _tallyConnection.LastErrorMessage ?? "Could not connect to TallyPrime.";
+                AvailableCompanies.Clear();
+                SelectedCompany = null;
+                StatusMessage = "Tally not detected. Open TallyPrime and Retry";
             }
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Connection failed: {ex.Message}";
+            StatusMessage = $"Tally not detected. Open TallyPrime and Retry (Error: {ex.Message})";
             IsConnected = false;
         }
         finally
@@ -175,16 +208,31 @@ public partial class TallyConnectionViewModel : ObservableObject
             if (success)
             {
                 IsConnected = true;
-                StatusMessage = $"Connected to http://{Host}:{Port}";
-                var company = await _companyService.GetActiveCompanyAsync($"http://{Host}:{Port}");
-                ActiveCompany = company ?? "Active Company Found";
+                StatusMessage = "Tally Connected";
+                
+                var companies = await _companyService.GetOpenCompaniesAsync($"http://{Host}:{Port}");
+                AvailableCompanies.Clear();
+                foreach (var c in companies)
+                {
+                    AvailableCompanies.Add(c);
+                }
+
+                if (companies.Count > 0)
+                {
+                    SelectedCompany = companies[0];
+                }
+                else
+                {
+                    SelectedCompany = null;
+                }
+
                 await _settingsService.SetTallyPortAsync(Port);
                 await _settingsService.SetTallyHostAsync(Host);
             }
             else
             {
                 IsConnected = false;
-                StatusMessage = $"No response from http://{Host}:{Port}. Verify port and firewall.";
+                StatusMessage = "Tally not detected. Open TallyPrime and Retry";
             }
         }
         catch (Exception ex)
@@ -196,6 +244,68 @@ public partial class TallyConnectionViewModel : ObservableObject
         {
             IsScanning = false;
         }
+    }
+
+    async partial void OnSelectedCompanyChanged(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return;
+
+        ActiveCompany = value;
+        await _settingsService.SetSettingAsync("ActiveCompany", value);
+
+        try
+        {
+            var host = Host;
+            var port = Port;
+            var profile = await _companyService.GetCompanyProfileTypedAsync(value, $"http://{host}:{port}");
+            if (profile != null)
+            {
+                CompanyGstin = profile.GSTIN ?? "Unregistered";
+                CompanyState = profile.StateName ?? "—";
+                CompanyBooksDate = profile.BooksBeginningFrom.ToString("dd-MMM-yyyy");
+
+                FromDate = profile.BooksBeginningFrom;
+                ToDate = profile.BooksBeginningFrom.AddYears(1).AddDays(-1);
+
+                FinancialYear = $"FY {profile.BooksBeginningFrom.Year}-{(profile.BooksBeginningFrom.Year + 1) % 100:D2}";
+                await _settingsService.SetSettingAsync("FinancialYear", FinancialYear);
+                await _settingsService.SetSettingAsync("AuditPeriodFrom", FromDate.ToString("yyyy-MM-dd"));
+                await _settingsService.SetSettingAsync("AuditPeriodTo", ToDate.ToString("yyyy-MM-dd"));
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to load company profile: {ex.Message}";
+        }
+    }
+
+    partial void OnFromDateChanged(DateTime value)
+    {
+        ValidateDates();
+    }
+
+    partial void OnToDateChanged(DateTime value)
+    {
+        ValidateDates();
+    }
+
+    private void ValidateDates()
+    {
+        if (FromDate > ToDate)
+        {
+            ValidationMessage = "From date cannot be after To date.";
+        }
+        else
+        {
+            ValidationMessage = string.Empty;
+            _ = SavePeriodSettingsAsync();
+        }
+    }
+
+    private async Task SavePeriodSettingsAsync()
+    {
+        await _settingsService.SetSettingAsync("AuditPeriodFrom", FromDate.ToString("yyyy-MM-dd"));
+        await _settingsService.SetSettingAsync("AuditPeriodTo", ToDate.ToString("yyyy-MM-dd"));
     }
 
     [RelayCommand]

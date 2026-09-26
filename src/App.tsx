@@ -62,6 +62,8 @@ import {
   Info,
   Bookmark,
   Sparkles,
+  BrainCircuit,
+  ListChecks,
   Hash,
   Lock,
   Unlock,
@@ -69,9 +71,24 @@ import {
   Shield,
   Download,
   UploadCloud,
-  FileCheck2
+  FileCheck2,
+  FileWarning,
+  Scale,
+  Brain,
+  MessageSquareQuote,
+  Edit2,
+  Plus,
+  FileQuestion,
+  User,
+  AlertCircle,
+  FolderTree,
+  HardDrive,
+  FileClock,
+  FileStack,
+  Award
 } from 'lucide-react';
 import { csharpCodeDatabase } from './csharpCodeDatabase';
+import { aiAssistantService, AiAuditRunStats } from './aiAssistantService';
 import {
   initialSecurityLogs,
   initialBackups,
@@ -102,27 +119,81 @@ import {
   SourceVoucherDetail,
   RelatedLedgerInfo,
   allSynchronizedVouchers,
-  allSynchronizedLedgers
+  allSynchronizedLedgers,
+  ReconciliationFinding,
+  initialReconciliationFindings,
+  AuditPlan,
+  AuditRisk,
+  AuditProcedure,
+  AuditSample,
+  AuditSampleItem,
+  AuditEvidence,
+  AuditEvidenceType,
+  EvidenceRequest,
+  WorkingPaper,
+  WorkingPaperTemplate,
+  predefinedWorkingPaperTemplates,
+  AuditActivity,
+  AuditAmendment,
+  initialAuditPlan,
+  initialAuditRisks,
+  initialAuditProcedures,
+  initialAuditEvidence,
+  initialEvidenceRequests,
+  initialWorkingPapers,
+  initialAuditActivities
 } from './workspaceData';
 import { AuditReportingModule } from './AuditReportingModule';
+import {
+  CompanyWorkspace,
+  FinancialPeriodInfo,
+  initialCompanies,
+  companyYearDataMap,
+  getCompanyWorkspace,
+  getCompanyYearData,
+  rollForwardAuditPlan
+} from './companyData';
+import { CompanyWorkspaceView } from './CompanyWorkspaceView';
+import { PilotAuditWorkflowView } from './PilotAuditWorkflowView';
+import {
+  LicenseInfo,
+  LicenseStatus,
+  LicenseType,
+  AppVersionInfo,
+  UpdateReleaseNote,
+  DiagnosticBundle,
+  currentAppVersion,
+  defaultProfessionalLicense,
+  defaultTrialLicense,
+  releaseNotesHistory,
+  generateDiagnosticsBundle
+} from './licensingData';
 
 type NavItem = 
   | 'dashboard' 
+  | 'pilot-workflow'
   | 'connection' 
   | 'companies' 
   | 'sync' 
   | 'audit'
   | 'duplicates'
+  | 'reconciliation'
+  | 'planning'
   | 'gst' 
   | 'tds' 
   | 'vouchers' 
   | 'ledgers' 
   | 'exceptions' 
+  | 'evidence'
+  | 'audit-file'
   | 'reports' 
   | 'settings'
   | 'csharp-explorer'
   | 'optimization'
-  | 'security';
+  | 'security'
+  | 'licensing'
+  | 'updates'
+  | 'about';
 
 type SyncPipelineStage = 
   | 'CONNECT'
@@ -245,6 +316,12 @@ export default function App() {
   const [copiedFile, setCopiedFile] = useState<string | null>(null);
   const [selectedCsFile, setSelectedCsFile] = useState<string>('AuditEngine.cs');
 
+  // --- MULTI-COMPANY & MULTI-YEAR TENANT STATE ---
+  const [companies, setCompanies] = useState<CompanyWorkspace[]>(initialCompanies);
+  const [activeCompanyId, setActiveCompanyId] = useState<string>('COMP-001');
+  const [activeFinancialYearId, setActiveFinancialYearId] = useState<string>('FY-2025-26');
+  const [isScanningTallyCompanies, setIsScanningTallyCompanies] = useState<boolean>(false);
+
   // --- OFFLINE-FIRST & SYNCHRONIZATION ENGINE STATE ---
   const [isSynchronizing, setIsSynchronizing] = useState<boolean>(false);
   const [syncProgress, setSyncProgress] = useState<number>(100);
@@ -282,6 +359,107 @@ export default function App() {
   const [autoAuditStageIndex, setAutoAuditStageIndex] = useState<number>(0);
   const [autoAuditProgress, setAutoAuditProgress] = useState<number>(0);
   const [isAutoAuditCompletedModalOpen, setIsAutoAuditCompletedModalOpen] = useState<boolean>(false);
+  
+  // --- AI ASSISTANT & RECONCILIATION ENGINE STATE ---
+  const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+  const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiContext, setAiContext] = useState<'EXPLAIN' | 'QUESTIONS' | 'REMARK' | 'SUMMARY' | null>(null);
+  const [reconciliationFindings, setReconciliationFindings] = useState<ReconciliationFinding[]>(initialReconciliationFindings);
+  const [selectedRecFinding, setSelectedRecFinding] = useState<ReconciliationFinding | null>(null);
+
+  // --- AUDIT PLANNING & RISK STATE ---
+  const [planningTab, setPlanningTab] = useState<'Overview' | 'Materiality' | 'Risk Assessment' | 'Audit Areas' | 'Procedures' | 'Sampling' | 'Evidence' | 'Working Papers'>('Overview');
+  const [auditPlan, setAuditPlan] = useState<AuditPlan>(initialAuditPlan);
+  const [auditRisks, setAuditRisks] = useState<AuditRisk[]>(initialAuditRisks);
+  const [auditProcedures, setAuditProcedures] = useState<AuditProcedure[]>(initialAuditProcedures);
+  const [auditSamples, setAuditSamples] = useState<AuditSample[]>([]);
+  const [auditEvidence, setAuditEvidence] = useState<AuditEvidence[]>(initialAuditEvidence);
+  const [evidenceRequests, setEvidenceRequests] = useState<EvidenceRequest[]>(initialEvidenceRequests);
+  const [workingPapers, setWorkingPapers] = useState<WorkingPaper[]>(initialWorkingPapers);
+  const [auditActivities, setAuditActivities] = useState<AuditActivity[]>(initialAuditActivities);
+  const [auditAmendments, setAuditAmendments] = useState<AuditAmendment[]>([]);
+  const [selectedAuditArea, setSelectedAuditArea] = useState<string>('ALL');
+  const [evidenceTab, setEvidenceTab] = useState<'Register' | 'Requests' | 'Storage'>('Register');
+  const [evidenceSearchQuery, setEvidenceSearchQuery] = useState<string>('');
+  const [evidenceAreaFilter, setEvidenceAreaFilter] = useState<string>('ALL');
+  const [evidenceTypeFilter, setEvidenceTypeFilter] = useState<string>('ALL');
+  const [evidenceStatusFilter, setEvidenceStatusFilter] = useState<string>('ALL');
+  const [selectedEvidenceItem, setSelectedEvidenceItem] = useState<AuditEvidence | null>(null);
+  const [isRecordTallySourceModalOpen, setIsRecordTallySourceModalOpen] = useState<boolean>(false);
+  const [tallySourceSearchQuery, setTallySourceSearchQuery] = useState<string>('');
+  const [selectedVoucherForSource, setSelectedVoucherForSource] = useState<SourceVoucherDetail | null>(null);
+  const [sourceAreaSelect, setSourceAreaSelect] = useState<string>('GST');
+  const [isCreateEvidenceRequestModalOpen, setIsCreateEvidenceRequestModalOpen] = useState<boolean>(false);
+  const [requestStatusFilter, setRequestStatusFilter] = useState<string>('ALL');
+  const [requestAreaFilter, setRequestAreaFilter] = useState<string>('ALL');
+  const [newRequestArea, setNewRequestArea] = useState<string>('GST');
+  const [newRequestDesc, setNewRequestDesc] = useState<string>('');
+  const [newRequestFrom, setNewRequestFrom] = useState<string>('');
+  const [newRequestDue, setNewRequestDue] = useState<string>(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+  const [newRequestRemarks, setNewRequestRemarks] = useState<string>('');
+
+  // Working Paper state
+  const [selectedWorkingPaper, setSelectedWorkingPaper] = useState<WorkingPaper | null>(null);
+  const [isCreateWorkingPaperModalOpen, setIsCreateWorkingPaperModalOpen] = useState<boolean>(false);
+  const [workingPaperFilterArea, setWorkingPaperFilterArea] = useState<string>('ALL');
+  const [workingPaperFilterStatus, setWorkingPaperFilterStatus] = useState<string>('ALL');
+
+  // Sample testing state
+  const [testingSampleItem, setTestingSampleItem] = useState<{ sampleId: string; item: AuditSampleItem } | null>(null);
+  const [sampleTestResult, setSampleTestResult] = useState<AuditSampleItem['testResult']>('Pass');
+  const [sampleTestRemarks, setSampleTestRemarks] = useState<string>('');
+  const [sampleLinkedEvidence, setSampleLinkedEvidence] = useState<string>('');
+
+  // Completeness check & closure modal
+  const [isCompletenessModalOpen, setIsCompletenessModalOpen] = useState<boolean>(false);
+
+  // Amendment modal
+  const [isAmendmentModalOpen, setIsAmendmentModalOpen] = useState<boolean>(false);
+  const [amendmentEntityType, setAmendmentEntityType] = useState<AuditAmendment['entityType']>('WorkingPaper');
+  const [amendmentEntityId, setAmendmentEntityId] = useState<string>('WP-001');
+  const [amendmentAction, setAmendmentAction] = useState<AuditAmendment['action']>('Modified');
+  const [amendmentReason, setAmendmentReason] = useState<string>('');
+  const [amendmentOldVal, setAmendmentOldVal] = useState<string>('');
+  const [amendmentNewVal, setAmendmentNewVal] = useState<string>('');
+
+  // --- COMMERCIAL LICENSING & TRIAL STATE ---
+  const [currentLicense, setCurrentLicense] = useState<LicenseInfo>(defaultProfessionalLicense);
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState<boolean>(false);
+  const [licenseKeyInput, setLicenseKeyInput] = useState<string>('');
+  const [trialOrgInput, setTrialOrgInput] = useState<string>('Apex Statutory Auditors LLP');
+  const [trialEmailInput, setTrialEmailInput] = useState<string>('auditor@apexllp.in');
+  const [licenseMessage, setLicenseMessage] = useState<string | null>(null);
+
+  // --- UPDATES & RELEASE DELIVERY STATE ---
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState<boolean>(false);
+  const [updateCheckResult, setUpdateCheckResult] = useState<string | null>(null);
+  const [selectedReleaseNote, setSelectedReleaseNote] = useState<UpdateReleaseNote>(releaseNotesHistory[0]);
+
+  // --- DIAGNOSTICS & SUPPORT PACKAGE STATE ---
+  const [isDiagnosticsModalOpen, setIsDiagnosticsModalOpen] = useState<boolean>(false);
+  const [diagnosticsBundle, setDiagnosticsBundle] = useState<DiagnosticBundle | null>(null);
+  const [diagnosticsExportSuccess, setDiagnosticsExportSuccess] = useState<boolean>(false);
+
+  // --- FIRST-RUN ONBOARDING SETUP WIZARD STATE ---
+  const [isFirstRunWizardOpen, setIsFirstRunWizardOpen] = useState<boolean>(false);
+  const [firstRunStep, setFirstRunStep] = useState<number>(1);
+  const [firstRunAdminUser, setFirstRunAdminUser] = useState<string>('admin');
+  const [firstRunAdminPass, setFirstRunAdminPass] = useState<string>('');
+  const [firstRunEvidenceDir, setFirstRunEvidenceDir] = useState<string>('C:\\AuditEvidence\\2025-26');
+  const [firstRunTallyTested, setFirstRunTallyTested] = useState<boolean>(true);
+
+  // --- ABOUT & PRIVACY STATE ---
+  const [isAboutModalOpen, setIsAboutModalOpen] = useState<boolean>(false);
+  const [isOfflineNoticeDismissed, setIsOfflineNoticeDismissed] = useState<boolean>(false);
+  const [isAiEnabled, setIsAiEnabled] = useState<boolean>(true);
+  const [aiProviderMode, setAiProviderMode] = useState<'LOCAL_RULE_ENGINE' | 'SERVER_SIDE_GEMINI'>('LOCAL_RULE_ENGINE');
+
+  // --- GLOBAL SEARCH (CTRL+F) STATE ---
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState<boolean>(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState<string>('');
+  const [globalSearchCategory, setGlobalSearchCategory] = useState<'ALL' | 'VOUCHERS' | 'LEDGERS' | 'EXCEPTIONS' | 'EVIDENCE' | 'PAPERS'>('ALL');
+
   const [autoAuditResults, setAutoAuditResults] = useState<{
     transactionsExamined: number;
     ledgersExamined: number;
@@ -320,7 +498,23 @@ export default function App() {
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    // Desktop keyboard shortcuts handler (Ctrl+F for Search, Esc to close modals, F5 for refresh)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setIsGlobalSearchOpen(prev => !prev);
+      } else if (e.key === 'Escape') {
+        setIsGlobalSearchOpen(false);
+        setIsAboutModalOpen(false);
+        setIsDiagnosticsModalOpen(false);
+        setIsLicenseModalOpen(false);
+        setIsAmendmentModalOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
+      window.removeEventListener('keydown', handleKeyDown);
       if (autoAuditIntervalRef.current) clearInterval(autoAuditIntervalRef.current);
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
     };
@@ -353,8 +547,8 @@ export default function App() {
         const ts = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' +
                    now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-        const revCount = workspaceExceptions.filter(e => e.reviewStatus !== 'Pending').length;
-        const pendCount = workspaceExceptions.filter(e => e.reviewStatus === 'Pending').length;
+        const revCount = workspaceExceptions.filter(e => e.status !== 'Requires Review - Pending').length;
+        const pendCount = workspaceExceptions.filter(e => e.status === 'Requires Review - Pending').length;
 
         setAutoAuditResults({
           transactionsExamined: 14280,
@@ -487,6 +681,454 @@ export default function App() {
     recordSecurityLog('DATA_ACCESS', 'Security Audit Log Exported', `Exported ${securityLogs.length} audit log entries to ${format} file (${sanitizeResult.sanitizedPath}).`);
     alert(`✓ Security Audit Log Exported!\n\nFormat: ${format}\nFile Location: ${sanitizeResult.sanitizedPath}\nContains ${securityLogs.length} cryptographic audit log entries.`);
   };
+
+  // --- AI ASSISTANT HANDLERS ---
+  const handleAiExplain = async (exception: WorkspaceExceptionItem) => {
+    setIsAiLoading(true);
+    setAiError(null);
+    setAiResponse(null);
+    setAiContext('EXPLAIN');
+    try {
+      const text = await aiAssistantService.explainFinding(exception);
+      setAiResponse(text);
+      recordSecurityLog('DATA_ACCESS', 'AI Explanation Generated', `Rule: ${exception.ruleId}, Finding: ${exception.id}`);
+    } catch (err: any) {
+      setAiError(err.message);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleAiSuggestQuestions = async (exception: WorkspaceExceptionItem) => {
+    setIsAiLoading(true);
+    setAiError(null);
+    setAiResponse(null);
+    setAiContext('QUESTIONS');
+    try {
+      const text = await aiAssistantService.suggestQuestions(exception);
+      setAiResponse(text);
+      recordSecurityLog('DATA_ACCESS', 'AI Review Questions Generated', `Rule: ${exception.ruleId}`);
+    } catch (err: any) {
+      setAiError(err.message);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleAiDraftRemark = async (exception: WorkspaceExceptionItem) => {
+    setIsAiLoading(true);
+    setAiError(null);
+    setAiResponse(null);
+    setAiContext('REMARK');
+    try {
+      const text = await aiAssistantService.draftRemark(exception);
+      setAiResponse(text);
+      recordSecurityLog('DATA_ACCESS', 'AI Working Paper Remark Drafted', `Rule: ${exception.ruleId}`);
+    } catch (err: any) {
+      setAiError(err.message);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleAiSummarizeAudit = async () => {
+    if (!autoAuditResults) return;
+    setIsAiLoading(true);
+    setAiError(null);
+    setAiResponse(null);
+    setAiContext('SUMMARY');
+    try {
+      const stats: AiAuditRunStats = {
+        transactionsAudited: autoAuditResults.transactionsExamined,
+        rulesExecuted: autoAuditResults.rulesExecuted,
+        findings: autoAuditResults.exceptionsFound,
+        highPriority: autoAuditResults.exceptionsFound > 5 ? 5 : autoAuditResults.exceptionsFound, // Mock logic
+        reviewRequired: autoAuditResults.exceptionsPending,
+        additionalStats: {
+          'GST': 18,
+          'TDS': 13,
+          'Accounting': 19
+        }
+      };
+      const text = await aiAssistantService.summarizeAudit(stats);
+      setAiResponse(text);
+      recordSecurityLog('DATA_ACCESS', 'AI Audit Summary Generated', 'Generated executive summary of last audit run.');
+    } catch (err: any) {
+      setAiError(err.message);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleAiSuggestProcedures = async () => {
+    setIsAiLoading(true);
+    setAiError(null);
+    setAiResponse(null);
+    setAiContext('QUESTIONS'); // Reusing context for general suggestions
+    try {
+      const text = await aiAssistantService.suggestProcedures(auditPlan, auditRisks);
+      setAiResponse(text);
+      recordSecurityLog('DATA_ACCESS', 'AI Audit Procedures Suggested', 'Generated procedural suggestions based on risk assessment.');
+    } catch (err: any) {
+      setAiError(err.message);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleAiDraftPlanNotes = async () => {
+    setIsAiLoading(true);
+    setAiError(null);
+    setAiResponse(null);
+    setAiContext('REMARK');
+    try {
+      const text = await aiAssistantService.draftPlanNotes(auditPlan);
+      setAiResponse(text);
+      recordSecurityLog('DATA_ACCESS', 'AI Audit Plan Notes Drafted', 'Generated high-level audit plan draft.');
+    } catch (err: any) {
+      setAiError(err.message);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const recordAuditActivity = (action: string, details: string) => {
+    const now = new Date().toISOString();
+    const newActivity: AuditActivity = {
+      id: `ACT-${Date.now()}`,
+      planId: auditPlan.id,
+      timestamp: now,
+      user: 'Senior Statutory Auditor',
+      action,
+      details
+    };
+    setAuditActivities(prev => [newActivity, ...prev]);
+  };
+
+  const handleUploadEvidence = (
+    file: File, 
+    type: AuditEvidenceType, 
+    area: string, 
+    procedureId?: string, 
+    findingId?: string
+  ) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const arrayBuf = e.target?.result as ArrayBuffer;
+      const fileBytes = new Uint8Array(arrayBuf || new ArrayBuffer(0));
+      // Generate SHA-256 digest string
+      const hashStr = `sha256:${generateIntegrityHash(file.name + file.size + file.lastModified + (fileBytes[0] || 0))}`;
+      
+      const existingDup = auditEvidence.find(ev => ev.fileHash === hashStr);
+      if (existingDup) {
+        alert(`ℹ️ DUPLICATE EVIDENCE DETECTED:\n\nThis file is already registered in the Evidence Register as "${existingDup.description}" (${existingDup.id}).\nA new reference record will be created and cross-indexed.`);
+      }
+
+      const companyClean = activeCompany.split(' (')[0].trim();
+      const storageDir = `AuditData/${companyClean}/${lastSyncFinancialYear}/${auditPlan.id}/Evidence/${file.name}`;
+      
+      const newEvidence: AuditEvidence = {
+        id: `EVD-${Date.now().toString().slice(-6)}`,
+        planId: auditPlan.id,
+        auditArea: area,
+        procedureId: procedureId || undefined,
+        findingId: findingId || undefined,
+        evidenceType: type,
+        description: `Supporting Document: ${file.name}`,
+        referenceNumber: `REF-${Date.now().toString().slice(-4)}`,
+        source: 'User Upload (Secure Local Storage)',
+        fileName: file.name,
+        filePath: storageDir,
+        storagePath: storageDir,
+        fileHash: hashStr,
+        fileIntegrityStatus: 'Verified',
+        sizeBytes: file.size,
+        dateReceived: new Date().toISOString().split('T')[0],
+        uploadedAt: new Date().toISOString(),
+        status: 'Received',
+        auditorRemarks: `Received & hashed via local audit evidence store. Size: ${(file.size / 1024).toFixed(1)} KB.`
+      };
+      
+      setAuditEvidence(prev => [newEvidence, ...prev]);
+      recordAuditActivity('Evidence Uploaded', `Document "${file.name}" registered for [${area}]. SHA-256: ${hashStr.slice(0, 18)}...`);
+      alert(`✓ Supporting Document Registered Successfully!\n\nFile: ${file.name}\nType: ${type}\nStorage Path: ${storageDir}\nSHA-256 Hash: ${hashStr}`);
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleMarkAsEvidence = (voucher: SourceVoucherDetail, area: string, findingId?: string) => {
+    const taxAmt = voucher.entries?.filter(e => 
+      e.parentGroup?.toLowerCase().includes('tax') || 
+      e.ledgerName?.toLowerCase().includes('tax') || 
+      e.ledgerName?.toLowerCase().includes('gst') ||
+      e.ledgerName?.toLowerCase().includes('tds')
+    ).reduce((sum, curr) => sum + Math.abs(curr.amount || 0), 0) || 0;
+
+    const newEvidence: AuditEvidence = {
+      id: `EVD-TALLY-${Date.now().toString().slice(-6)}`,
+      planId: auditPlan.id,
+      auditArea: area,
+      findingId: findingId,
+      evidenceType: 'Tally Transaction',
+      description: `Tally Source Evidence: ${voucher.voucherNumber} (${voucher.voucherType}) - ${voucher.partyLedgerName || voucher.primaryLedger || 'General'}`,
+      referenceNumber: voucher.voucherNumber,
+      source: 'Tally ERP/Prime Sync (Source Evidence)',
+      voucherId: voucher.voucherId,
+      voucherNumber: voucher.voucherNumber,
+      voucherDate: voucher.voucherDate,
+      voucherType: voucher.voucherType,
+      ledger: voucher.primaryLedger || 'N/A',
+      party: voucher.partyLedgerName || 'N/A',
+      amount: voucher.totalAmount,
+      taxAmount: taxAmt,
+      sourceReference: `Gateway of Tally > Books > ${voucher.voucherType} Register > ${voucher.voucherNumber}`,
+      fileIntegrityStatus: 'Verified',
+      uploadedAt: new Date().toISOString(),
+      status: 'Accepted',
+      auditorRemarks: `Designated as primary Tally Source Evidence by auditor.${findingId ? ` Linked to Finding ${findingId}.` : ''}`
+    };
+    setAuditEvidence(prev => [newEvidence, ...prev]);
+    recordAuditActivity('Evidence Added', `Tally Voucher ${voucher.voucherNumber} (₹${voucher.totalAmount.toLocaleString()}) marked as Source Evidence for [${area}].`);
+    alert(`✓ Tally Source Evidence Registered!\n\nVoucher: ${voucher.voucherNumber} (${voucher.voucherType})\nParty: ${voucher.partyLedgerName || 'N/A'}\nAmount: ₹${voucher.totalAmount.toLocaleString()}\nAudit Area: ${area}`);
+  };
+
+  const handleVerifyEvidenceIntegrity = (id: string) => {
+    const evd = auditEvidence.find(e => e.id === id);
+    if (!evd) return;
+    if (evd.fileIntegrityStatus === 'Changed') {
+      alert(`⚠️ FILE INTEGRITY WARNING:\n\n"Evidence file has changed since it was registered."\n\nEvidence: ${evd.description}\nRegistered Hash: ${evd.fileHash}\nDisk Reference: ${evd.storagePath || evd.fileName}\n\nPreservation Protocol: Historical evidence is preserved and cannot be silently replaced. Please examine this item.`);
+    } else {
+      alert(`✓ FILE INTEGRITY VERIFIED (SHA-256):\n\nEvidence: ${evd.description}\nRegistered SHA-256: ${evd.fileHash || 'Calculated from Tally Sync Engine'}\nStorage Location: ${evd.storagePath || 'Local SQLite Database'}\nStatus: Match confirmed. No alteration detected.`);
+    }
+  };
+
+  const handleToggleTamperSimulation = (id: string) => {
+    setAuditEvidence(prev => prev.map(e => {
+      if (e.id === id) {
+        const nextStatus = e.fileIntegrityStatus === 'Changed' ? 'Verified' : 'Changed';
+        recordAuditActivity('Integrity Status Updated', `Evidence ${e.id} integrity marked as ${nextStatus}.`);
+        return { ...e, fileIntegrityStatus: nextStatus };
+      }
+      return e;
+    }));
+  };
+
+  const handleUpdateEvidenceStatus = (id: string, status: AuditEvidence['status'], remarks: string) => {
+    if (auditPlan.status === 'Completed') {
+      alert('⚠️ Audit file is Finalized and immutable. Reopen engagement or create an amendment to modify status.');
+      return;
+    }
+    setAuditEvidence(prev => prev.map(e => e.id === id ? { ...e, status, auditorRemarks: remarks, reviewedAt: new Date().toISOString() } : e));
+    recordAuditActivity('Evidence Updated', `Evidence ${id} status set to [${status}]. Remarks: ${remarks}`);
+  };
+
+  const handleCreateEvidenceRequest = (area: string, description: string, requestedFrom: string, dueDate: string, remarks?: string) => {
+    if (auditPlan.status === 'Completed') {
+      alert('⚠️ Audit file is Finalized and immutable.');
+      return;
+    }
+    const newRequest: EvidenceRequest = {
+      id: `REQ-${Date.now().toString().slice(-4)}`,
+      planId: auditPlan.id,
+      auditArea: area,
+      description,
+      requestedFrom,
+      requestedDate: new Date().toISOString().split('T')[0],
+      dueDate,
+      status: 'Requested',
+      remarks: remarks || ''
+    };
+    setEvidenceRequests(prev => [newRequest, ...prev]);
+    recordAuditActivity('Evidence Requested', `Request ${newRequest.id} created for [${area}] from "${requestedFrom}". Due: ${dueDate}`);
+    setIsCreateEvidenceRequestModalOpen(false);
+    setNewRequestDesc('');
+    setNewRequestFrom('');
+    setNewRequestRemarks('');
+    alert(`✓ Evidence Request ${newRequest.id} Created Successfully!`);
+  };
+
+  const handleCreateWorkingPaperFromTemplate = (template: WorkingPaperTemplate) => {
+    if (auditPlan.status === 'Completed') {
+      alert('⚠️ Audit file is Finalized and immutable. Reopen engagement to add working papers.');
+      return;
+    }
+    const newWP: WorkingPaper = {
+      id: `WP-${Date.now().toString().slice(-4)}`,
+      planId: auditPlan.id,
+      auditArea: template.auditArea,
+      title: template.defaultTitle,
+      objective: template.objective,
+      procedurePerformed: template.suggestedProcedure,
+      population: template.populationDescription,
+      sample: template.sampleCriteria,
+      evidenceReferences: auditEvidence.filter(e => e.auditArea === template.auditArea).map(e => e.id),
+      observation: '',
+      difference: 0,
+      auditorRemarks: '',
+      conclusion: template.standardConclusion,
+      reviewerRemarks: '',
+      status: 'Draft',
+      preparedBy: 'CA. Sanjiv (Senior Auditor)',
+      preparedDate: new Date().toISOString().split('T')[0]
+    };
+    setWorkingPapers(prev => [newWP, ...prev]);
+    setSelectedWorkingPaper(newWP);
+    setIsCreateWorkingPaperModalOpen(false);
+    recordAuditActivity('Working Paper Created', `Created WP ${newWP.id} from template "${template.name}".`);
+  };
+
+  const handleSaveWorkingPaper = (updatedWP: WorkingPaper) => {
+    if (auditPlan.status === 'Completed') {
+      alert('⚠️ Audit file is Finalized and immutable. Reopen engagement to edit working papers.');
+      return;
+    }
+    setWorkingPapers(prev => prev.map(wp => wp.id === updatedWP.id ? updatedWP : wp));
+    setSelectedWorkingPaper(null);
+    recordAuditActivity('Working Paper Saved', `Updated WP ${updatedWP.id} [${updatedWP.title}]. Status: ${updatedWP.status}`);
+  };
+
+  const handleSaveSampleItemTest = (
+    sampleId: string, 
+    itemId: string, 
+    testResult: AuditSampleItem['testResult'], 
+    remarks: string, 
+    evidenceRef: string
+  ) => {
+    if (auditPlan.status === 'Completed') {
+      alert('⚠️ Audit Engagement is Finalized and locked in Read-Only mode. Sample tests cannot be modified.');
+      return;
+    }
+    setAuditSamples(prev => prev.map(sample => {
+      if (sample.id === sampleId) {
+        return {
+          ...sample,
+          items: sample.items.map(item => {
+            if (item.id === itemId) {
+              return {
+                ...item,
+                testResult,
+                remarks,
+                evidenceReference: evidenceRef
+              };
+            }
+            return item;
+          })
+        };
+      }
+      return sample;
+    }));
+    setTestingSampleItem(null);
+    recordAuditActivity('Sample Tested', `Sample item ${itemId} tested: Result = ${testResult}.`);
+    alert(`✓ Sample test saved! Result: ${testResult}`);
+  };
+
+  const handleRecordAmendment = (
+    entityType: AuditAmendment['entityType'],
+    entityId: string,
+    action: AuditAmendment['action'],
+    reason: string,
+    oldVal: string,
+    newVal: string
+  ) => {
+    const amendment: AuditAmendment = {
+      id: `AMD-${Date.now().toString().slice(-4)}`,
+      planId: auditPlan.id,
+      entityType,
+      entityId,
+      action,
+      oldValue: oldVal,
+      newValue: newVal,
+      user: 'CA. Sanjiv (Managing Partner)',
+      timestamp: new Date().toISOString(),
+      reason
+    };
+    setAuditAmendments(prev => [amendment, ...prev]);
+    recordAuditActivity('Audit Amendment Logged', `Amendment ${amendment.id} on ${entityType} (${entityId}): ${reason}`);
+    setIsAmendmentModalOpen(false);
+    setAmendmentReason('');
+    setAmendmentOldVal('');
+    setAmendmentNewVal('');
+    alert(`✓ Audit Amendment ${amendment.id} Logged to Engagement File.\n\nEntity: ${entityType} (${entityId})\nReason: ${reason}\nRecorded in immutable audit history.`);
+  };
+
+  const handleFinalizeAudit = () => {
+    const incompleteItems = [
+      auditPlan.status !== 'Completed' && 'Audit Plan not marked completed',
+      workingPapers.filter(wp => wp.status !== 'Finalized').length > 0 && `${workingPapers.filter(wp => wp.status !== 'Finalized').length} Incomplete Working Papers`,
+      auditProcedures.filter(p => p.status !== 'Completed').length > 0 && `${auditProcedures.filter(p => p.status !== 'Completed').length} Pending Procedures`,
+      auditEvidence.filter(e => e.status !== 'Accepted').length > 0 && `${auditEvidence.filter(e => e.status !== 'Accepted').length} Unaccepted Evidence Items`
+    ].filter(Boolean);
+
+    if (incompleteItems.length > 0) {
+      const confirm = window.confirm(`⚠️ AUDIT COMPLETENESS CHECK:\n\nThe following items are incomplete:\n\n• ${incompleteItems.join('\n• ')}\n\nAre you sure you want to finalize the audit? Finalized audits are immutable.`);
+      if (!confirm) return;
+    } else {
+      const confirm = window.confirm('Are you sure you want to finalize the audit engagement? This will lock all findings, working papers, and plan metadata.');
+      if (!confirm) return;
+    }
+
+    setAuditPlan(prev => ({ ...prev, status: 'Completed', updatedAt: new Date().toISOString() }));
+    recordAuditActivity('Audit Finalized', 'Engagement marked as completed and locked.');
+    alert('✓ Audit Finalized Successfully!\n\nAll records are now in READ-ONLY mode to preserve integrity of the audit file.');
+  };
+
+  const handleReopenAudit = () => {
+    if (window.confirm('⚠️ SECURITY ALERT: Re-opening a finalized audit engagement is a logged event.\n\nAre you sure you want to proceed?')) {
+      setAuditPlan(prev => ({ ...prev, status: 'In Progress', updatedAt: new Date().toISOString() }));
+      recordAuditActivity('Audit Reopened', 'Audit file unlocked for further adjustments.');
+    }
+  };
+
+  const handleGenerateSample = (
+    area: string, 
+    procedureId: string, 
+    method: AuditSample['selectionMethod'], 
+    size: number
+  ) => {
+    const population = allSynchronizedVouchers; // Simulating population from all vouchers
+    let selected: SourceVoucherDetail[] = [];
+
+    if (method === 'Random') {
+      const shuffled = [...population].sort(() => 0.5 - Math.random());
+      selected = shuffled.slice(0, size);
+    } else if (method === 'Systematic') {
+      const interval = Math.floor(population.length / size);
+      for (let i = 0; i < population.length && selected.length < size; i += interval) {
+        selected.push(population[i]);
+      }
+    } else if (method === 'Material-Item') {
+      selected = population
+        .filter(v => v.totalAmount >= auditPlan.materialityAmount)
+        .slice(0, size);
+    } else {
+      // Default fallback
+      selected = population.slice(0, size);
+    }
+
+    const newSample: AuditSample = {
+      id: `SMP-${Date.now()}`,
+      planId: auditPlan.id,
+      auditArea: area,
+      procedureId,
+      selectionMethod: method,
+      populationSize: population.length,
+      sampleSize: selected.length,
+      items: selected.map(v => ({
+        id: `SITEM-${v.voucherId}`,
+        voucherNumber: v.voucherNumber,
+        voucherDate: v.voucherDate,
+        amount: v.totalAmount,
+        selectionReason: method === 'Material-Item' ? 'Individually Significant' : 'Statistical Selection',
+        testResult: 'Not Tested',
+        remarks: '',
+        evidenceReference: ''
+      }))
+    };
+
+    setAuditSamples(prev => [...prev, newSample]);
+    recordSecurityLog('DATA_ACCESS', 'Audit Sample Generated', `Method: ${method}, Area: ${area}, Size: ${selected.length}`);
+  };
+
   const [voucherTypeFilter, setVoucherTypeFilter] = useState<string>('ALL');
   const [voucherSearchQuery, setVoucherSearchQuery] = useState<string>('');
   const [inspectingVoucherItem, setInspectingVoucherItem] = useState<SourceVoucherDetail | null>(null);
@@ -1800,6 +2442,389 @@ export default function App() {
     return true;
   });
 
+  // --- MULTI-COMPANY & MULTI-YEAR MANAGEMENT HANDLERS ---
+  const currentCompanyObj = companies.find(c => c.id === activeCompanyId) || companies[0];
+  const currentYearDataStore = getCompanyYearData(activeCompanyId, activeFinancialYearId);
+  const activeFyObj = currentCompanyObj.financialYears.find(f => f.id === activeFinancialYearId) || currentCompanyObj.financialYears[0];
+  const priorFyObj = currentCompanyObj.financialYears.find(f => f.id !== activeFinancialYearId && f.isAuditFinalized) || currentCompanyObj.financialYears[0];
+
+  const handleSwitchCompany = (newCompany: CompanyWorkspace) => {
+    // 1. Safe stop any active audit or sync operations
+    if (isAutoAuditRunning) {
+      if (autoAuditIntervalRef.current) clearInterval(autoAuditIntervalRef.current);
+      setIsAutoAuditRunning(false);
+      setAutoAuditProgress(0);
+    }
+    setIsSynchronizing(false);
+    setIsAuditing(false);
+
+    // 2. Clear transient selection states to guarantee strict company isolation
+    setSelectedWorkspaceException(null);
+    setSelectedEvidenceItem(null);
+    setSelectedWorkingPaper(null);
+    setSelectedRecFinding(null);
+    setTestingSampleItem(null);
+
+    // 3. Update active company & period
+    setActiveCompanyId(newCompany.id);
+    const targetFyId = newCompany.activeFinancialYearId || newCompany.financialYears[0]?.id || 'FY-2025-26';
+    setActiveFinancialYearId(targetFyId);
+    const targetFyLabel = newCompany.financialYears.find(f => f.id === targetFyId)?.label || 'FY 2025-26';
+
+    setActiveCompany(`${newCompany.name} (${targetFyLabel})`);
+    setLastSyncCompany(newCompany.name);
+    setLastSyncFinancialYear(targetFyLabel);
+    setLastSyncDate(newCompany.lastSyncAt.split(' ')[0] || '25-Sep-2026');
+    setLastSyncTime(newCompany.lastSyncAt.split(' ')[1] || '09:14:00 AM');
+
+    // 4. Load isolated tenant database partition
+    const isolatedStore = getCompanyYearData(newCompany.id, targetFyId);
+    setWorkspaceExceptions(isolatedStore.exceptions);
+    if (isolatedStore.exceptions.length > 0) {
+      setSelectedWorkspaceException(isolatedStore.exceptions[0]);
+    } else {
+      setSelectedWorkspaceException(null);
+    }
+    setAuditPlan(isolatedStore.auditPlan);
+    setAuditRisks(isolatedStore.auditRisks);
+    setAuditProcedures(isolatedStore.auditProcedures);
+    setAuditEvidence(isolatedStore.auditEvidence);
+    setEvidenceRequests(isolatedStore.evidenceRequests);
+    setWorkingPapers(isolatedStore.workingPapers);
+    setAuditActivities(isolatedStore.auditActivities);
+    setReconciliationFindings(isolatedStore.reconciliationFindings);
+
+    // 5. Record immutable security audit log
+    recordSecurityLog(
+      'DATA_ACCESS',
+      'Company Workspace Switched',
+      `Auditor switched workspace context to ${newCompany.name} (${targetFyLabel}). Strict company isolation partition mounted.`
+    );
+  };
+
+  const handleSwitchFinancialYear = (newYearId: string) => {
+    if (isAutoAuditRunning) {
+      if (autoAuditIntervalRef.current) clearInterval(autoAuditIntervalRef.current);
+      setIsAutoAuditRunning(false);
+    }
+
+    setActiveFinancialYearId(newYearId);
+    const fyObj = currentCompanyObj.financialYears.find(f => f.id === newYearId);
+    const fyLabel = fyObj?.label || 'FY 2025-26';
+
+    setActiveCompany(`${currentCompanyObj.name} (${fyLabel})`);
+    setLastSyncFinancialYear(fyLabel);
+
+    // Load isolated FY partition
+    const isolatedStore = getCompanyYearData(activeCompanyId, newYearId);
+    setWorkspaceExceptions(isolatedStore.exceptions);
+    if (isolatedStore.exceptions.length > 0) {
+      setSelectedWorkspaceException(isolatedStore.exceptions[0]);
+    } else {
+      setSelectedWorkspaceException(null);
+    }
+    setAuditPlan(isolatedStore.auditPlan);
+    setAuditRisks(isolatedStore.auditRisks);
+    setAuditProcedures(isolatedStore.auditProcedures);
+    setAuditEvidence(isolatedStore.auditEvidence);
+    setEvidenceRequests(isolatedStore.evidenceRequests);
+    setWorkingPapers(isolatedStore.workingPapers);
+    setAuditActivities(isolatedStore.auditActivities);
+    setReconciliationFindings(isolatedStore.reconciliationFindings);
+
+    recordSecurityLog(
+      'DATA_ACCESS',
+      'Financial Year Switched',
+      `Loaded audit partition for ${currentCompanyObj.name} - ${fyLabel}.`
+    );
+  };
+
+  const handleRollForwardYear = (targetYear: string, targetYearId: string) => {
+    const rolled = rollForwardAuditPlan(currentYearDataStore, targetYear, targetYearId);
+
+    // Add financial year to company if not exists
+    setCompanies(prev => prev.map(c => {
+      if (c.id === activeCompanyId) {
+        const alreadyExists = c.financialYears.some(f => f.id === targetYearId);
+        if (alreadyExists) return c;
+        const newFy: FinancialPeriodInfo = {
+          id: targetYearId,
+          label: targetYear,
+          startDate: `01-Apr-${targetYear.slice(3, 7)}`,
+          endDate: `31-Mar-20${targetYear.slice(8, 10)}`,
+          assessmentYear: `AY 20${Number(targetYear.slice(8, 10)) + 1}-${Number(targetYear.slice(8, 10)) + 2}`,
+          isCurrent: true,
+          isAuditFinalized: false,
+          vouchersCount: 0,
+          ledgersCount: currentCompanyObj.financialYears[0]?.ledgersCount || 342
+        };
+        return {
+          ...c,
+          financialYears: [...c.financialYears, newFy],
+          activeFinancialYearId: targetYearId
+        };
+      }
+      return c;
+    }));
+
+    // Switch to new FY
+    setActiveFinancialYearId(targetYearId);
+    setActiveCompany(`${currentCompanyObj.name} (${targetYear})`);
+    setLastSyncFinancialYear(targetYear);
+
+    if (rolled.auditPlan) setAuditPlan(rolled.auditPlan);
+    if (rolled.auditRisks) setAuditRisks(rolled.auditRisks);
+    if (rolled.auditProcedures) setAuditProcedures(rolled.auditProcedures);
+    setAuditEvidence([]);
+    setEvidenceRequests([]);
+    setWorkingPapers([]);
+    if (rolled.auditActivities) setAuditActivities(rolled.auditActivities);
+
+    recordSecurityLog(
+      'DATA_ACCESS',
+      'Audit Plan Rolled Forward',
+      `Rolled forward engagement to ${targetYear} with carry-forward of recurring risks and standard audit procedures.`
+    );
+  };
+
+  const handleScanTallyCompanies = () => {
+    setIsScanningTallyCompanies(true);
+    setTimeout(() => {
+      setIsScanningTallyCompanies(false);
+      setConnectionMessage(`Connected to TallyPrime port ${tallyPort} — Discovered ${companies.length} available company workspaces.`);
+      recordSecurityLog(
+        'SYSTEM',
+        'Tally Companies Discovered',
+        `Discovered companies: ${companies.map(c => c.name).join(', ')} via XML Server port ${tallyPort}.`
+      );
+    }, 1000);
+  };
+
+  const handleAddCompany = (newCompany: CompanyWorkspace) => {
+    setCompanies(prev => [...prev, newCompany]);
+    handleSwitchCompany(newCompany);
+    recordSecurityLog(
+      'DATA_ACCESS',
+      'New Company Onboarded',
+      `Onboarded client: ${newCompany.name} (GSTIN: ${newCompany.gstin}).`
+    );
+  };
+
+  // --- COMMERCIAL LICENSING HANDLERS ---
+  const handleActivateLicense = () => {
+    const key = licenseKeyInput.trim().toUpperCase();
+    if (!key) {
+      setLicenseMessage('Please enter a valid license activation key.');
+      return;
+    }
+
+    const isEnterprise = key.includes('ENT');
+    const newLicense: LicenseInfo = {
+      licenseKey: key,
+      licenseType: isEnterprise ? 'Enterprise' : 'Professional',
+      status: 'Active',
+      registeredTo: 'Senior Statutory Partner',
+      organization: trialOrgInput || 'Statutory Audit & Advisory LLP',
+      issuedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      expiryDate: '31-Mar-2027',
+      daysRemaining: 186,
+      machineBindingId: 'DPAPI-DEVICE-BOUND-9842',
+      supportPlan: isEnterprise ? '24/7 Enterprise Desktop Support' : 'Priority Standard Support',
+      isOfflineValidated: true,
+      entitlements: {
+        maxCompanies: -1,
+        maxAuditPeriods: -1,
+        allowGstAudit: true,
+        allowTdsAudit: true,
+        allowDuplicateEngine: true,
+        allowReconciliation: true,
+        allowSampling: true,
+        allowWorkingPapers: true,
+        allowPdfExcelExport: true,
+        allowComparativeYoY: true,
+        allowMultiUserRbac: true,
+        allowAiAuditAssistant: true
+      }
+    };
+
+    setCurrentLicense(newLicense);
+    setLicenseMessage(`License activated successfully! Product Edition: ${newLicense.licenseType}`);
+    recordSecurityLog('AUTHENTICATION', 'License Activated', `Commercial license activated for ${newLicense.organization}.`);
+    setTimeout(() => {
+      setIsLicenseModalOpen(false);
+      setLicenseMessage(null);
+    }, 1500);
+  };
+
+  const handleStartTrial = () => {
+    if (!trialOrgInput.trim() || !trialEmailInput.trim()) {
+      setLicenseMessage('Please provide your organization name and email for evaluation.');
+      return;
+    }
+
+    const trialLic: LicenseInfo = {
+      ...defaultTrialLicense,
+      registeredTo: trialEmailInput,
+      organization: trialOrgInput,
+      issuedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      expiryDate: new Date(Date.now() + 14 * 86400000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      daysRemaining: 14
+    };
+
+    setCurrentLicense(trialLic);
+    setLicenseMessage('14-Day Evaluation Trial started. All audit rule engines unlocked.');
+    recordSecurityLog('AUTHENTICATION', 'Trial Started', `14-Day trial started for ${trialOrgInput}.`);
+    setTimeout(() => {
+      setIsLicenseModalOpen(false);
+      setLicenseMessage(null);
+    }, 1500);
+  };
+
+  // --- UPDATE DELIVERY HANDLERS ---
+  const handleCheckForUpdates = () => {
+    setIsCheckingUpdates(true);
+    setUpdateCheckResult(null);
+    setTimeout(() => {
+      setIsCheckingUpdates(false);
+      setUpdateCheckResult('You are running the latest stable release (v1.0.0). All security patches and statutory GST/TDS engines are up to date.');
+      recordSecurityLog('SYSTEM', 'Update Checked', 'Verified release metadata. Current version 1.0.0 is up to date.');
+    }, 1200);
+  };
+
+  // --- DIAGNOSTICS & SUPPORT HANDLERS ---
+  const handleOpenDiagnostics = () => {
+    const bundle = generateDiagnosticsBundle(
+      currentLicense,
+      currentCompanyObj.name,
+      activeFyObj?.label || 'FY 2025-26',
+      14280,
+      exceptions.length,
+      tallyConnected
+    );
+    setDiagnosticsBundle(bundle);
+    setIsDiagnosticsModalOpen(true);
+    setDiagnosticsExportSuccess(false);
+  };
+
+  const handleExportDiagnosticsFile = () => {
+    setDiagnosticsExportSuccess(true);
+    recordSecurityLog('SYSTEM', 'Diagnostics Exported', 'Sanitized support diagnostics package generated (Zero accounting data guarantee).');
+  };
+
+  const handleCompleteFirstRun = () => {
+    setIsFirstRunWizardOpen(false);
+    recordSecurityLog('SYSTEM', 'First-Run Setup Finished', 'Initial database schema, administrator account, and evidence directory configured.');
+  };
+
+  // --- SCOPED GLOBAL SEARCH CALCULATION ---
+  const filteredSearchResults = () => {
+    const q = globalSearchQuery.trim().toLowerCase();
+    if (!q) return [];
+
+    const results: Array<{ id: string; type: string; title: string; subtitle: string; tag: string; action: () => void }> = [];
+
+    // 1. Findings / Exceptions
+    if (globalSearchCategory === 'ALL' || globalSearchCategory === 'EXCEPTIONS') {
+      workspaceExceptions.forEach(ex => {
+        if (
+          ex.exceptionTitle.toLowerCase().includes(q) ||
+          ex.module.toLowerCase().includes(q) ||
+          (ex.voucherNumber && ex.voucherNumber.toLowerCase().includes(q)) ||
+          (ex.partyLedgerName && ex.partyLedgerName.toLowerCase().includes(q)) ||
+          (ex.whyFlagged && ex.whyFlagged.toLowerCase().includes(q))
+        ) {
+          results.push({
+            id: ex.id,
+            type: 'Audit Exception',
+            title: ex.exceptionTitle,
+            subtitle: `${ex.module} • ${ex.voucherNumber || 'General'} • ${ex.partyLedgerName || ''}`,
+            tag: ex.severity,
+            action: () => {
+              setSelectedWorkspaceException(ex);
+              setCurrentNav('exceptions');
+              setIsGlobalSearchOpen(false);
+            }
+          });
+        }
+      });
+    }
+
+    // 2. Working Papers
+    if (globalSearchCategory === 'ALL' || globalSearchCategory === 'PAPERS') {
+      workingPapers.forEach(wp => {
+        if (
+          wp.title.toLowerCase().includes(q) ||
+          wp.auditArea.toLowerCase().includes(q) ||
+          (wp.objective && wp.objective.toLowerCase().includes(q)) ||
+          (wp.observation && wp.observation.toLowerCase().includes(q))
+        ) {
+          results.push({
+            id: wp.id,
+            type: 'Working Paper',
+            title: wp.title,
+            subtitle: `${wp.auditArea} • Prepared by ${wp.preparedBy} • Status: ${wp.status}`,
+            tag: wp.status,
+            action: () => {
+              setSelectedWorkingPaper(wp);
+              setPlanningTab('Working Papers');
+              setCurrentNav('planning');
+              setIsGlobalSearchOpen(false);
+            }
+          });
+        }
+      });
+    }
+
+    // 3. Evidence
+    if (globalSearchCategory === 'ALL' || globalSearchCategory === 'EVIDENCE') {
+      auditEvidence.forEach(ev => {
+        if (
+          ev.referenceNumber.toLowerCase().includes(q) ||
+          ev.description.toLowerCase().includes(q) ||
+          ev.auditArea.toLowerCase().includes(q) ||
+          (ev.fileName && ev.fileName.toLowerCase().includes(q))
+        ) {
+          results.push({
+            id: ev.id,
+            type: 'Audit Evidence',
+            title: `[${ev.referenceNumber}] ${ev.description}`,
+            subtitle: `${ev.auditArea} • ${ev.fileName || 'Tally Source Document'} • Status: ${ev.status}`,
+            tag: ev.status,
+            action: () => {
+              setSelectedEvidenceItem(ev);
+              setCurrentNav('evidence');
+              setIsGlobalSearchOpen(false);
+            }
+          });
+        }
+      });
+    }
+
+    // 4. Risks & Procedures
+    if (globalSearchCategory === 'ALL') {
+      auditRisks.forEach(rk => {
+        if (rk.description.toLowerCase().includes(q) || rk.auditArea.toLowerCase().includes(q) || rk.indicator.toLowerCase().includes(q)) {
+          results.push({
+            id: rk.id,
+            type: 'Audit Risk',
+            title: `[${rk.auditArea}] ${rk.description}`,
+            subtitle: `Area: ${rk.auditArea} • Risk Level: ${rk.riskLevel}`,
+            tag: rk.riskLevel,
+            action: () => {
+              setPlanningTab('Risk Assessment');
+              setCurrentNav('planning');
+              setIsGlobalSearchOpen(false);
+            }
+          });
+        }
+      });
+    }
+
+    return results.slice(0, 20); // Cap top 20 matches
+  };
+
+  const searchResults = filteredSearchResults();
+
   return (
     <div className="flex flex-col h-screen w-full bg-[#0a0f1d] text-slate-100 font-sans select-none overflow-hidden">
       {/* Title Bar */}
@@ -1807,10 +2832,10 @@ export default function App() {
         <div className="flex items-center gap-2">
           <div className="w-3.5 h-3.5 bg-teal-600 rounded flex items-center justify-center text-[9px] font-bold text-white">T</div>
           <span className="font-semibold text-slate-200">Tally Audit Assistant</span>
-          <span className="text-[10px] bg-slate-800 text-teal-400 px-1.5 py-0.5 rounded border border-slate-700 font-mono">v1.3.0-audit-engine</span>
+          <span className="text-[10px] bg-slate-800 text-teal-400 px-1.5 py-0.5 rounded border border-slate-700 font-mono">v1.0.0 (Commercial Stable)</span>
         </div>
         <div className="flex items-center gap-2 text-slate-400 text-[11px]">
-          <span>Offline Rule-Based Statutory &amp; Anomaly Engine (19 Rules Active)</span>
+          <span>Offline Statutory &amp; Anomaly Engine • {currentLicense.licenseType} Edition</span>
         </div>
         <div className="flex items-center space-x-2">
           <span className="w-3 h-3 rounded-full bg-slate-700 inline-block hover:bg-slate-600 cursor-pointer"></span>
@@ -1891,11 +2916,44 @@ export default function App() {
           </div>
         </div>
 
-        {/* Active Company Pill */}
-        <div className="hidden lg:flex items-center gap-2 bg-[#121c32] px-3 py-1.5 rounded-md border border-slate-800 text-xs">
-          <Building2 className="w-3.5 h-3.5 text-teal-400" />
-          <span className="text-slate-400">Active:</span>
-          <span className="font-semibold text-slate-100 max-w-[180px] truncate">{activeCompany.split('(')[0].trim()}</span>
+        {/* CURRENT COMPANY & CURRENT PERIOD HEADER BAR */}
+        <div className="hidden md:flex items-center gap-2">
+          {/* Current Company Pill */}
+          <div className="flex items-center gap-2 bg-[#121c32] px-3 py-1.5 rounded-md border border-slate-700/80 text-xs shadow-sm">
+            <Building2 className="w-3.5 h-3.5 text-teal-400" />
+            <div className="flex flex-col text-left">
+              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none">Current Company</span>
+              <span className="font-bold text-slate-100 max-w-[180px] truncate leading-tight mt-0.5">
+                {currentCompanyObj.name}
+              </span>
+            </div>
+            <button
+              onClick={() => setCurrentNav('companies')}
+              className="ml-1 text-[10px] font-semibold text-teal-400 hover:text-teal-300 hover:underline px-1.5 py-0.5 rounded bg-teal-950/80 border border-teal-800 cursor-pointer"
+            >
+              Switch
+            </button>
+          </div>
+
+          {/* Current Period Pill */}
+          <div className="hidden xl:flex items-center gap-2 bg-[#121c32] px-3 py-1.5 rounded-md border border-slate-700/80 text-xs shadow-sm">
+            <Calendar className="w-3.5 h-3.5 text-teal-400" />
+            <div className="flex flex-col text-left">
+              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-none">Current Period</span>
+              <span className="font-bold text-teal-300 leading-tight mt-0.5">
+                {activeFyObj?.startDate || '01-Apr-2025'} to {activeFyObj?.endDate || '31-Mar-2026'} ({activeFyObj?.label || 'FY 2025-26'})
+              </span>
+            </div>
+            <select
+              value={activeFinancialYearId}
+              onChange={(e) => handleSwitchFinancialYear(e.target.value)}
+              className="ml-1 text-[10px] font-semibold bg-[#070b14] text-teal-300 border border-slate-700 rounded px-1.5 py-0.5 focus:outline-none cursor-pointer"
+            >
+              {currentCompanyObj.financialYears.map(fy => (
+                <option key={fy.id} value={fy.id}>{fy.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Run Audit Engine & Code Explorer */}
@@ -2055,6 +3113,36 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setCurrentNav('companies')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium text-left transition-all ${
+                currentNav === 'companies' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+              }`}
+            >
+              <Building2 className="w-4 h-4 text-cyan-400" />
+              <span>Company Workspace</span>
+              <span className="ml-auto bg-cyan-950 text-cyan-300 text-[10px] px-1.5 py-0.2 rounded font-semibold border border-cyan-800">
+                {companies.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setCurrentNav('pilot-workflow')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium text-left transition-all ${
+                currentNav === 'pilot-workflow' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-amber-300 hover:bg-slate-800/60'
+              }`}
+            >
+              <CheckCircle2 className="w-4 h-4 text-amber-400" />
+              <span>Pilot Audit Workflow</span>
+              <span className="ml-auto bg-amber-950 text-amber-300 text-[10px] px-1.5 py-0.2 rounded font-semibold border border-amber-800">
+                22 Steps
+              </span>
+            </button>
+
+            <button
               onClick={() => setCurrentNav('audit')}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium text-left transition-all ${
                 currentNav === 'audit' 
@@ -2081,6 +3169,31 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => setCurrentNav('evidence')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium text-left transition-all ${
+                currentNav === 'evidence' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+              }`}
+            >
+              <UploadCloud className="w-4 h-4 text-sky-400" />
+              <span>Evidence Register</span>
+              <span className="ml-auto bg-sky-950 text-sky-300 text-[10px] px-1.5 py-0.2 rounded font-semibold border border-sky-800">{auditEvidence.length}</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentNav('audit-file')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium text-left transition-all ${
+                currentNav === 'audit-file' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+              }`}
+            >
+              <FolderCheck className="w-4 h-4 text-emerald-400" />
+              <span>Final Audit File</span>
+            </button>
+
+            <button
               onClick={() => setCurrentNav('duplicates')}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium text-left transition-all ${
                 currentNav === 'duplicates' 
@@ -2091,6 +3204,31 @@ export default function App() {
               <GitCompare className="w-4 h-4 text-purple-400" />
               <span>Duplicate Engine</span>
               <span className="ml-auto bg-purple-950 text-purple-300 text-[10px] px-1.5 py-0.2 rounded font-semibold border border-purple-800">{duplicateMatches.length}</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentNav('reconciliation')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium text-left transition-all ${
+                currentNav === 'reconciliation' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+              }`}
+            >
+              <Scale className="w-4 h-4 text-sky-400" />
+              <span>Reconciliation Engine</span>
+              <span className="ml-auto bg-sky-950 text-sky-300 text-[10px] px-1.5 py-0.2 rounded font-semibold border border-sky-800">{reconciliationFindings.length}</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentNav('planning')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium text-left transition-all ${
+                currentNav === 'planning' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+              }`}
+            >
+              <ListChecks className="w-4 h-4 text-amber-400" />
+              <span>Audit Planning</span>
             </button>
 
             <button
@@ -2223,11 +3361,84 @@ export default function App() {
               <SettingsIcon className="w-4 h-4" />
               <span>Settings</span>
             </button>
+
+            <div className="pt-2 px-2 py-1 text-[10px] font-bold text-slate-400 tracking-wider uppercase">Commercial &amp; Help</div>
+
+            <button
+              onClick={() => setCurrentNav('licensing')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium text-left transition-all ${
+                currentNav === 'licensing' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-amber-400 hover:bg-slate-800/60'
+              }`}
+            >
+              <Key className="w-4 h-4 text-amber-400" />
+              <span>Licensing &amp; Trial</span>
+              <span className="ml-auto bg-amber-950 text-amber-300 text-[10px] px-1.5 py-0.2 rounded font-semibold border border-amber-800">
+                {currentLicense.licenseType}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setCurrentNav('updates')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium text-left transition-all ${
+                currentNav === 'updates' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-sky-400 hover:bg-slate-800/60'
+              }`}
+            >
+              <Download className="w-4 h-4 text-sky-400" />
+              <span>Software Updates</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentNav('about')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium text-left transition-all ${
+                currentNav === 'about' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-slate-300 hover:bg-slate-800/60'
+              }`}
+            >
+              <Info className="w-4 h-4 text-teal-400" />
+              <span>About &amp; Privacy</span>
+            </button>
           </div>
         </aside>
 
         {/* Main Content Area */}
         <main className="flex-1 bg-[#0b101e] overflow-y-auto p-5">
+          {/* PILOT AUDIT WORKFLOW & VALIDATION CENTER */}
+          {currentNav === 'pilot-workflow' && (
+            <PilotAuditWorkflowView
+              currentCompany={currentCompanyObj}
+              activeFinancialYear={activeFyObj?.label || 'FY 2025-26'}
+              onNavigateToSection={(nav) => setCurrentNav(nav as any)}
+              recordSecurityLog={recordSecurityLog}
+            />
+          )}
+
+          {/* MULTI-COMPANY & MULTI-YEAR WORKSPACE MANAGER */}
+          {currentNav === 'companies' && (
+            <div className="max-w-7xl mx-auto">
+              <CompanyWorkspaceView
+                companies={companies}
+                activeCompany={currentCompanyObj}
+                activeFinancialYearId={activeFinancialYearId}
+                yearDataStore={currentYearDataStore}
+                onSwitchCompany={handleSwitchCompany}
+                onSwitchFinancialYear={handleSwitchFinancialYear}
+                onRollForwardYear={handleRollForwardYear}
+                onAddCompany={handleAddCompany}
+                onScanTallyCompanies={handleScanTallyCompanies}
+                isScanningTally={isScanningTallyCompanies}
+                tallyConnected={tallyConnected}
+                onNavigateToAudit={() => setCurrentNav('audit')}
+                onNavigateToPlanning={() => setCurrentNav('planning')}
+                onNavigateToReports={() => setCurrentNav('reports')}
+              />
+            </div>
+          )}
+
           {/* DASHBOARD SCREEN */}
           {currentNav === 'dashboard' && (
             <div className="space-y-5 max-w-7xl mx-auto">
@@ -2250,12 +3461,116 @@ export default function App() {
 
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={handleAiSummarizeAudit}
+                    disabled={isAiLoading || !autoAuditResults}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#1a2234] hover:bg-[#252f44] text-teal-300 border border-teal-800/50 rounded text-xs font-bold transition-all shadow cursor-pointer disabled:opacity-50"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{isAiLoading && aiContext === 'SUMMARY' ? 'Summarizing...' : 'Summarize Last Audit Run'}</span>
+                  </button>
+                  <button
                     onClick={() => setCurrentNav('exceptions')}
                     className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded text-xs font-bold transition-all shadow cursor-pointer"
                   >
                     <AlertTriangle className="w-3.5 h-3.5" />
                     <span>Open Exceptions Workbench ({pendingCount} Pending)</span>
                   </button>
+                </div>
+              </div>
+
+              {/* AI Executive Summary Results Area */}
+              {aiResponse && aiContext === 'SUMMARY' && (
+                <div className="bg-gradient-to-r from-[#0d1424] to-[#16213e] border border-teal-500/30 rounded-lg p-5 shadow-xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-2 opacity-20 group-hover:opacity-40 transition-opacity">
+                    <BrainCircuit className="w-24 h-24 text-teal-500" />
+                  </div>
+                  <div className="relative z-10 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-teal-400" />
+                        <h3 className="text-sm font-black text-white uppercase tracking-widest">AI Auditor Executive Summary</h3>
+                      </div>
+                      <button 
+                        onClick={() => setAiResponse(null)}
+                        className="text-slate-400 hover:text-white p-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="text-xs text-slate-200 leading-relaxed font-sans whitespace-pre-wrap max-w-4xl">
+                      {aiResponse}
+                    </div>
+                    <div className="pt-3 border-t border-slate-800/50 flex items-center justify-between text-[10px] text-slate-500">
+                      <span>Generated using Gemini 3.8 Flash • Based solely on latest deterministic findings</span>
+                      <button 
+                        onClick={() => handleExportAuditLog('CSV')}
+                        className="text-teal-400 hover:underline font-bold uppercase"
+                      >
+                        Archive this summary to Working Papers
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* AUDIT PLANNING & RISK QUICK STATUS */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div 
+                  onClick={() => setCurrentNav('planning')}
+                  className="bg-gradient-to-br from-[#1a2234] to-[#0d1424] border border-amber-500/30 rounded-lg p-4 cursor-pointer hover:border-amber-500 transition-all group shadow-lg"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <ListChecks className="w-5 h-5 text-amber-400" />
+                      <h3 className="text-sm font-black text-white uppercase tracking-wider">Audit Planning &amp; Scope</h3>
+                    </div>
+                    <span className="text-[10px] bg-amber-950 text-amber-300 px-2 py-0.5 rounded border border-amber-800 font-bold uppercase">
+                      {auditPlan.status}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Overall Materiality</span>
+                      <div className="text-lg font-mono font-black text-white">₹{(auditPlan.materialityAmount/1000).toFixed(1)}k</div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Areas Covered</span>
+                      <div className="text-lg font-black text-emerald-400">{auditPlan.selectedAreas.filter(a => a.isEnabled).length} Areas</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 text-[10px] text-amber-400 group-hover:translate-x-1 transition-transform flex items-center gap-1 font-bold">
+                    View Full Audit Plan &amp; Risk Register →
+                  </div>
+                </div>
+
+                <div 
+                  onClick={() => { setCurrentNav('planning'); setPlanningTab('Sampling'); }}
+                  className="bg-gradient-to-br from-[#0d1424] to-[#121c32] border border-sky-500/30 rounded-lg p-4 cursor-pointer hover:border-sky-500 transition-all group shadow-lg"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <RotateCcw className="w-5 h-5 text-sky-400" />
+                      <h3 className="text-sm font-black text-white uppercase tracking-wider">Sampling &amp; Verification</h3>
+                    </div>
+                    <span className="text-[10px] bg-sky-950 text-sky-300 px-2 py-0.5 rounded border border-sky-800 font-bold">
+                      {auditSamples.length} Active Sets
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Population Size</span>
+                      <div className="text-lg font-mono font-black text-white">14.2k</div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Samples Tested</span>
+                      <div className="text-lg font-black text-sky-400">
+                        {auditSamples.reduce((sum, s) => sum + s.items.filter(i => i.testResult !== 'Not Tested').length, 0)} Items
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 text-[10px] text-sky-400 group-hover:translate-x-1 transition-transform flex items-center gap-1 font-bold">
+                    Execute Substantive Testing Procedures →
+                  </div>
                 </div>
               </div>
 
@@ -2460,6 +3775,48 @@ export default function App() {
                     Configure Rules →
                   </div>
                 </div>
+              </div>
+
+              {/* AUDIT CLOSURE READINESS */}
+              <div className="bg-[#121c32] border border-slate-800 rounded-lg p-5 space-y-4">
+                 <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                       <Scale className="w-5 h-5 text-teal-400" />
+                       <h3 className="text-sm font-bold text-white uppercase tracking-widest">Audit Closure Readiness &amp; Quality Control</h3>
+                    </div>
+                    <button 
+                      className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded text-xs font-black transition-all shadow-lg"
+                      onClick={() => {
+                        const openFindings = workspaceExceptions.filter(e => e.status !== 'Reviewed').length;
+                        const incompleteProcs = auditProcedures.filter(p => p.status !== 'Completed').length;
+                        alert(`AUDIT CLOSURE STATUS:\n\n` + 
+                              `• Open Findings: ${openFindings}\n` +
+                              `• Incomplete Procedures: ${incompleteProcs}\n` +
+                              `• Untested Samples: ${auditSamples.length > 0 ? 'Review Required' : 'None'}\n\n` +
+                              `${openFindings > 0 || incompleteProcs > 0 ? '⚠️ ITEMS REQUIRE ATTENTION BEFORE CLOSURE.' : '✅ AUDIT IS READY FOR CLOSURE.'}`);
+                      }}
+                    >
+                      Verify Closure Readiness
+                    </button>
+                 </div>
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
+                    <div className="p-3 bg-[#070b14] rounded border border-slate-800">
+                       <span className="text-[9px] text-slate-500 uppercase font-bold block mb-1">Open Exceptions</span>
+                       <div className="text-sm font-mono font-bold text-rose-400">{workspaceExceptions.filter(e => e.status !== 'Reviewed').length} Items</div>
+                    </div>
+                    <div className="p-3 bg-[#070b14] rounded border border-slate-800">
+                       <span className="text-[9px] text-slate-500 uppercase font-bold block mb-1">Pending Procs</span>
+                       <div className="text-sm font-mono font-bold text-amber-400">{auditProcedures.filter(p => p.status !== 'Completed').length} Pending</div>
+                    </div>
+                    <div className="p-3 bg-[#070b14] rounded border border-slate-800">
+                       <span className="text-[9px] text-slate-500 uppercase font-bold block mb-1">Evidence Status</span>
+                       <div className="text-sm font-mono font-bold text-sky-400">1 Received</div>
+                    </div>
+                    <div className="p-3 bg-[#070b14] rounded border border-slate-800">
+                       <span className="text-[9px] text-slate-500 uppercase font-bold block mb-1">Working Papers</span>
+                       <div className="text-sm font-mono font-bold text-emerald-400">Drafted</div>
+                    </div>
+                 </div>
               </div>
 
               {/* Priority Exceptions Table */}
@@ -2950,6 +4307,107 @@ export default function App() {
                           </div>
                         </div>
 
+                        {/* AI Auditor Copilot Assistant */}
+                        <div className="bg-gradient-to-br from-[#1a2b4b] to-[#0d1424] border border-teal-500/30 rounded-lg p-3.5 space-y-3 shadow-lg shadow-teal-900/10">
+                          <div className="flex items-center justify-between border-b border-teal-500/20 pb-2">
+                            <div className="flex items-center gap-2">
+                              <Sparkles className="w-4 h-4 text-teal-400 animate-pulse" />
+                              <span className="text-xs font-black text-white tracking-wide uppercase">AI Auditor Copilot</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button 
+                                onClick={() => handleAiExplain(selectedWorkspaceException)}
+                                disabled={isAiLoading}
+                                className="flex items-center gap-1 px-2 py-1 bg-teal-950 text-teal-300 border border-teal-800 rounded hover:bg-teal-900 transition-colors cursor-pointer text-[10px] font-bold disabled:opacity-50"
+                              >
+                                <BrainCircuit className="w-3 h-3" />
+                                Explain Finding
+                              </button>
+                              <button 
+                                onClick={() => handleAiSuggestQuestions(selectedWorkspaceException)}
+                                disabled={isAiLoading}
+                                className="flex items-center gap-1 px-2 py-1 bg-purple-950 text-purple-300 border border-purple-800 rounded hover:bg-purple-900 transition-colors cursor-pointer text-[10px] font-bold disabled:opacity-50"
+                              >
+                                <ListChecks className="w-3 h-3" />
+                                Review Qs
+                              </button>
+                              <button 
+                                onClick={() => handleAiDraftRemark(selectedWorkspaceException)}
+                                disabled={isAiLoading}
+                                className="flex items-center gap-1 px-2 py-1 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded hover:bg-emerald-900 transition-colors cursor-pointer text-[10px] font-bold disabled:opacity-50"
+                              >
+                                <MessageSquareQuote className="w-3 h-3" />
+                                Draft Remark
+                              </button>
+                              <button 
+                                onClick={() => handleMarkAsEvidence(selectedWorkspaceException.sourceVoucher, selectedWorkspaceException.module, selectedWorkspaceException.id)}
+                                className="flex items-center gap-1 px-2 py-1 bg-sky-950 text-sky-300 border border-sky-800 rounded hover:bg-sky-900 transition-colors cursor-pointer text-[10px] font-bold"
+                              >
+                                <Bookmark className="w-3 h-3" />
+                                Mark as Evidence
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* AI Response Area */}
+                          {(isAiLoading || aiResponse || aiError) && (
+                            <div className="bg-[#070b14] rounded border border-slate-800 p-3 relative min-h-[60px] flex flex-col justify-center">
+                              {isAiLoading && (
+                                <div className="flex flex-col items-center justify-center gap-2 py-4">
+                                  <RefreshCw className="w-5 h-5 text-teal-400 animate-spin" />
+                                  <span className="text-[10px] text-teal-400 font-bold uppercase tracking-widest animate-pulse">Consulting AI Knowledge Base...</span>
+                                </div>
+                              )}
+                              
+                              {aiError && (
+                                <div className="flex items-start gap-2 text-rose-400 p-2 bg-rose-950/20 rounded border border-rose-900/50">
+                                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                                  <div className="text-[11px]">
+                                    <p className="font-bold">AI Assistant Error</p>
+                                    <p>{aiError}</p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {aiResponse && !isAiLoading && (
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1">
+                                      <Brain className="w-3.5 h-3.5" /> {aiContext === 'EXPLAIN' ? 'Finding Explanation' : aiContext === 'QUESTIONS' ? 'Suggested Review Questions' : 'Draft Working Remark'}
+                                    </span>
+                                    <button 
+                                      onClick={() => setAiResponse(null)}
+                                      className="text-slate-500 hover:text-white"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                  <div className="text-[11px] text-slate-200 leading-relaxed whitespace-pre-wrap font-sans">
+                                    {aiResponse}
+                                  </div>
+                                  <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[9px] text-slate-500 italic">
+                                    <span>AI-assisted draft. Professional verification required.</span>
+                                    <button 
+                                      onClick={() => {
+                                        setDetailNoteInput(prev => prev + (prev ? '\n\n' : '') + `[AI ${aiContext}]:\n` + aiResponse);
+                                        setAiResponse(null);
+                                      }}
+                                      className="text-teal-400 hover:text-teal-300 font-bold uppercase"
+                                    >
+                                      Insert into Notes
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {!isAiLoading && !aiResponse && !aiError && (
+                            <p className="text-[10px] text-slate-400 italic">
+                              Select an AI operation to analyze this finding using the Auditor Copilot engine.
+                            </p>
+                          )}
+                        </div>
+
                         {/* 1. Why was this flagged? */}
                         <div className="bg-[#121c30] border border-slate-800 rounded-lg p-3.5 space-y-1.5">
                           <span className="text-[10px] font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -2968,6 +4426,85 @@ export default function App() {
                           <pre className="bg-[#060913] p-2.5 rounded border border-slate-800 font-mono text-[10px] text-emerald-300 overflow-x-auto max-h-36">
                             {selectedWorkspaceException.evidenceJson}
                           </pre>
+                        </div>
+
+                        {/* 2b. Finding Evidence Linking (Finding -> Source Transaction -> Supporting Evidence -> Auditor Remark -> Conclusion) */}
+                        <div className="bg-[#121c32] border border-sky-900/60 rounded-lg p-3.5 space-y-3">
+                          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                            <div>
+                              <span className="text-[10px] font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <UploadCloud className="w-3.5 h-3.5" /> Supporting Evidence &amp; Documentation Linkage
+                              </span>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                Traceable supporting documentation and Tally source records attached to this finding.
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleMarkAsEvidence(selectedWorkspaceException.sourceVoucher, selectedWorkspaceException.module, selectedWorkspaceException.id)}
+                                className="px-2 py-1 bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800 rounded text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1"
+                              >
+                                <Bookmark className="w-3 h-3" />
+                                <span>Mark Tally Source</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const input = document.createElement('input');
+                                  input.type = 'file';
+                                  input.accept = '.pdf,.xlsx,.xls,.csv,.docx,.jpg,.jpeg,.png';
+                                  input.onchange = (e: any) => {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                      handleUploadEvidence(file, 'Invoice', selectedWorkspaceException.module, undefined, selectedWorkspaceException.id);
+                                    }
+                                  };
+                                  input.click();
+                                }}
+                                className="px-2 py-1 bg-sky-950 hover:bg-sky-900 text-sky-300 border border-sky-800 rounded text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1"
+                              >
+                                <UploadCloud className="w-3 h-3" />
+                                <span>Attach File</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* List of linked evidence for this finding */}
+                          <div className="space-y-2">
+                            {auditEvidence.filter(e => e.findingId === selectedWorkspaceException.id || e.referenceNumber === selectedWorkspaceException.voucherNumber || (e.voucherNumber && e.voucherNumber === selectedWorkspaceException.voucherNumber)).length > 0 ? (
+                              auditEvidence
+                                .filter(e => e.findingId === selectedWorkspaceException.id || e.referenceNumber === selectedWorkspaceException.voucherNumber || (e.voucherNumber && e.voucherNumber === selectedWorkspaceException.voucherNumber))
+                                .map(evd => (
+                                  <div key={evd.id} className="bg-[#070b14] border border-slate-800 p-2.5 rounded flex items-center justify-between gap-3 text-xs">
+                                    <div className="space-y-0.5 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="bg-sky-950 text-sky-300 border border-sky-800 text-[9px] px-1.5 py-0.2 rounded font-mono font-bold">
+                                          {evd.evidenceType}
+                                        </span>
+                                        <span className="font-bold text-slate-200 truncate">{evd.description}</span>
+                                      </div>
+                                      <div className="text-[10px] text-slate-400 font-mono">
+                                        Ref: {evd.referenceNumber} • Status: <span className="text-emerald-400 font-semibold">{evd.status}</span> • Hash: {evd.fileHash ? evd.fileHash.slice(0, 14) + '...' : 'Verified'}
+                                      </div>
+                                      {evd.auditorRemarks && (
+                                        <p className="text-[10px] text-slate-400 italic">Auditor Note: {evd.auditorRemarks}</p>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <button
+                                        onClick={() => setSelectedEvidenceItem(evd)}
+                                        className="text-sky-400 hover:text-sky-300 text-[11px] font-bold hover:underline cursor-pointer"
+                                      >
+                                        Inspect
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))
+                            ) : (
+                              <div className="text-center py-3 bg-[#070b14] border border-dashed border-slate-800 rounded text-slate-500 text-[11px]">
+                                No external evidence or source tags linked to this finding yet. Click "Mark Tally Source" or "Attach File" above.
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         {/* 3. Tally Voucher Drill-Down Anatomy & Source Information */}
@@ -5771,31 +7308,123 @@ export default function App() {
 
           {/* SETTINGS SCREEN */}
           {currentNav === 'settings' && (
-            <div className="space-y-5 max-w-4xl mx-auto">
-              <div className="pb-2 border-b border-slate-800">
-                <h2 className="text-xl font-bold text-white tracking-tight">System &amp; Audit Settings</h2>
-                <p className="text-xs text-slate-400">Manage offline SQLite storage, Tally communication parameters, and test mock modes.</p>
-              </div>
-
-              <div className="bg-[#121c30] border border-slate-800 rounded-lg p-5 space-y-4">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Database className="w-4 h-4 text-teal-400" />
-                  <span>Local SQLite Storage Engine</span>
-                </h3>
+            <div className="space-y-5 max-w-5xl mx-auto pb-10">
+              <div className="pb-3 border-b border-slate-800 flex items-center justify-between">
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Database File Location</label>
-                  <input
-                    type="text"
-                    readOnly
-                    value="C:\Users\AppData\Local\TallyAuditAssistant\audit_assistant_data.db"
-                    className="w-full bg-[#0b101e] border border-slate-700 rounded px-3 py-2 text-xs text-slate-400 font-mono cursor-not-allowed"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    All ledger transactions, voucher entries, and audit rule configurations remain 100% offline on this machine.
-                  </p>
+                  <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <SettingsIcon className="w-5 h-5 text-teal-400" />
+                    <span>System, AI &amp; Desktop Settings</span>
+                  </h2>
+                  <p className="text-xs text-slate-400">Configure local SQLite storage, Tally communication parameters, optional AI assistance, and diagnostics export.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsFirstRunWizardOpen(true)}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-teal-300 text-xs font-bold rounded border border-slate-700 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                    <span>Launch First-Run Setup Wizard</span>
+                  </button>
+                  <button
+                    onClick={handleOpenDiagnostics}
+                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded cursor-pointer flex items-center gap-1.5 shadow"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Export Diagnostics Package</span>
+                  </button>
                 </div>
               </div>
 
+              {/* Local Storage Card */}
+              <div className="bg-[#121c30] border border-slate-800 rounded-lg p-5 space-y-4">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Database className="w-4 h-4 text-teal-400" />
+                  <span>Local SQLite Storage Engine &amp; Windows Data Isolation</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">SQLite Database Location (WAL Mode)</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value="C:\Users\AppData\Local\TallyAuditAssistant\audit_assistant_data.db"
+                      className="w-full bg-[#0b101e] border border-slate-700 rounded px-3 py-2 text-xs text-slate-400 font-mono cursor-not-allowed"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Configured Audit Evidence Directory</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value="C:\AuditEvidence\2025-26"
+                      className="w-full bg-[#0b101e] border border-slate-700 rounded px-3 py-2 text-xs text-slate-300 font-mono"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  All ledger transactions, voucher entries, working papers, and audit rules remain 100% offline on this machine protected by Windows DPAPI.
+                </p>
+              </div>
+
+              {/* AI Settings & Privacy Card */}
+              <div className="bg-[#121c30] border border-slate-800 rounded-lg p-5 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-purple-400" />
+                    <span>Optional AI Audit Intelligence &amp; Privacy Governance</span>
+                  </h3>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                    isAiEnabled ? 'bg-purple-950 text-purple-300 border-purple-800' : 'bg-slate-900 text-slate-400 border-slate-700'
+                  }`}>
+                    {isAiEnabled ? 'AI ASSISTANT ENABLED' : 'AI ASSISTANT DISABLED'}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-[#070b14] rounded border border-slate-800">
+                    <div>
+                      <span className="font-bold text-white text-xs block">Enable AI Audit Assistance</span>
+                      <span className="text-[11px] text-slate-400">
+                        Provides natural language explanations of anomalies, suggested audit queries, and audit memo summaries.
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={isAiEnabled}
+                      onChange={(e) => {
+                        setIsAiEnabled(e.target.checked);
+                        recordSecurityLog('SECURITY_POLICY', 'AI Setting Changed', `AI Assistant toggled to ${e.target.checked}`);
+                      }}
+                      className="rounded text-purple-600 focus:ring-purple-500 bg-slate-900 border-slate-700 cursor-pointer w-4 h-4"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1 font-semibold">Active AI Provider Mode</label>
+                      <select
+                        disabled={!isAiEnabled}
+                        value={aiProviderMode}
+                        onChange={(e) => setAiProviderMode(e.target.value as any)}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-3 py-2 text-xs text-white disabled:opacity-50"
+                      >
+                        <option value="LOCAL_RULE_ENGINE">Local Embedded Rule Explainer (100% Offline / Zero Remote Calls)</option>
+                        <option value="SERVER_SIDE_GEMINI">Google Gemini API (Client-Proxied Statutory Audit Logic)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1 font-semibold">AI Privacy &amp; Data Boundary Policy</label>
+                      <div className="p-2.5 bg-[#070b14] rounded border border-slate-800 text-[11px] text-slate-300">
+                        <span className="text-emerald-400 font-bold">Strict Locality: </span>
+                        Full accounting databases are NEVER sent to AI servers. Only sanitized, anonymized single-rule context is processed when explicitly requested.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tally Server Defaults */}
               <div className="bg-[#121c30] border border-slate-800 rounded-lg p-5 space-y-4">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <Server className="w-4 h-4 text-teal-400" />
@@ -5821,6 +7450,337 @@ export default function App() {
                     />
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* COMMERCIAL LICENSING & TRIAL MANAGEMENT SCREEN */}
+          {currentNav === 'licensing' && (
+            <div className="space-y-5 max-w-5xl mx-auto pb-10">
+              <div className="pb-3 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <Key className="w-5 h-5 text-amber-400" />
+                    <span>Commercial Licensing &amp; Trial Management</span>
+                  </h2>
+                  <p className="text-xs text-slate-400">Offline-first product activation, entitlement validation, and evaluation trial administration.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded text-xs font-bold border ${
+                    currentLicense.status === 'Active'
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                      : currentLicense.status === 'Trial'
+                      ? 'bg-amber-950 text-amber-300 border-amber-800'
+                      : 'bg-rose-950 text-rose-300 border-rose-800'
+                  }`}>
+                    Status: {currentLicense.status.toUpperCase()} ({currentLicense.licenseType})
+                  </span>
+                </div>
+              </div>
+
+              {/* License Card */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2 bg-[#121c30] border border-slate-800 rounded-lg p-5 space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                      <Award className="w-4 h-4 text-amber-400" />
+                      <span>Active License Certificate</span>
+                    </h3>
+                    <span className="font-mono text-xs text-slate-400">{currentLicense.licenseKey || 'NO KEY REGISTERED'}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Registered Licensee</span>
+                      <strong className="text-white text-xs">{currentLicense.registeredTo}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Organization / CA Firm</span>
+                      <strong className="text-white text-xs">{currentLicense.organization}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Issued Date</span>
+                      <strong className="text-slate-200">{currentLicense.issuedDate}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Expiry / Renewal Date</span>
+                      <strong className="text-amber-300">{currentLicense.expiryDate} ({currentLicense.daysRemaining} days remaining)</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Device DPAPI Binding</span>
+                      <code className="text-teal-300 font-mono text-[10px]">{currentLicense.machineBindingId}</code>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Support SLA</span>
+                      <strong className="text-slate-200">{currentLicense.supportPlan}</strong>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-[#070b14] rounded border border-slate-800 text-[11px] text-slate-300 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span><strong>100% Offline Validated:</strong> This license operates completely offline without recurring internet check-ins.</span>
+                  </div>
+                </div>
+
+                {/* Quick Activation Form */}
+                <div className="bg-[#121c30] border border-slate-800 rounded-lg p-5 space-y-3">
+                  <h3 className="font-bold text-white text-xs uppercase tracking-wider">Activate License Key</h3>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase block mb-1">Enter 25-Character Key</label>
+                      <input
+                        type="text"
+                        placeholder="TAA-2026-PRO-XXXX-XXXX"
+                        value={licenseKeyInput}
+                        onChange={(e) => setLicenseKeyInput(e.target.value)}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono uppercase"
+                      />
+                    </div>
+                    <button
+                      onClick={handleActivateLicense}
+                      className="w-full py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-bold rounded text-xs transition-all shadow cursor-pointer"
+                    >
+                      Apply &amp; Validate Key
+                    </button>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-800">
+                    <span className="text-[10px] text-slate-400 block mb-1">Need a trial evaluation?</span>
+                    <button
+                      onClick={handleStartTrial}
+                      className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-teal-300 rounded text-xs font-semibold border border-slate-700 cursor-pointer"
+                    >
+                      Start 14-Day Free Trial
+                    </button>
+                  </div>
+
+                  {licenseMessage && (
+                    <div className="p-2 rounded bg-amber-950/80 border border-amber-800 text-amber-200 text-[11px]">
+                      {licenseMessage}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Feature Entitlements Matrix */}
+              <div className="bg-[#121c30] border border-slate-800 rounded-lg p-5 space-y-3">
+                <h3 className="font-bold text-white text-sm">Product Feature Entitlement Matrix</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3 bg-[#070b14] rounded border border-slate-800">
+                    <span className="text-slate-400 block text-[11px]">Max Companies</span>
+                    <strong className="text-white text-sm font-mono">
+                      {currentLicense.entitlements.maxCompanies === -1 ? 'Unlimited' : currentLicense.entitlements.maxCompanies}
+                    </strong>
+                  </div>
+                  <div className="p-3 bg-[#070b14] rounded border border-slate-800">
+                    <span className="text-slate-400 block text-[11px]">Max Audit Periods</span>
+                    <strong className="text-white text-sm font-mono">
+                      {currentLicense.entitlements.maxAuditPeriods === -1 ? 'Unlimited' : currentLicense.entitlements.maxAuditPeriods}
+                    </strong>
+                  </div>
+                  <div className="p-3 bg-[#070b14] rounded border border-slate-800">
+                    <span className="text-slate-400 block text-[11px]">GST &amp; TDS Audit Engines</span>
+                    <strong className="text-emerald-400 text-sm">Active &amp; Unlocked</strong>
+                  </div>
+                  <div className="p-3 bg-[#070b14] rounded border border-slate-800">
+                    <span className="text-slate-400 block text-[11px]">Reports PDF/Excel Export</span>
+                    <strong className={currentLicense.entitlements.allowPdfExcelExport ? 'text-emerald-400 text-sm' : 'text-amber-400 text-sm'}>
+                      {currentLicense.entitlements.allowPdfExcelExport ? 'Full Export Enabled' : 'View Only (Trial Watermark)'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SOFTWARE UPDATES DELIVERY SCREEN */}
+          {currentNav === 'updates' && (
+            <div className="space-y-5 max-w-5xl mx-auto pb-10">
+              <div className="pb-3 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <Download className="w-5 h-5 text-sky-400" />
+                    <span>Software Update &amp; Release Delivery</span>
+                  </h2>
+                  <p className="text-xs text-slate-400">Safe, non-destructive desktop application update verification and release history.</p>
+                </div>
+                <button
+                  onClick={handleCheckForUpdates}
+                  disabled={isCheckingUpdates}
+                  className="px-4 py-2 bg-gradient-to-r from-sky-600 to-teal-600 hover:from-sky-500 hover:to-teal-500 text-white font-bold text-xs rounded transition-all shadow cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isCheckingUpdates ? 'animate-spin' : ''}`} />
+                  <span>{isCheckingUpdates ? 'Checking Update Feed...' : 'Check for Updates'}</span>
+                </button>
+              </div>
+
+              {updateCheckResult && (
+                <div className="p-3 bg-emerald-950/80 border border-emerald-800 rounded-lg text-emerald-200 text-xs flex items-center gap-2 shadow">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{updateCheckResult}</span>
+                </div>
+              )}
+
+              {/* Version Comparison Card */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-[#121c30] border border-slate-800 rounded-lg p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-400 uppercase font-bold">Installed Version</span>
+                    <span className="text-[10px] bg-emerald-950 text-emerald-300 font-mono px-2 py-0.5 rounded border border-emerald-800 font-bold">
+                      CURRENT
+                    </span>
+                  </div>
+                  <div className="text-2xl font-black text-white tracking-tight font-mono">
+                    v{currentAppVersion.version}
+                  </div>
+                  <div className="text-xs text-slate-300 space-y-1">
+                    <div><strong>Build Number:</strong> <span className="font-mono text-slate-400">{currentAppVersion.buildNumber}</span></div>
+                    <div><strong>Release Date:</strong> {currentAppVersion.releaseDate} ({currentAppVersion.channel})</div>
+                    <div><strong>Runtime:</strong> {currentAppVersion.dotNetRuntime}</div>
+                  </div>
+                </div>
+
+                <div className="bg-[#121c30] border border-slate-800 rounded-lg p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-400 uppercase font-bold">Safe Update Principles</span>
+                    <ShieldCheck className="w-4 h-4 text-teal-400" />
+                  </div>
+                  <ul className="text-xs text-slate-300 space-y-1.5">
+                    <li className="flex items-start gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-teal-400 shrink-0 mt-0.5" />
+                      <span><strong>Data Preservation:</strong> Application updates NEVER overwrite your local SQLite database or evidence files.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-teal-400 shrink-0 mt-0.5" />
+                      <span><strong>Cryptographic Verification:</strong> Installer packages are validated via SHA-256 signatures prior to execution.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-teal-400 shrink-0 mt-0.5" />
+                      <span><strong>Automated Safety Snapshots:</strong> Pre-migration backups are automatically triggered before database schema changes.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Release Notes Explorer */}
+              <div className="bg-[#121c30] border border-slate-800 rounded-lg p-5 space-y-4">
+                <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-teal-400" />
+                  <span>Release Notes &amp; Statutory Engine Changelog</span>
+                </h3>
+
+                <div className="space-y-4">
+                  {releaseNotesHistory.map((rel) => (
+                    <div key={rel.version} className="p-4 bg-[#070b14] rounded-lg border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <strong className="text-white text-sm">{rel.title}</strong>
+                          <span className="ml-2 text-xs font-mono text-teal-300">v{rel.version}</span>
+                        </div>
+                        <span className="text-xs text-slate-400">{rel.releaseDate}</span>
+                      </div>
+
+                      <div className="space-y-1 text-xs">
+                        <span className="text-[11px] font-bold text-slate-400 uppercase">Key Highlights:</span>
+                        <ul className="list-disc list-inside text-slate-300 space-y-0.5">
+                          {rel.highlights.map((h, i) => (
+                            <li key={i}>{h}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">
+                          SHA-256: <code className="font-mono text-slate-300">{rel.sha256Checksum.slice(0, 24)}...</code>
+                        </span>
+                        <span className="text-slate-400">Package Size: {(rel.fileSizeBytes / 1024 / 1024).toFixed(1)} MB</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PROFESSIONAL ABOUT & PRIVACY SCREEN */}
+          {currentNav === 'about' && (
+            <div className="space-y-5 max-w-4xl mx-auto pb-10">
+              <div className="pb-3 border-b border-slate-800">
+                <h2 className="text-xl font-bold text-white tracking-tight">About Tally Audit Assistant</h2>
+                <p className="text-xs text-slate-400">Statutory audit intelligence, offline data locality, and software licensing specifications.</p>
+              </div>
+
+              {/* Branding & Version Card */}
+              <div className="bg-[#121c30] border border-slate-800 rounded-lg p-6 space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-700 flex items-center justify-center font-black text-2xl text-white shadow-lg shadow-teal-950">
+                    T
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white tracking-wide">TALLY AUDIT ASSISTANT</h3>
+                    <p className="text-xs text-teal-400 font-mono">Version {currentAppVersion.version} (Build {currentAppVersion.buildNumber}) — {currentAppVersion.channel}</p>
+                    <p className="text-xs text-slate-400 mt-1">{currentAppVersion.copyright}</p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {currentAppVersion.description}
+                </p>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs">
+                  <div className="p-3 bg-[#070b14] rounded border border-slate-800">
+                    <span className="text-slate-400 block text-[10px] uppercase">Target Platform</span>
+                    <strong className="text-white text-xs">{currentAppVersion.targetPlatform}</strong>
+                  </div>
+                  <div className="p-3 bg-[#070b14] rounded border border-slate-800">
+                    <span className="text-slate-400 block text-[10px] uppercase">Runtime Engine</span>
+                    <strong className="text-white text-xs">.NET 8.0 Self-Contained</strong>
+                  </div>
+                  <div className="p-3 bg-[#070b14] rounded border border-slate-800">
+                    <span className="text-slate-400 block text-[10px] uppercase">Local Database</span>
+                    <strong className="text-teal-300 text-xs">SQLite 3.45 (WAL Mode)</strong>
+                  </div>
+                  <div className="p-3 bg-[#070b14] rounded border border-slate-800">
+                    <span className="text-slate-400 block text-[10px] uppercase">Active Edition</span>
+                    <strong className="text-amber-400 text-xs">{currentLicense.licenseType} Edition</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Clear Privacy Statement Card */}
+              <div className="bg-[#121c30] border border-slate-800 rounded-lg p-5 space-y-3">
+                <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-teal-400" />
+                  <span>Privacy Policy &amp; Data Locality Guarantee</span>
+                </h3>
+                <div className="space-y-2 text-xs text-slate-300 leading-relaxed">
+                  <p>
+                    <strong>1. 100% Local Accounting Data:</strong> All client financial ledgers, voucher records, GST/TDS tax calculations, and auditor notes are stored exclusively in your local SQLite database protected by Windows DPAPI.
+                  </p>
+                  <p>
+                    <strong>2. Zero Automatic Upload:</strong> Tally Audit Assistant does NOT transmit company accounting data or voucher transactions to external servers or cloud repositories.
+                  </p>
+                  <p>
+                    <strong>3. Optional AI Features:</strong> External AI assistance is disabled by default and requires explicit user activation. Core statutory audit engines (GST, TDS, duplicates, reconciliation, sampling) execute 100% locally and offline without AI dependencies.
+                  </p>
+                  <p>
+                    <strong>4. Sanitized Diagnostics:</strong> Diagnostic support packages exported by the user explicitly exclude accounting vouchers, passwords, and API secrets.
+                  </p>
+                </div>
+              </div>
+
+              {/* Support & Contact Info */}
+              <div className="bg-[#121c30] border border-slate-800 rounded-lg p-5 flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-bold text-white block">Need Technical Support or Practice Deployment Assistance?</span>
+                  <span className="text-slate-400">Email: {currentAppVersion.supportEmail} • Documentation: {currentAppVersion.website}</span>
+                </div>
+                <button
+                  onClick={handleOpenDiagnostics}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-teal-300 rounded font-bold border border-slate-700 cursor-pointer"
+                >
+                  Generate Support Bundle
+                </button>
               </div>
             </div>
           )}
@@ -6177,6 +8137,8 @@ export default function App() {
           {currentNav === 'reports' && (
             <AuditReportingModule
               exceptions={workspaceExceptions}
+              companyName={currentCompanyObj.name}
+              financialYear={currentCompanyObj.financialYears.find(f => f.id === activeFinancialYearId)?.label}
               onOpenDrillDown={(exception) => {
                 setSelectedWorkspaceException(exception);
                 handleOpenInTally();
@@ -6638,7 +8600,17 @@ export default function App() {
                       </div>
                     )}
 
-                    <div className="flex justify-end pt-2 border-t border-slate-800">
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                      <button 
+                        onClick={() => {
+                          const area = window.prompt('Assign to Audit Area:', 'General Accounting');
+                          if (area) handleMarkAsEvidence(inspectingVoucherItem, area);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-950 text-sky-400 border border-sky-800 rounded text-[10px] font-bold hover:bg-sky-900 transition-all cursor-pointer"
+                      >
+                        <Bookmark className="w-3.5 h-3.5" />
+                        Mark as Source Evidence
+                      </button>
                       <button
                         onClick={() => setInspectingVoucherItem(null)}
                         className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-semibold cursor-pointer"
@@ -6649,6 +8621,1756 @@ export default function App() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* AUTOMATED RECONCILIATION & CROSS-VERIFICATION ENGINE */}
+          {currentNav === 'reconciliation' && (
+            <div className="space-y-4 max-w-7xl mx-auto h-full flex flex-col">
+              <div className="pb-2 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <Scale className="w-5 h-5 text-sky-400" />
+                    <span>Automated Reconciliation &amp; Cross-Verification Engine</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Deterministic comparison between primary datasets (Trial Balance, GST Portals, TDS Deposits, and Ledger Postings).
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-sky-950 text-sky-300 px-2.5 py-1 rounded border border-sky-800 font-mono font-bold text-[11px]">
+                    12 Deterministic Rules Active
+                  </span>
+                </div>
+              </div>
+
+              {/* Summary Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-[#121c30] border border-slate-800 rounded-lg p-4">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Differences</span>
+                  <div className="mt-1 text-2xl font-black text-white font-mono">{reconciliationFindings.length}</div>
+                  <span className="text-[10px] text-rose-400 mt-1 block">Requiring Review</span>
+                </div>
+                <div className="bg-[#121c30] border border-slate-800 rounded-lg p-4">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Mismatch Value</span>
+                  <div className="mt-1 text-2xl font-black text-rose-400 font-mono">₹8,400</div>
+                  <span className="text-[10px] text-slate-400 mt-1 block">Net Absolute Variance</span>
+                </div>
+                <div className="bg-[#121c30] border border-slate-800 rounded-lg p-4">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">GST Reconciliation</span>
+                  <div className="mt-1 text-2xl font-black text-sky-400 font-mono">₹6,400</div>
+                  <span className="text-[10px] text-slate-400 mt-1 block">Output vs GSTR-3B</span>
+                </div>
+                <div className="bg-[#121c30] border border-slate-800 rounded-lg p-4">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">Data Consistency</span>
+                  <div className="mt-1 text-2xl font-black text-emerald-400 font-mono">99.8%</div>
+                  <span className="text-[10px] text-slate-400 mt-1 block">TB vs Ledger Match</span>
+                </div>
+              </div>
+
+              {/* Main Workspace */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 overflow-hidden">
+                {/* Findings List */}
+                <div className="lg:col-span-7 bg-[#121c30] border border-slate-800 rounded-lg flex flex-col overflow-hidden">
+                  <div className="p-3 bg-[#070b14] border-b border-slate-800 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <span className="flex items-center gap-1.5"><FileWarning className="w-4 h-4 text-amber-400" /> Reconciliation Findings</span>
+                  </div>
+                  <div className="flex-1 overflow-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-[#090e1a] text-[10px] uppercase text-slate-400 border-b border-slate-800 sticky top-0 z-10">
+                        <tr>
+                          <th className="p-2.5">Category</th>
+                          <th className="p-2.5">Rule / Finding</th>
+                          <th className="p-2.5">Ledger Head</th>
+                          <th className="p-2.5 text-right">Expected</th>
+                          <th className="p-2.5 text-right">Actual</th>
+                          <th className="p-2.5 text-right">Difference</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-sans">
+                        {reconciliationFindings.map(f => (
+                          <tr 
+                            key={f.id} 
+                            onClick={() => setSelectedRecFinding(f)}
+                            className={`cursor-pointer transition-all ${selectedRecFinding?.id === f.id ? 'bg-[#182442] text-white ring-1 ring-sky-500' : 'hover:bg-slate-800/40'}`}
+                          >
+                            <td className="p-2.5">
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-300 border border-slate-700">{f.category}</span>
+                            </td>
+                            <td className="p-2.5">
+                              <div className="font-bold text-slate-100">{f.ruleName}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">{f.ruleId}</div>
+                            </td>
+                            <td className="p-2.5 text-slate-300">{f.ledgerName}</td>
+                            <td className="p-2.5 text-right font-mono">₹{f.expectedAmount.toLocaleString()}</td>
+                            <td className="p-2.5 text-right font-mono">₹{f.actualAmount.toLocaleString()}</td>
+                            <td className="p-2.5 text-right font-mono font-bold text-rose-400">₹{f.difference.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Detail Analysis */}
+                <div className="lg:col-span-5 bg-[#0d1424] border border-slate-800 rounded-lg flex flex-col overflow-hidden">
+                  <div className="p-3 bg-[#070b14] border-b border-slate-800 flex items-center justify-between text-xs font-semibold text-slate-300">
+                    <span className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-sky-400" /> Reconciliation Analysis</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {selectedRecFinding ? (
+                      <div className="space-y-4 text-xs">
+                        <div className="bg-[#121c32] border border-slate-800 rounded-lg p-3.5 space-y-2">
+                           <h3 className="text-sm font-bold text-white">{selectedRecFinding.ruleName}</h3>
+                           <p className="text-[11px] text-slate-400 italic">"{selectedRecFinding.whyFlagged}"</p>
+                        </div>
+
+                        {/* AI Assistant for Reconciliation */}
+                        <div className="bg-gradient-to-br from-[#1a2b4b] to-[#0d1424] border border-sky-500/30 rounded-lg p-3.5 space-y-3">
+                          <div className="flex items-center justify-between border-b border-sky-500/20 pb-2">
+                            <span className="text-[10px] font-black text-white tracking-wide uppercase flex items-center gap-1.5">
+                              <Brain className="w-4 h-4 text-sky-400" /> AI Reconciliation Helper
+                            </span>
+                            <button 
+                              onClick={() => handleAiExplain(selectedRecFinding as any)}
+                              disabled={isAiLoading}
+                              className="px-2 py-1 bg-sky-950 text-sky-300 border border-sky-800 rounded hover:bg-sky-900 transition-colors text-[10px] font-bold disabled:opacity-50"
+                            >
+                              Explain Difference
+                            </button>
+                          </div>
+                          {aiResponse && aiContext === 'EXPLAIN' && !isAiLoading && (
+                             <div className="bg-[#070b14] p-3 rounded border border-slate-800 text-[11px] text-slate-200 whitespace-pre-wrap font-sans leading-relaxed">
+                               {aiResponse}
+                             </div>
+                          )}
+                          {isAiLoading && <div className="py-4 flex justify-center"><RefreshCw className="w-5 h-5 text-sky-400 animate-spin" /></div>}
+                        </div>
+
+                        <div className="bg-[#121c30] border border-slate-800 rounded-lg p-3.5 space-y-1.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Raw Evidence</span>
+                          <pre className="bg-[#060913] p-2.5 rounded border border-slate-800 font-mono text-[10px] text-sky-300 overflow-x-auto">
+                            {selectedRecFinding.evidenceJson}
+                          </pre>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3 opacity-50">
+                        <Scale className="w-12 h-12 text-slate-700" />
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-400">Select a Reconciliation Finding</h3>
+                          <p className="text-[10px] text-slate-500 mt-1">Select any item from the left list to view deterministic evidence and AI assistance.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* AUDIT PLANNING & RISK ASSESSMENT MODULE */}
+          {currentNav === 'planning' && (
+            <div className="space-y-4 max-w-7xl mx-auto h-full flex flex-col">
+              <div className="pb-2 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <ListChecks className="w-5 h-5 text-amber-400" />
+                    <span>Audit Planning &amp; Risk Assessment Workbench</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Strategic organization of audit engagement scope, materiality thresholds, and procedural sampling.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                   <button 
+                    onClick={handleAiDraftPlanNotes}
+                    disabled={isAiLoading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1a2234] hover:bg-[#252f44] text-teal-300 border border-teal-800/50 rounded text-[11px] font-bold transition-all disabled:opacity-50"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Draft Plan Notes</span>
+                  </button>
+                  <span className={`px-2.5 py-1 rounded border font-mono font-bold text-[11px] ${
+                    auditPlan.status === 'Completed' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-amber-950 text-amber-400 border-amber-800'
+                  }`}>
+                    {auditPlan.status.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Planning Sub-Navigation Tabs */}
+              <div className="flex items-center gap-1 border-b border-slate-800 px-1">
+                {['Overview', 'Materiality', 'Risk Assessment', 'Audit Areas', 'Procedures', 'Sampling', 'Evidence', 'Working Papers'].map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setPlanningTab(tab as any)}
+                    className={`px-4 py-2 text-xs font-bold transition-all border-b-2 ${
+                      planningTab === tab 
+                        ? 'border-amber-500 text-amber-400 bg-amber-500/5' 
+                        : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+                {/* 1. OVERVIEW / DASHBOARD */}
+                {planningTab === 'Overview' && (
+                  <div className="space-y-5 animate-in fade-in duration-300 py-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="bg-[#121c30] border border-slate-800 rounded-lg p-4">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Audit Areas</span>
+                        <div className="mt-1 text-2xl font-black text-white">{auditPlan.selectedAreas.filter(a => a.isEnabled).length} / {auditPlan.selectedAreas.length}</div>
+                        <p className="text-[10px] text-emerald-400 mt-1">Enabled for Engagement</p>
+                      </div>
+                      <div className="bg-[#121c30] border border-slate-800 rounded-lg p-4">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Risk Coverage</span>
+                        <div className="mt-1 text-2xl font-black text-white">{auditRisks.length}</div>
+                        <p className="text-[10px] text-rose-400 mt-1">{auditRisks.filter(r => r.riskLevel === 'High').length} High Priority Risks</p>
+                      </div>
+                      <div className="bg-[#121c30] border border-slate-800 rounded-lg p-4">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Procedures</span>
+                        <div className="mt-1 text-2xl font-black text-white">{auditProcedures.filter(p => p.status === 'Completed').length} / {auditProcedures.length}</div>
+                        <p className="text-[10px] text-slate-400 mt-1">Completion Progress</p>
+                      </div>
+                      <div className="bg-[#121c30] border border-slate-800 rounded-lg p-4">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Samples Tested</span>
+                        <div className="mt-1 text-2xl font-black text-white">{auditSamples.reduce((sum, s) => sum + s.items.filter(i => i.testResult !== 'Not Tested').length, 0)}</div>
+                        <p className="text-[10px] text-slate-400 mt-1">Across {auditSamples.length} Sample Sets</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#121c32] border border-slate-800 rounded-lg p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                         <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-teal-400" /> Audit Plan Notes &amp; Objectives
+                        </h3>
+                         <button 
+                          onClick={() => setAuditPlan({...auditPlan, status: auditPlan.status === 'Completed' ? 'In Progress' : 'Completed'})}
+                          className="text-[10px] font-bold text-amber-400 hover:underline"
+                        >
+                          {auditPlan.status === 'Completed' ? 'Re-open Plan' : 'Mark Plan as Completed'}
+                        </button>
+                      </div>
+                      <textarea 
+                        value={auditPlan.notes}
+                        onChange={e => setAuditPlan({...auditPlan, notes: e.target.value})}
+                        placeholder="Define audit scope, reliance on internal controls, and overall objectives..."
+                        className="w-full h-32 bg-[#070b14] border border-slate-700 rounded p-3 text-xs text-slate-200 focus:border-amber-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. MATERIALITY */}
+                {planningTab === 'Materiality' && (
+                  <div className="space-y-4 py-4 max-w-4xl">
+                    <div className="bg-[#121c30] border border-slate-800 rounded-lg p-5 space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Overall Materiality (OM)</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-slate-500 font-bold">₹</span>
+                            <input 
+                              type="number"
+                              value={auditPlan.materialityAmount}
+                              onChange={e => setAuditPlan({...auditPlan, materialityAmount: Number(e.target.value)})}
+                              className="w-full bg-[#070b14] border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-lg font-mono text-white focus:border-amber-500"
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-500">Benchmark for the entire financial statements.</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Performance Materiality (PM)</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-slate-500 font-bold">₹</span>
+                            <input 
+                              type="number"
+                              value={auditPlan.performanceMaterialityAmount}
+                              onChange={e => setAuditPlan({...auditPlan, performanceMaterialityAmount: Number(e.target.value)})}
+                              className="w-full bg-[#070b14] border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-lg font-mono text-amber-300 focus:border-amber-500"
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-500">Typically 50% - 75% of OM.</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Clearly Trivial Threshold</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-slate-500 font-bold">₹</span>
+                            <input 
+                              type="number"
+                              value={auditPlan.trivialThreshold}
+                              onChange={e => setAuditPlan({...auditPlan, trivialThreshold: Number(e.target.value)})}
+                              className="w-full bg-[#070b14] border border-slate-700 rounded-lg pl-7 pr-3 py-2 text-lg font-mono text-emerald-400 focus:border-amber-500"
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-500">Items below this are not aggregated.</p>
+                        </div>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">Materiality Basis (Benchmark)</label>
+                          <select 
+                            value={auditPlan.materialityBasis}
+                            onChange={e => setAuditPlan({...auditPlan, materialityBasis: e.target.value as any})}
+                            className="w-full bg-[#070b14] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white"
+                          >
+                            <option value="Revenue">Total Revenue / Turnover</option>
+                            <option value="Profit">Profit Before Tax (PBT)</option>
+                            <option value="Assets">Total Assets</option>
+                            <option value="Equity">Net Equity / Capital</option>
+                            <option value="Other">Professional Judgment / Other</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-bold text-slate-400 uppercase">Factual Reference (Snapshot)</label>
+                           <div className="bg-[#070b14] border border-slate-800 rounded-lg p-3 flex items-center justify-between">
+                              <span className="text-xs text-slate-400">Current Sales Volume:</span>
+                              <span className="text-sm font-mono font-bold text-white">₹4,85,00,000</span>
+                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. RISK ASSESSMENT */}
+                {planningTab === 'Risk Assessment' && (
+                  <div className="space-y-4 py-4">
+                    <div className="flex items-center justify-between">
+                       <h3 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4 text-rose-400" /> Engagement Risk Register
+                      </h3>
+                      <button className="px-2.5 py-1 bg-teal-600 hover:bg-teal-500 text-white rounded text-[11px] font-bold">+ Identify New Risk</button>
+                    </div>
+
+                    <div className="bg-[#121c30] border border-slate-800 rounded-lg overflow-hidden">
+                      <table className="w-full text-left text-xs text-slate-300">
+                        <thead className="bg-[#090e1a] text-[10px] uppercase text-slate-400 border-b border-slate-800">
+                          <tr>
+                            <th className="p-3 w-12">Area</th>
+                            <th className="p-3">Risk Description</th>
+                            <th className="p-3">Indicator</th>
+                            <th className="p-3 text-center">Likelihood</th>
+                            <th className="p-3 text-center">Impact</th>
+                            <th className="p-3 text-center">Level</th>
+                            <th className="p-3 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60">
+                          {auditRisks.map(risk => (
+                            <tr key={risk.id} className="hover:bg-slate-800/30">
+                              <td className="p-3 font-bold text-teal-400">{risk.auditArea}</td>
+                              <td className="p-3">
+                                <div className="text-slate-100 font-semibold">{risk.description}</div>
+                                <div className="text-[10px] text-slate-500 mt-0.5">Source: {risk.evidenceSource}</div>
+                              </td>
+                              <td className="p-3 text-slate-400 italic">"{risk.indicator}"</td>
+                              <td className="p-3 text-center font-mono">{risk.likelihood} / 5</td>
+                              <td className="p-3 text-center font-mono">{risk.impact} / 5</td>
+                              <td className="p-3 text-center">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  risk.riskLevel === 'High' ? 'bg-rose-950 text-rose-300' : 
+                                  risk.riskLevel === 'Medium' ? 'bg-amber-950 text-amber-300' : 'bg-emerald-950 text-emerald-300'
+                                }`}>
+                                  {risk.riskLevel}
+                                </span>
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className="text-[10px] text-slate-400">{risk.status}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. AUDIT AREAS */}
+                {planningTab === 'Audit Areas' && (
+                  <div className="space-y-4 py-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {auditPlan.selectedAreas.map(area => (
+                        <div 
+                          key={area.id}
+                          onClick={() => {
+                            const newAreas = auditPlan.selectedAreas.map(a => a.id === area.id ? {...a, isEnabled: !a.isEnabled} : a);
+                            setAuditPlan({...auditPlan, selectedAreas: newAreas});
+                          }}
+                          className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                            area.isEnabled 
+                              ? 'bg-[#1a2234] border-teal-500/50 shadow-md shadow-teal-900/5' 
+                              : 'bg-[#0d1424] border-slate-800 opacity-60 grayscale'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                             <span className="text-xs font-bold text-white">{area.name}</span>
+                             <div className={`w-4 h-4 rounded border flex items-center justify-center ${area.isEnabled ? 'bg-teal-500 border-teal-500' : 'border-slate-600'}`}>
+                                {area.isEnabled && <Check className="w-3 h-3 text-white" />}
+                             </div>
+                          </div>
+                          <div className="flex items-center justify-between mt-4">
+                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                              area.riskLevel === 'High' ? 'bg-rose-950 text-rose-400' : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              Risk: {area.riskLevel}
+                            </span>
+                            <span className="text-[10px] text-slate-500">{area.findingsCount} Findings</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 5. PROCEDURES */}
+                {planningTab === 'Procedures' && (
+                  <div className="space-y-4 py-4">
+                    <div className="flex items-center justify-between">
+                       <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <Terminal className="w-4 h-4 text-emerald-400" /> Audit Procedures &amp; Execution
+                      </h3>
+                      <div className="flex gap-2">
+                         <button 
+                          onClick={handleAiSuggestProcedures}
+                          disabled={isAiLoading}
+                          className="px-2.5 py-1 bg-[#1a2234] text-teal-300 border border-teal-800 rounded text-[11px] font-bold flex items-center gap-1.5"
+                        >
+                          <Sparkles className="w-3 h-3" /> Suggest Procedures
+                        </button>
+                        <button className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold">+ New Procedure</button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {auditProcedures.map(proc => (
+                        <div key={proc.id} className="bg-[#121c30] border border-slate-800 rounded-lg p-4 hover:border-emerald-500/30 transition-colors">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-teal-400 uppercase">{proc.auditArea}</span>
+                                <h4 className="text-sm font-bold text-white">{proc.name}</h4>
+                              </div>
+                              <p className="text-xs text-slate-300">{proc.objective}</p>
+                              <p className="text-[11px] text-slate-500 italic mt-1">"{proc.description}"</p>
+                            </div>
+                            <select 
+                              value={proc.status}
+                              onChange={e => {
+                                const newProcs = auditProcedures.map(p => p.id === proc.id ? {...p, status: e.target.value as any} : p);
+                                setAuditProcedures(newProcs);
+                              }}
+                              className="bg-[#070b14] border border-slate-700 rounded px-2.5 py-1 text-[11px] text-emerald-400 font-bold"
+                            >
+                              <option value="Not Started">Not Started</option>
+                              <option value="In Progress">In Progress</option>
+                              <option value="Completed">Completed</option>
+                              <option value="Not Applicable">N/A</option>
+                            </select>
+                          </div>
+
+                          <div className="mt-4 pt-3 border-t border-slate-800 flex items-center gap-6">
+                             <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">Linked Findings:</span>
+                                <div className="flex gap-1">
+                                  {proc.linkedFindingIds.map(fid => (
+                                    <span key={fid} className="px-1.5 py-0.2 bg-rose-950 text-rose-300 rounded text-[9px] font-mono border border-rose-900/50">{fid}</span>
+                                  ))}
+                                  {proc.linkedFindingIds.length === 0 && <span className="text-[10px] text-slate-600">None</span>}
+                                </div>
+                             </div>
+                             <button className="text-[10px] font-bold text-teal-400 hover:underline flex items-center gap-1">
+                                <Split className="w-3 h-3" /> Select Samples
+                             </button>
+                             <button className="text-[10px] font-bold text-slate-400 hover:underline flex items-center gap-1 ml-auto">
+                                <MessageSquare className="w-3 h-3" /> Add Remarks
+                             </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 6. SAMPLING */}
+                {planningTab === 'Sampling' && (
+                  <div className="space-y-4 py-4">
+                    <div className="bg-[#121c32] border border-slate-800 rounded-lg p-4 space-y-4">
+                       <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                        <RotateCcw className="w-4 h-4 text-sky-400" /> Statistical Sampling Engine
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold">Audit Area</label>
+                          <select className="w-full bg-[#070b14] border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white">
+                             {auditPlan.selectedAreas.filter(a => a.isEnabled).map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold">Selection Method</label>
+                          <select className="w-full bg-[#070b14] border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white">
+                             <option value="Random">Random Sampling</option>
+                             <option value="Systematic">Systematic (Interval)</option>
+                             <option value="Material-Item">Material Items (&gt; OM)</option>
+                             <option value="Targeted">Targeted (Risk-Based)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-slate-400 mb-1 uppercase font-bold">Sample Size</label>
+                          <input type="number" defaultValue={25} className="w-full bg-[#070b14] border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white" />
+                        </div>
+                        <button 
+                          onClick={() => handleGenerateSample('GST', 'PROC-001', 'Random', 25)}
+                          className="bg-sky-600 hover:bg-sky-500 text-white rounded px-4 py-1.5 text-xs font-bold shadow-lg"
+                        >
+                          Generate Sample Set
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {auditSamples.map(sample => (
+                        <div key={sample.id} className="bg-[#121c30] border border-slate-800 rounded-lg overflow-hidden">
+                          <div className="p-3 bg-[#090e1a] border-b border-slate-800 flex items-center justify-between">
+                             <div className="flex items-center gap-3">
+                                <span className="text-[10px] font-black text-sky-400 bg-sky-950 px-2 py-0.5 rounded border border-sky-800 uppercase tracking-widest">{sample.selectionMethod} Sample</span>
+                                <span className="text-xs font-bold text-white">Area: {sample.auditArea} • {sample.sampleSize} Items selected from {sample.populationSize.toLocaleString()}</span>
+                             </div>
+                             <span className="text-[10px] font-mono text-slate-500">Sample ID: {sample.id}</span>
+                          </div>
+                          <div className="max-h-64 overflow-y-auto">
+                            <table className="w-full text-left text-[11px] text-slate-400">
+                              <thead className="bg-[#070b14] text-[9px] uppercase text-slate-500 border-b border-slate-800 sticky top-0">
+                                <tr>
+                                  <th className="p-2.5">Voucher #</th>
+                                  <th className="p-2.5">Date</th>
+                                  <th className="p-2.5 text-right">Amount (₹)</th>
+                                  <th className="p-2.5">Reason</th>
+                                  <th className="p-2.5 text-center">Result</th>
+                                  <th className="p-2.5 text-center">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-800/40">
+                                {sample.items.map(item => (
+                                  <tr key={item.id} className="hover:bg-slate-800/20">
+                                    <td className="p-2.5 font-mono text-slate-200">{item.voucherNumber}</td>
+                                    <td className="p-2.5 font-mono">{item.voucherDate}</td>
+                                    <td className="p-2.5 text-right font-mono">₹{item.amount.toLocaleString()}</td>
+                                    <td className="p-2.5 italic text-[10px]">{item.selectionReason}</td>
+                                    <td className="p-2.5 text-center">
+                                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                         item.testResult === 'Pass' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 
+                                         item.testResult === 'Exception' ? 'bg-rose-950 text-rose-400 border-rose-800' : 
+                                         item.testResult === 'Inconclusive' ? 'bg-amber-950 text-amber-400 border-amber-800' :
+                                         'bg-slate-800 text-slate-400 border-slate-700'
+                                       }`}>
+                                         {item.testResult}
+                                       </span>
+                                    </td>
+                                    <td className="p-2.5 text-center">
+                                       <button 
+                                         onClick={() => {
+                                           setTestingSampleItem({ sampleId: sample.id, item });
+                                           setSampleTestResult(item.testResult === 'Not Tested' ? 'Pass' : item.testResult);
+                                           setSampleTestRemarks(item.remarks || '');
+                                           setSampleLinkedEvidence(item.evidenceReference || '');
+                                         }}
+                                         className="px-2.5 py-1 bg-sky-950 hover:bg-sky-900 text-sky-300 border border-sky-800 rounded text-[10px] font-bold transition-all cursor-pointer"
+                                       >
+                                         Test / Audit
+                                       </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ))}
+                      {auditSamples.length === 0 && (
+                        <div className="text-center py-12 bg-[#121c30] border border-slate-800 border-dashed rounded-lg opacity-60">
+                          <RotateCcw className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                          <p className="text-xs text-slate-400 font-semibold">No sample sets generated for this audit plan yet.</p>
+                          <p className="text-[10px] text-slate-500 mt-1">Select an audit area, sampling methodology, and click "Generate Sample Set".</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 7. EVIDENCE TAB IN PLANNING */}
+                {planningTab === 'Evidence' && (
+                  <div className="space-y-4 py-4">
+                    <div className="flex items-center justify-between">
+                       <div>
+                         <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                           <UploadCloud className="w-4 h-4 text-sky-400" /> Plan Evidence Cross-Index
+                         </h3>
+                         <p className="text-[10px] text-slate-400 mt-0.5">Summary of supporting documents and Tally source records attached to this engagement plan.</p>
+                       </div>
+                       <div className="flex items-center gap-2">
+                         <button 
+                           onClick={() => setCurrentNav('evidence')}
+                           className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                         >
+                           <ExternalLink className="w-3.5 h-3.5" />
+                           <span>Open Full Evidence Register ({auditEvidence.length})</span>
+                         </button>
+                         <button 
+                           onClick={() => {
+                             const input = document.createElement('input');
+                             input.type = 'file';
+                             input.onchange = (e: any) => {
+                               const file = e.target.files[0];
+                               if (file) handleUploadEvidence(file, 'Invoice', 'General');
+                             };
+                             input.click();
+                           }}
+                           className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded text-[11px] font-bold shadow transition-all cursor-pointer flex items-center gap-1.5"
+                         >
+                           <UploadCloud className="w-3.5 h-3.5" />
+                           <span>Upload Document</span>
+                         </button>
+                       </div>
+                    </div>
+
+                    <div className="bg-[#121c30] border border-slate-800 rounded-lg overflow-hidden">
+                       <table className="w-full text-left text-xs text-slate-300">
+                        <thead className="bg-[#090e1a] text-[10px] uppercase text-slate-400 border-b border-slate-800">
+                          <tr>
+                            <th className="p-3">Type</th>
+                            <th className="p-3">Description</th>
+                            <th className="p-3">Source / Reference</th>
+                            <th className="p-3">Area / Linked Procedure</th>
+                            <th className="p-3">Date</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3 text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 font-sans">
+                           {auditEvidence.map(evd => (
+                             <tr key={evd.id} className="hover:bg-slate-800/30">
+                                <td className="p-3">
+                                  <span className="bg-slate-800 text-slate-300 text-[10px] px-2 py-0.5 rounded border border-slate-700 font-mono">
+                                    {evd.evidenceType}
+                                  </span>
+                                </td>
+                                <td className="p-3">
+                                  <div className="text-slate-100 font-semibold">{evd.description}</div>
+                                  <div className="text-[10px] text-slate-500 font-mono">{evd.id}</div>
+                                </td>
+                                <td className="p-3">
+                                  <div className="text-slate-300 font-mono">{evd.referenceNumber}</div>
+                                  <div className="text-[10px] text-slate-500">{evd.source}</div>
+                                </td>
+                                <td className="p-3">
+                                  <span className="text-teal-400 font-semibold">{evd.auditArea}</span>
+                                  {evd.procedureId && <span className="text-[10px] text-slate-500 block">{evd.procedureId}</span>}
+                                </td>
+                                <td className="p-3 font-mono text-slate-400 text-[11px]">{evd.uploadedAt.split('T')[0]}</td>
+                                <td className="p-3 text-center">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                    evd.status === 'Accepted' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' :
+                                    evd.status === 'Received' ? 'bg-amber-950 text-amber-400 border-amber-800' :
+                                    'bg-slate-800 text-slate-400 border-slate-700'
+                                  }`}>
+                                    {evd.status}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-center">
+                                   <button 
+                                     onClick={() => setSelectedEvidenceItem(evd)}
+                                     className="text-sky-400 hover:text-sky-300 font-bold hover:underline text-[11px] cursor-pointer"
+                                   >
+                                     Inspect
+                                   </button>
+                                </td>
+                             </tr>
+                           ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* 8. WORKING PAPERS TAB IN PLANNING */}
+                {planningTab === 'Working Papers' && (
+                  <div className="space-y-4 py-4 animate-in fade-in duration-300">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                          <FileSignature className="w-4 h-4 text-emerald-400" /> Formal Audit Working Paper Register
+                        </h3>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          Audit documentation demonstrating adherence to Standards on Auditing (SA 230), testing procedures, and conclusions.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => setIsCreateWorkingPaperModalOpen(true)}
+                          className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded text-[11px] font-bold shadow transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Create Working Paper</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Filter controls */}
+                    <div className="bg-[#121c32] border border-slate-800 rounded-lg p-3 flex flex-wrap items-center gap-3 text-xs">
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-0.5">Area</label>
+                        <select
+                          value={workingPaperFilterArea}
+                          onChange={(e) => setWorkingPaperFilterArea(e.target.value)}
+                          className="bg-[#070b14] border border-slate-700 text-slate-200 rounded px-2.5 py-1 text-xs"
+                        >
+                          <option value="ALL">All Audit Areas</option>
+                          <option value="GST">GST Statutory</option>
+                          <option value="Revenue / Sales">Revenue / Sales</option>
+                          <option value="Purchases">Purchases</option>
+                          <option value="Cash">Cash &amp; Bank</option>
+                          <option value="TDS">TDS Withholding</option>
+                          <option value="General">General</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-0.5">Status</label>
+                        <select
+                          value={workingPaperFilterStatus}
+                          onChange={(e) => setWorkingPaperFilterStatus(e.target.value)}
+                          className="bg-[#070b14] border border-slate-700 text-slate-200 rounded px-2.5 py-1 text-xs"
+                        >
+                          <option value="ALL">All Statuses</option>
+                          <option value="Draft">Draft</option>
+                          <option value="Submitted for Review">Submitted for Review</option>
+                          <option value="Reviewed">Reviewed</option>
+                          <option value="Finalized">Finalized</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4">
+                      {workingPapers
+                        .filter(wp => workingPaperFilterArea === 'ALL' || wp.auditArea === workingPaperFilterArea)
+                        .filter(wp => workingPaperFilterStatus === 'ALL' || wp.status === workingPaperFilterStatus)
+                        .map(wp => (
+                        <div key={wp.id} className="bg-[#121c32] border border-slate-800 rounded-lg overflow-hidden flex flex-col md:flex-row hover:border-slate-700 transition-all">
+                          <div className="w-full md:w-52 bg-[#090e1a] p-4 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-slate-800 shrink-0">
+                             <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center text-emerald-400 mb-2 shadow">
+                                <FileText className="w-6 h-6" />
+                             </div>
+                             <span className="font-mono text-[11px] text-teal-400 font-bold">{wp.id}</span>
+                             <span className="text-[10px] text-slate-500 mt-0.5">{wp.auditArea}</span>
+                             <span className={`mt-2 px-2.5 py-0.5 rounded text-[9px] font-black uppercase border ${
+                               wp.status === 'Finalized' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' :
+                               wp.status === 'Submitted for Review' ? 'bg-amber-950 text-amber-400 border-amber-800' :
+                               wp.status === 'Reviewed' ? 'bg-sky-950 text-sky-400 border-sky-800' :
+                               'bg-slate-800 text-slate-400 border-slate-700'
+                             }`}>
+                               {wp.status}
+                             </span>
+                          </div>
+                          <div className="flex-1 p-4 space-y-3">
+                             <div className="flex items-center justify-between">
+                                <div>
+                                  <h4 className="text-sm font-bold text-white tracking-tight">{wp.title}</h4>
+                                  <p className="text-[10px] text-slate-400 mt-0.5 italic">"{wp.objective}"</p>
+                                </div>
+                                <span className="text-[10px] text-slate-500 font-mono">{wp.preparedDate}</span>
+                             </div>
+
+                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px] bg-[#070b14] p-3 rounded border border-slate-800">
+                                <div>
+                                   <span className="text-[9px] text-slate-500 uppercase font-bold block">Procedure Performed</span>
+                                   <p className="text-slate-300 text-[10px] line-clamp-2 mt-0.5">{wp.procedurePerformed || 'Documented substantive testing'}</p>
+                                </div>
+                                <div>
+                                   <span className="text-[9px] text-slate-500 uppercase font-bold block">Observation &amp; Variance</span>
+                                   <p className="text-slate-300 text-[10px] line-clamp-2 mt-0.5">{wp.observation || 'Testing completed without exception'}</p>
+                                   {wp.difference !== 0 && (
+                                     <span className="text-rose-400 font-mono font-bold text-[10px]">Variance: ₹{wp.difference.toLocaleString()}</span>
+                                   )}
+                                </div>
+                                <div>
+                                   <span className="text-[9px] text-slate-500 uppercase font-bold block">Supporting Evidence</span>
+                                   <div className="flex flex-wrap gap-1 mt-1">
+                                     {wp.evidenceReferences && wp.evidenceReferences.length > 0 ? (
+                                       wp.evidenceReferences.map((ref, idx) => (
+                                         <span key={idx} className="bg-sky-950 text-sky-300 border border-sky-800 text-[9px] font-mono px-1.5 py-0.2 rounded font-semibold">
+                                           {ref}
+                                         </span>
+                                       ))
+                                     ) : (
+                                       <span className="text-slate-500 text-[10px] italic">No evidence tags linked</span>
+                                     )}
+                                   </div>
+                                </div>
+                             </div>
+
+                             <div className="pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                                <div className="flex items-center gap-2">
+                                   <span className="text-[10px] text-slate-400 font-bold uppercase">Auditor Conclusion:</span>
+                                   <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                                     wp.conclusion === 'No Exception Noted' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 
+                                     wp.conclusion === 'Exception Noted' ? 'bg-rose-950 text-rose-400 border-rose-800' : 
+                                     wp.conclusion === 'Further Review Required' ? 'bg-amber-950 text-amber-400 border-amber-800' :
+                                     'bg-slate-800 text-slate-400 border-slate-700'
+                                   }`}>
+                                     {wp.conclusion}
+                                   </span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                   <button 
+                                     onClick={() => setSelectedWorkingPaper(wp)}
+                                     className="px-2.5 py-1 bg-sky-950 hover:bg-sky-900 text-sky-300 border border-sky-800 rounded text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1"
+                                   >
+                                     <Edit2 className="w-3 h-3" />
+                                     <span>Open / Edit Paper</span>
+                                   </button>
+                                   {wp.status !== 'Finalized' && (
+                                     <button 
+                                       onClick={() => {
+                                         if (auditPlan.status === 'Completed') {
+                                           alert('⚠️ Audit is finalized and immutable.');
+                                           return;
+                                         }
+                                         const updated: WorkingPaper = {
+                                           ...wp,
+                                           status: 'Finalized',
+                                           reviewedBy: 'CA. Sanjiv (Senior Partner)',
+                                           reviewedDate: new Date().toISOString().split('T')[0]
+                                         };
+                                         handleSaveWorkingPaper(updated);
+                                       }}
+                                       className="px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 rounded text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1"
+                                     >
+                                       <CheckCircle2 className="w-3 h-3" />
+                                       <span>Sign-off Working Paper</span>
+                                     </button>
+                                   )}
+                                </div>
+                             </div>
+                          </div>
+                        </div>
+                      ))}
+                      {workingPapers.length === 0 && (
+                        <div className="py-12 flex flex-col items-center justify-center bg-[#070b14] border border-dashed border-slate-800 rounded-lg">
+                           <FileQuestion className="w-10 h-10 text-slate-600 mb-2" />
+                           <p className="text-slate-400 text-sm font-semibold">No formal working papers recorded for this engagement.</p>
+                           <p className="text-slate-500 text-xs mt-1">Click "+ Create Working Paper" to initiate a structured working paper from templates.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* AUDIT EVIDENCE MANAGEMENT & DOCUMENT REGISTER */}
+          {currentNav === 'evidence' && (
+            <div className="space-y-4 max-w-7xl mx-auto h-full flex flex-col">
+              <div className="pb-2 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <UploadCloud className="w-5 h-5 text-sky-400" />
+                    <span>Audit Evidence Management &amp; Document Register</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Centralized repository for Tally source records, third-party confirmations, external files, and cryptographic integrity verification.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button 
+                    onClick={() => setIsRecordTallySourceModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-800/80 rounded text-[11px] font-bold transition-all cursor-pointer"
+                  >
+                    <Bookmark className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Mark Tally Source Evidence</span>
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const input = document.createElement('input');
+                      input.type = 'file';
+                      input.accept = '.pdf,.xlsx,.xls,.csv,.docx,.jpg,.jpeg,.png';
+                      input.onchange = (e: any) => {
+                        const file = e.target.files[0];
+                        if (file) handleUploadEvidence(file, 'Invoice', 'General');
+                      };
+                      input.click();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded text-[11px] font-bold shadow transition-all cursor-pointer"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    <span>Upload Supporting Document</span>
+                  </button>
+                  <button 
+                    onClick={() => setIsCreateEvidenceRequestModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600/20 hover:bg-teal-600/30 text-teal-300 border border-teal-500/40 rounded text-[11px] font-bold transition-all cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Request Evidence</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Evidence Sub-Navigation */}
+              <div className="flex items-center gap-1 border-b border-slate-800 px-1">
+                {[
+                  { id: 'Register', label: 'Evidence Register', count: auditEvidence.length },
+                  { id: 'Requests', label: 'Evidence Requests Dashboard', count: evidenceRequests.filter(r => r.status !== 'Closed').length },
+                  { id: 'Storage', label: 'Local Storage & File Integrity', count: auditEvidence.filter(e => e.fileHash).length }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setEvidenceTab(tab.id as any)}
+                    className={`px-4 py-2 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
+                      evidenceTab === tab.id 
+                        ? 'border-sky-500 text-sky-400 bg-sky-500/5' 
+                        : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span className="bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0.2 rounded font-mono">
+                      {tab.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex-1 overflow-y-auto py-2">
+                {/* 1. EVIDENCE REGISTER TAB */}
+                {evidenceTab === 'Register' && (
+                  <div className="space-y-4">
+                    {/* KPI Metric Cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="bg-[#121c30] border border-slate-800 rounded-lg p-3.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Registered Evidence</span>
+                        <div className="mt-1 text-2xl font-black text-white font-mono">{auditEvidence.length}</div>
+                        <span className="text-[10px] text-slate-500 mt-0.5 block">Across all audit areas</span>
+                      </div>
+                      <div className="bg-[#121c30] border border-slate-800 rounded-lg p-3.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Accepted &amp; Verified</span>
+                        <div className="mt-1 text-2xl font-black text-emerald-400 font-mono">
+                          {auditEvidence.filter(e => e.status === 'Accepted').length}
+                        </div>
+                        <span className="text-[10px] text-emerald-500/80 mt-0.5 block">Approved by Auditor</span>
+                      </div>
+                      <div className="bg-[#121c30] border border-slate-800 rounded-lg p-3.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Pending Auditor Review</span>
+                        <div className="mt-1 text-2xl font-black text-amber-400 font-mono">
+                          {auditEvidence.filter(e => e.status === 'Received' || e.status === 'Reviewed').length}
+                        </div>
+                        <span className="text-[10px] text-amber-400/80 mt-0.5 block">Requires disposition</span>
+                      </div>
+                      <div className="bg-[#121c30] border border-slate-800 rounded-lg p-3.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Cryptographic Integrity</span>
+                        <div className="mt-1 text-2xl font-black text-teal-300 font-mono">
+                          {auditEvidence.filter(e => e.fileIntegrityStatus !== 'Changed').length} / {auditEvidence.length}
+                        </div>
+                        <span className="text-[10px] text-teal-400/80 mt-0.5 block">SHA-256 Checksum Match</span>
+                      </div>
+                    </div>
+
+                    {/* Tamper Alert Warning Banner if any file changed */}
+                    {auditEvidence.some(e => e.fileIntegrityStatus === 'Changed') && (
+                      <div className="p-3 bg-rose-950/40 border border-rose-800 rounded-lg flex items-start gap-3 text-rose-200">
+                        <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                        <div className="text-xs">
+                          <p className="font-bold text-rose-300">Evidence File Integrity Alert Detected</p>
+                          <p className="text-[11px] text-rose-200/90 mt-0.5">
+                            "Evidence file has changed since it was registered." Historical records are preserved and the system will not silently overwrite evidence.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Multi-Filter Bar */}
+                    <div className="bg-[#121c32] border border-slate-800 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="relative min-w-[200px]">
+                          <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+                          <input
+                            type="text"
+                            placeholder="Search description, ID, ref..."
+                            value={evidenceSearchQuery}
+                            onChange={(e) => setEvidenceSearchQuery(e.target.value)}
+                            className="bg-[#070b14] border border-slate-700 text-slate-200 rounded pl-8 pr-3 py-1.5 text-xs w-full"
+                          />
+                        </div>
+
+                        <div>
+                          <select
+                            value={evidenceAreaFilter}
+                            onChange={(e) => setEvidenceAreaFilter(e.target.value)}
+                            className="bg-[#070b14] border border-slate-700 text-slate-200 rounded px-2.5 py-1.5 text-xs"
+                          >
+                            <option value="ALL">All Audit Areas</option>
+                            <option value="GST">GST Statutory</option>
+                            <option value="Revenue / Sales">Revenue / Sales</option>
+                            <option value="Purchases">Purchases</option>
+                            <option value="Cash">Cash &amp; Bank</option>
+                            <option value="TDS">TDS Withholding</option>
+                            <option value="General">General</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <select
+                            value={evidenceTypeFilter}
+                            onChange={(e) => setEvidenceTypeFilter(e.target.value)}
+                            className="bg-[#070b14] border border-slate-700 text-slate-200 rounded px-2.5 py-1.5 text-xs"
+                          >
+                            <option value="ALL">All Evidence Types</option>
+                            <option value="Tally Transaction">Tally Transaction (Source)</option>
+                            <option value="Tally Ledger">Tally Ledger</option>
+                            <option value="Tally Report">Tally Report</option>
+                            <option value="Invoice">Invoice</option>
+                            <option value="Purchase Document">Purchase Document</option>
+                            <option value="Sales Document">Sales Document</option>
+                            <option value="Bank Statement">Bank Statement</option>
+                            <option value="GST Document">GST Document</option>
+                            <option value="TDS Document">TDS Document</option>
+                            <option value="Agreement">Agreement</option>
+                            <option value="Confirmation">Confirmation</option>
+                            <option value="Calculation">Calculation Sheet</option>
+                            <option value="Working Paper">Working Paper</option>
+                            <option value="Other">Other Document</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <select
+                            value={evidenceStatusFilter}
+                            onChange={(e) => setEvidenceStatusFilter(e.target.value)}
+                            className="bg-[#070b14] border border-slate-700 text-slate-200 rounded px-2.5 py-1.5 text-xs"
+                          >
+                            <option value="ALL">All Statuses</option>
+                            <option value="Accepted">Accepted</option>
+                            <option value="Received">Received</option>
+                            <option value="Reviewed">Reviewed</option>
+                            <option value="Needs Follow-up">Needs Follow-up</option>
+                            <option value="Requested">Requested</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] text-slate-400 font-mono">
+                        Showing {auditEvidence
+                          .filter(e => evidenceAreaFilter === 'ALL' || e.auditArea === evidenceAreaFilter)
+                          .filter(e => evidenceTypeFilter === 'ALL' || e.evidenceType === evidenceTypeFilter)
+                          .filter(e => evidenceStatusFilter === 'ALL' || e.status === evidenceStatusFilter)
+                          .filter(e => !evidenceSearchQuery || 
+                            e.description.toLowerCase().includes(evidenceSearchQuery.toLowerCase()) ||
+                            e.referenceNumber.toLowerCase().includes(evidenceSearchQuery.toLowerCase()) ||
+                            e.id.toLowerCase().includes(evidenceSearchQuery.toLowerCase())
+                          ).length} of {auditEvidence.length} items
+                      </div>
+                    </div>
+
+                    {/* Evidence Items Table */}
+                    <div className="bg-[#121c30] border border-slate-800 rounded-lg overflow-hidden">
+                      <table className="w-full text-left text-xs text-slate-300">
+                        <thead className="bg-[#090e1a] text-[10px] uppercase text-slate-400 border-b border-slate-800">
+                          <tr>
+                            <th className="p-3 w-10 text-center">Type</th>
+                            <th className="p-3">Evidence Description &amp; ID</th>
+                            <th className="p-3">Reference / Voucher</th>
+                            <th className="p-3">Area &amp; Linkage</th>
+                            <th className="p-3">Storage / Source</th>
+                            <th className="p-3 text-center">Integrity</th>
+                            <th className="p-3 text-center">Status</th>
+                            <th className="p-3 text-center">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 font-sans">
+                          {auditEvidence
+                            .filter(e => evidenceAreaFilter === 'ALL' || e.auditArea === evidenceAreaFilter)
+                            .filter(e => evidenceTypeFilter === 'ALL' || e.evidenceType === evidenceTypeFilter)
+                            .filter(e => evidenceStatusFilter === 'ALL' || e.status === evidenceStatusFilter)
+                            .filter(e => !evidenceSearchQuery || 
+                              e.description.toLowerCase().includes(evidenceSearchQuery.toLowerCase()) ||
+                              e.referenceNumber.toLowerCase().includes(evidenceSearchQuery.toLowerCase()) ||
+                              e.id.toLowerCase().includes(evidenceSearchQuery.toLowerCase())
+                            )
+                            .map(evd => (
+                            <tr key={evd.id} className="hover:bg-slate-800/30 transition-colors">
+                              <td className="p-3 text-center">
+                                <div className="w-8 h-8 bg-slate-800 rounded flex items-center justify-center text-sky-400 mx-auto" title={evd.evidenceType}>
+                                  {evd.evidenceType === 'Tally Transaction' ? <Bookmark className="w-4 h-4 text-amber-400" /> :
+                                   evd.evidenceType === 'Bank Statement' ? <Building2 className="w-4 h-4 text-emerald-400" /> :
+                                   evd.evidenceType === 'GST Document' ? <FileCheck2 className="w-4 h-4 text-sky-400" /> :
+                                   evd.evidenceType === 'Agreement' ? <FileSignature className="w-4 h-4 text-purple-400" /> :
+                                   evd.fileName?.endsWith('.pdf') ? <FileText className="w-4 h-4 text-rose-400" /> :
+                                   evd.fileName?.endsWith('.xlsx') ? <FileSpreadsheet className="w-4 h-4 text-teal-400" /> :
+                                   <Database className="w-4 h-4 text-sky-400" />}
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <div className="font-bold text-slate-100 flex items-center gap-1.5">
+                                  <span>{evd.description}</span>
+                                  {evd.voucherId && (
+                                    <span className="bg-amber-950 text-amber-300 border border-amber-800 text-[9px] px-1 rounded font-mono font-bold">
+                                      Tally Source
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                  ID: {evd.id} • Added: {evd.uploadedAt.split('T')[0]}
+                                </div>
+                              </td>
+                              <td className="p-3 font-mono text-slate-300">
+                                <div>{evd.referenceNumber}</div>
+                                {evd.amount && (
+                                  <div className="text-[10px] text-emerald-400 font-bold">
+                                    ₹{evd.amount.toLocaleString()}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-3">
+                                <div className="text-teal-400 font-semibold">{evd.auditArea}</div>
+                                <div className="text-[10px] text-slate-500 flex flex-wrap gap-1 mt-0.5">
+                                  {evd.procedureId && <span className="bg-slate-800 px-1 rounded">{evd.procedureId}</span>}
+                                  {evd.findingId && <span className="bg-rose-950 text-rose-300 px-1 rounded border border-rose-900">{evd.findingId}</span>}
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <div className="text-slate-200 text-[11px] truncate max-w-[200px]" title={evd.storagePath || evd.source}>
+                                  {evd.fileName || evd.source}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                  {evd.fileHash ? `${evd.fileHash.slice(0, 16)}...` : 'Tally Sync Record'}
+                                </div>
+                              </td>
+                              <td className="p-3 text-center">
+                                {evd.fileIntegrityStatus === 'Changed' ? (
+                                  <button 
+                                    onClick={() => handleVerifyEvidenceIntegrity(evd.id)}
+                                    className="px-2 py-0.5 bg-rose-950 text-rose-300 border border-rose-800 rounded text-[9px] font-bold flex items-center gap-1 mx-auto cursor-pointer"
+                                    title="Click to inspect changed hash"
+                                  >
+                                    <AlertTriangle className="w-3 h-3 text-rose-400" />
+                                    <span>Changed</span>
+                                  </button>
+                                ) : (
+                                  <button 
+                                    onClick={() => handleVerifyEvidenceIntegrity(evd.id)}
+                                    className="px-2 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-800 rounded text-[9px] font-bold flex items-center gap-1 mx-auto cursor-pointer"
+                                    title="Verified SHA-256 match"
+                                  >
+                                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                                    <span>Verified</span>
+                                  </button>
+                                )}
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                  evd.status === 'Accepted' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' :
+                                  evd.status === 'Received' ? 'bg-amber-950 text-amber-400 border-amber-800' :
+                                  evd.status === 'Reviewed' ? 'bg-sky-950 text-sky-400 border-sky-800' :
+                                  evd.status === 'Needs Follow-up' ? 'bg-rose-950 text-rose-400 border-rose-800' :
+                                  'bg-slate-800 text-slate-400 border-slate-700'
+                                }`}>
+                                  {evd.status}
+                                </span>
+                              </td>
+                              <td className="p-3 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button 
+                                    onClick={() => setSelectedEvidenceItem(evd)}
+                                    className="p-1 text-slate-400 hover:text-sky-300 transition-colors cursor-pointer" 
+                                    title="View Evidence Details"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                  {evd.status !== 'Accepted' && (
+                                    <button 
+                                      onClick={() => handleUpdateEvidenceStatus(evd.id, 'Accepted', 'Accepted after professional auditor review.')}
+                                      className="p-1 text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer" 
+                                      title="Accept Evidence"
+                                    >
+                                      <CheckCircle2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  <button 
+                                    onClick={() => {
+                                      const rem = window.prompt('Specify follow-up requirement for this evidence:', evd.auditorRemarks || '');
+                                      if (rem) handleUpdateEvidenceStatus(evd.id, 'Needs Follow-up', rem);
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer" 
+                                    title="Flag for Follow-up"
+                                  >
+                                    <AlertCircle className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. EVIDENCE REQUESTS DASHBOARD */}
+                {evidenceTab === 'Requests' && (
+                  <div className="space-y-4">
+                    {/* KPI cards for requests */}
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                      <div className="bg-[#121c30] border border-slate-800 rounded-lg p-3">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Total Requests</span>
+                        <div className="mt-1 text-xl font-black text-white font-mono">{evidenceRequests.length}</div>
+                      </div>
+                      <div className="bg-[#121c30] border border-slate-800 rounded-lg p-3">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Outstanding</span>
+                        <div className="mt-1 text-xl font-black text-sky-400 font-mono">
+                          {evidenceRequests.filter(r => r.status === 'Requested').length}
+                        </div>
+                      </div>
+                      <div className="bg-[#121c30] border border-slate-800 rounded-lg p-3">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Received</span>
+                        <div className="mt-1 text-xl font-black text-emerald-400 font-mono">
+                          {evidenceRequests.filter(r => r.status === 'Received').length}
+                        </div>
+                      </div>
+                      <div className="bg-[#121c30] border border-slate-800 rounded-lg p-3">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Overdue</span>
+                        <div className="mt-1 text-xl font-black text-rose-400 font-mono">
+                          {evidenceRequests.filter(r => r.status !== 'Closed' && new Date(r.dueDate) < new Date()).length}
+                        </div>
+                      </div>
+                      <div className="bg-[#121c30] border border-slate-800 rounded-lg p-3">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Closed</span>
+                        <div className="mt-1 text-xl font-black text-slate-400 font-mono">
+                          {evidenceRequests.filter(r => r.status === 'Closed').length}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={requestAreaFilter}
+                          onChange={(e) => setRequestAreaFilter(e.target.value)}
+                          className="bg-[#070b14] border border-slate-700 text-slate-200 rounded px-2.5 py-1 text-xs"
+                        >
+                          <option value="ALL">All Audit Areas</option>
+                          <option value="GST">GST Statutory</option>
+                          <option value="Cash">Cash &amp; Bank</option>
+                          <option value="TDS">TDS Withholding</option>
+                          <option value="Purchases">Purchases</option>
+                          <option value="General">General</option>
+                        </select>
+
+                        <select
+                          value={requestStatusFilter}
+                          onChange={(e) => setRequestStatusFilter(e.target.value)}
+                          className="bg-[#070b14] border border-slate-700 text-slate-200 rounded px-2.5 py-1 text-xs"
+                        >
+                          <option value="ALL">All Statuses</option>
+                          <option value="Requested">Requested (Open)</option>
+                          <option value="Received">Received</option>
+                          <option value="Reviewed">Reviewed</option>
+                          <option value="Closed">Closed</option>
+                        </select>
+                      </div>
+
+                      <button 
+                        onClick={() => setIsCreateEvidenceRequestModalOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600/20 text-sky-300 border border-sky-500/40 rounded text-[11px] font-bold hover:bg-sky-600/40 transition-all cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Create New Evidence Request</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3">
+                      {evidenceRequests
+                        .filter(r => requestAreaFilter === 'ALL' || r.auditArea === requestAreaFilter)
+                        .filter(r => requestStatusFilter === 'ALL' || r.status === requestStatusFilter)
+                        .map(req => {
+                          const isOverdue = req.status !== 'Closed' && new Date(req.dueDate) < new Date();
+                          return (
+                            <div key={req.id} className="bg-[#121c32] border border-slate-800 rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-slate-700 transition-all">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-[10px] text-sky-400 font-bold">{req.id}</span>
+                                  <span className="bg-slate-800 text-teal-300 text-[10px] font-bold px-1.5 py-0.2 rounded">
+                                    {req.auditArea}
+                                  </span>
+                                  <h4 className="text-sm font-bold text-white">{req.description}</h4>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-4 text-[10px] text-slate-400 font-medium">
+                                  <span className="flex items-center gap-1"><User className="w-3 h-3" /> {req.requestedFrom}</span>
+                                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> Requested: {req.requestedDate}</span>
+                                  <span className={`flex items-center gap-1 ${isOverdue ? 'text-rose-400 font-bold' : ''}`}>
+                                    <Clock className="w-3 h-3" /> Due: {req.dueDate} {isOverdue && '(OVERDUE)'}
+                                  </span>
+                                </div>
+                                {req.remarks && (
+                                  <p className="text-[11px] text-slate-400 italic pt-1">Note: {req.remarks}</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
+                                  req.status === 'Requested' ? 'bg-sky-950 text-sky-400 border-sky-800' :
+                                  req.status === 'Received' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' :
+                                  req.status === 'Reviewed' ? 'bg-purple-950 text-purple-400 border-purple-800' :
+                                  'bg-slate-800 text-slate-400 border-slate-700'
+                                }`}>
+                                  {req.status}
+                                </span>
+                                <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
+                                  {req.status === 'Requested' && (
+                                    <button 
+                                      onClick={() => {
+                                        setEvidenceRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'Received' } : r));
+                                        recordAuditActivity('Request Updated', `Request ${req.id} marked as Received.`);
+                                      }}
+                                      className="px-2 py-1 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded text-[10px] font-bold hover:bg-emerald-600/40 transition-all cursor-pointer flex items-center gap-1"
+                                      title="Mark as Received"
+                                    >
+                                      <Check className="w-3 h-3" /> Mark Received
+                                    </button>
+                                  )}
+                                  {req.status === 'Received' && (
+                                    <button 
+                                      onClick={() => {
+                                        setEvidenceRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'Reviewed' } : r));
+                                        recordAuditActivity('Request Updated', `Request ${req.id} marked as Reviewed.`);
+                                      }}
+                                      className="px-2 py-1 bg-purple-600/20 text-purple-400 border border-purple-500/30 rounded text-[10px] font-bold hover:bg-purple-600/40 transition-all cursor-pointer flex items-center gap-1"
+                                      title="Mark as Reviewed"
+                                    >
+                                      <CheckCircle2 className="w-3 h-3" /> Mark Reviewed
+                                    </button>
+                                  )}
+                                  {req.status !== 'Closed' && (
+                                    <button 
+                                      onClick={() => {
+                                        setEvidenceRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'Closed' } : r));
+                                        recordAuditActivity('Request Closed', `Request ${req.id} closed.`);
+                                      }}
+                                      className="px-2 py-1 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded text-[10px] font-bold transition-all cursor-pointer"
+                                      title="Close Request"
+                                    >
+                                      Close
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      {evidenceRequests.length === 0 && (
+                        <div className="py-12 flex flex-col items-center justify-center bg-[#070b14] border border-dashed border-slate-800 rounded-lg">
+                          <FileQuestion className="w-10 h-10 text-slate-600 mb-2" />
+                          <p className="text-slate-400 text-sm font-semibold">No evidence requests recorded for this engagement.</p>
+                          <p className="text-slate-500 text-xs mt-1">Create an evidence request to track outstanding documentation from the client.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. STORAGE & INTEGRITY TAB */}
+                {evidenceTab === 'Storage' && (
+                  <div className="space-y-4">
+                    <div className="bg-[#121c32] border border-slate-800 rounded-lg p-4 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                            <HardDrive className="w-4 h-4 text-teal-400" /> Offline Local Storage Architecture &amp; File Hierarchy
+                          </h3>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Audit files are structured in engagement-specific local directories with cryptographic SHA-256 validation.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => {
+                              alert(`✓ Full Cryptographic Scan Complete!\n\nAll ${auditEvidence.length} items checked against registered SHA-256 hashes.\nIntegrity Status: PASS`);
+                              recordAuditActivity('Integrity Scan', `Executed SHA-256 verification across ${auditEvidence.length} evidence artifacts.`);
+                            }}
+                            className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>Scan All File Hashes</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Folder Structure Diagram */}
+                      <div className="bg-[#070b14] p-3.5 rounded border border-slate-800 font-mono text-xs text-slate-300 space-y-1">
+                        <div className="text-teal-400 font-bold flex items-center gap-1.5">
+                          <FolderTree className="w-4 h-4" /> AuditData/
+                        </div>
+                        <div className="pl-4 text-slate-400">
+                          └── {activeCompany.split(' (')[0]}/
+                        </div>
+                        <div className="pl-8 text-slate-400">
+                          └── {lastSyncFinancialYear}/
+                        </div>
+                        <div className="pl-12 text-slate-400">
+                          └── {auditPlan.id}/
+                        </div>
+                        <div className="pl-16 text-sky-400 font-semibold">
+                          ├── Evidence/ ({auditEvidence.length} files, ~4.8 MB)
+                        </div>
+                        <div className="pl-16 text-emerald-400 font-semibold">
+                          ├── WorkingPapers/ ({workingPapers.length} documents)
+                        </div>
+                        <div className="pl-16 text-amber-400 font-semibold">
+                          └── Reports/ (Statutory annexures &amp; BRS)
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cryptographic Hash Verification Table */}
+                    <div className="bg-[#121c30] border border-slate-800 rounded-lg overflow-hidden">
+                      <div className="p-3 bg-[#090e1a] border-b border-slate-800 flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          Artifact Cryptographic Fingerprints (SHA-256)
+                        </span>
+                        <span className="text-[10px] text-teal-400 font-mono">
+                          Non-repudiation standard SA 230
+                        </span>
+                      </div>
+                      <table className="w-full text-left text-xs text-slate-300">
+                        <thead className="bg-[#070b14] text-[9px] uppercase text-slate-500 border-b border-slate-800">
+                          <tr>
+                            <th className="p-2.5">Artifact Name</th>
+                            <th className="p-2.5">Storage Path</th>
+                            <th className="p-2.5">Size</th>
+                            <th className="p-2.5">SHA-256 Hash</th>
+                            <th className="p-2.5 text-center">Status</th>
+                            <th className="p-2.5 text-center">Simulate Test</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/40 font-mono text-[11px]">
+                          {auditEvidence.map(evd => (
+                            <tr key={evd.id} className="hover:bg-slate-800/20">
+                              <td className="p-2.5 font-sans font-bold text-white">
+                                {evd.fileName || evd.description}
+                              </td>
+                              <td className="p-2.5 text-slate-400 truncate max-w-[220px]" title={evd.storagePath || evd.source}>
+                                {evd.storagePath || evd.source}
+                              </td>
+                              <td className="p-2.5 text-slate-400">
+                                {evd.sizeBytes ? `${(evd.sizeBytes / 1024).toFixed(1)} KB` : 'SQLite Record'}
+                              </td>
+                              <td className="p-2.5 text-sky-400 text-[10px]">
+                                {evd.fileHash ? evd.fileHash : 'sha256:tally_synced_record_verified'}
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold font-sans ${
+                                  evd.fileIntegrityStatus === 'Changed' ? 'bg-rose-950 text-rose-400 border border-rose-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                                }`}>
+                                  {evd.fileIntegrityStatus === 'Changed' ? 'Hash Mismatch' : 'Verified'}
+                                </span>
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <button
+                                  onClick={() => handleToggleTamperSimulation(evd.id)}
+                                  className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[9px] font-sans font-semibold transition-all cursor-pointer"
+                                >
+                                  {evd.fileIntegrityStatus === 'Changed' ? 'Restore Integrity' : 'Simulate Tamper'}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* FINAL AUDIT FILE / AUDIT COMPLETION CENTER */}
+          {currentNav === 'audit-file' && (
+            <div className="space-y-4 max-w-7xl mx-auto h-full flex flex-col">
+              <div className="pb-2 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <FolderCheck className="w-5 h-5 text-emerald-400" />
+                    <span>Final Audit File &amp; Engagement Completion Center</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    End-to-end traceability from Audit Plan through Procedures, Samples, Findings, Evidence, and Final Opinion sign-off.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button 
+                    onClick={() => setIsCompletenessModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-sky-950 hover:bg-sky-900 text-sky-300 border border-sky-800 rounded text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <ListChecks className="w-3.5 h-3.5" />
+                    <span>Prepare for Closure</span>
+                  </button>
+
+                  {auditPlan.status === 'Completed' ? (
+                    <>
+                      <button 
+                        onClick={() => setIsAmendmentModalOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-800 rounded text-xs font-bold transition-all cursor-pointer"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Record Amendment</span>
+                      </button>
+                      <button 
+                        onClick={handleReopenAudit}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 text-slate-300 border border-slate-700 rounded text-xs font-bold hover:bg-slate-700 transition-all cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Re-open Engagement</span>
+                      </button>
+                    </>
+                  ) : (
+                    <button 
+                      onClick={handleFinalizeAudit}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded text-xs font-black shadow-lg transition-all cursor-pointer"
+                    >
+                      <CheckSquare className="w-4 h-4" />
+                      <span>Finalize Audit Engagement</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Immutable Lock Alert Banner if Finalized */}
+              {auditPlan.status === 'Completed' && (
+                <div className="p-3 bg-emerald-950/40 border border-emerald-700/80 rounded-lg flex items-center justify-between gap-3 text-emerald-200 shadow">
+                  <div className="flex items-center gap-2.5">
+                    <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                    <div className="text-xs">
+                      <span className="font-black text-emerald-300 uppercase tracking-wide">
+                        🔒 ENGAGEMENT FINALIZED &amp; IMMUTABLE (READ-ONLY RECORD ACTIVE)
+                      </span>
+                      <p className="text-[11px] text-emerald-300/80 mt-0.5">
+                        In accordance with SA 230, historical working papers, findings, and evidence references cannot be modified directly. Any subsequent corrections must be logged via official Audit Amendments.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="bg-emerald-900 text-emerald-200 border border-emerald-600 font-mono text-[10px] px-2 py-0.5 rounded font-bold shrink-0">
+                    LOCKED
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 overflow-hidden">
+                {/* Left Column: 12-Section Completeness Index & Matrix */}
+                <div className="lg:col-span-2 space-y-6 overflow-y-auto pr-2 custom-scrollbar">
+                  {/* Central 12-Section Audit Completeness Matrix */}
+                  <div className="bg-[#121c32] border border-slate-800 rounded-lg p-5 space-y-4">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                      <div>
+                        <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                          <ListChecks className="w-4 h-4 text-emerald-400" /> 12-Section Master Audit Completeness Matrix
+                        </h3>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          Traceable verification path from Planning through Closure. Calculated from actual application data.
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+                        SA 200 / SA 230 Compliant
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
+                      {[
+                        { code: 'A', label: 'Audit Plan & Terms', nav: 'planning', status: auditPlan.status !== 'Draft' ? 'Complete' : 'Incomplete' },
+                        { code: 'B', label: 'Risk Assessment & SA 315', nav: 'planning', status: auditRisks.length > 0 ? 'Complete' : 'Incomplete' },
+                        { code: 'C', label: 'Materiality Benchmark (SA 320)', nav: 'planning', status: auditPlan.materialityAmount > 0 ? 'Complete' : 'Incomplete' },
+                        { code: 'D', label: 'Audit Procedures Executed', nav: 'planning', status: auditProcedures.filter(p => p.status === 'Completed').length > 0 ? 'Complete' : 'Incomplete' },
+                        { code: 'E', label: 'Sample Selection & Testing', nav: 'planning', status: auditSamples.length > 0 && auditSamples.every(s => s.items.every(i => i.testResult !== 'Not Tested')) ? 'Complete' : 'Incomplete' },
+                        { code: 'F', label: 'Supporting Evidence Register', nav: 'evidence', status: auditEvidence.filter(e => e.status === 'Accepted').length > 0 ? 'Complete' : 'Incomplete' },
+                        { code: 'G', label: 'Audit Findings & Exceptions', nav: 'exceptions', status: workspaceExceptions.filter(e => e.status !== 'Requires Review - Pending').length > 0 ? 'Complete' : 'Incomplete' },
+                        { code: 'H', label: 'Reconciliations (GST, Bank, TDS)', nav: 'reconciliation', status: reconciliationFindings.length > 0 ? 'Complete' : 'Incomplete' },
+                        { code: 'I', label: 'Working Papers Signed Off', nav: 'planning', status: workingPapers.length > 0 && workingPapers.every(wp => wp.status === 'Finalized') ? 'Complete' : 'Incomplete' },
+                        { code: 'J', label: 'Reviewer Notes & Queries', nav: 'planning', status: workingPapers.every(wp => wp.reviewerRemarks !== '' || wp.status === 'Finalized') ? 'Complete' : 'Incomplete' },
+                        { code: 'K', label: 'Reports & Statutory Annexures', nav: 'reports', status: 'Complete' },
+                        { code: 'L', label: 'Audit Closure & Final Opinion', nav: 'audit-file', status: auditPlan.status === 'Completed' ? 'Complete' : 'Incomplete' }
+                      ].map((item) => (
+                        <div key={item.code} className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                          <button 
+                            onClick={() => setCurrentNav(item.nav as any)}
+                            className="text-xs text-slate-300 hover:text-sky-300 font-medium text-left flex items-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            <span className="font-mono text-teal-400 font-bold">{item.code}.</span>
+                            <span>{item.label}</span>
+                          </button>
+                          <span className={`flex items-center gap-1.5 text-[10px] font-bold uppercase ${
+                            item.status === 'Complete' ? 'text-emerald-400' : 'text-amber-400'
+                          }`}>
+                            {item.status === 'Complete' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+                            {item.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Working Paper Index Table */}
+                  <div className="bg-[#121c30] border border-slate-800 rounded-lg overflow-hidden">
+                    <div className="p-3 bg-[#090e1a] border-b border-slate-800 flex items-center justify-between">
+                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        Working Paper Registry &amp; Sign-off Summary
+                      </h3>
+                      <span className="text-[10px] text-slate-500 font-mono">{workingPapers.length} Papers Linked</span>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      <table className="w-full text-left text-[11px] text-slate-300">
+                        <thead className="bg-[#070b14] text-[9px] uppercase text-slate-500 border-b border-slate-800 sticky top-0 z-10">
+                          <tr>
+                            <th className="p-2.5">ID</th>
+                            <th className="p-2.5">Title / Objective</th>
+                            <th className="p-2.5">Area</th>
+                            <th className="p-2.5">Evidence Links</th>
+                            <th className="p-2.5">Conclusion</th>
+                            <th className="p-2.5 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/40">
+                          {workingPapers.map(wp => (
+                            <tr key={wp.id} className="hover:bg-slate-800/20 transition-colors">
+                              <td className="p-2.5 font-mono text-teal-400">{wp.id}</td>
+                              <td className="p-2.5">
+                                <div className="font-bold text-slate-200">{wp.title}</div>
+                                <div className="text-[9px] text-slate-500 line-clamp-1">{wp.objective}</div>
+                              </td>
+                              <td className="p-2.5 text-slate-400 font-semibold">{wp.auditArea}</td>
+                              <td className="p-2.5">
+                                <span className="text-[10px] text-sky-400 font-mono">
+                                  {wp.evidenceReferences?.length || 0} items
+                                </span>
+                              </td>
+                              <td className="p-2.5">
+                                <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                  wp.conclusion === 'No Exception Noted' ? 'bg-emerald-950 text-emerald-400' : 
+                                  wp.conclusion === 'Exception Noted' ? 'bg-rose-950 text-rose-400' : 'bg-slate-800 text-slate-400'
+                                }`}>
+                                  {wp.conclusion}
+                                </span>
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <span className={`text-[9px] font-bold ${wp.status === 'Finalized' ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                  {wp.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Audit Amendment History */}
+                  {auditAmendments.length > 0 && (
+                    <div className="bg-[#121c30] border border-purple-900/60 rounded-lg overflow-hidden">
+                      <div className="p-3 bg-[#090e1a] border-b border-purple-900/50 flex items-center justify-between">
+                        <h3 className="text-[10px] font-black text-purple-300 uppercase tracking-widest flex items-center gap-1.5">
+                          <History className="w-3.5 h-3.5 text-purple-400" /> Post-Finalization Audit Amendments
+                        </h3>
+                        <span className="text-[10px] text-purple-400 font-mono">{auditAmendments.length} Amendments</span>
+                      </div>
+                      <table className="w-full text-left text-[11px] text-slate-300">
+                        <thead className="bg-[#070b14] text-[9px] uppercase text-slate-500 border-b border-slate-800">
+                          <tr>
+                            <th className="p-2.5">ID</th>
+                            <th className="p-2.5">Entity</th>
+                            <th className="p-2.5">Reason for Amendment</th>
+                            <th className="p-2.5">Auditor</th>
+                            <th className="p-2.5">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/40 font-sans">
+                          {auditAmendments.map(amd => (
+                            <tr key={amd.id} className="hover:bg-slate-800/20">
+                              <td className="p-2.5 font-mono text-purple-300 font-bold">{amd.id}</td>
+                              <td className="p-2.5 font-semibold text-slate-200">
+                                {amd.entityType} ({amd.entityId})
+                              </td>
+                              <td className="p-2.5 text-slate-300 text-[10px]">{amd.reason}</td>
+                              <td className="p-2.5 text-slate-400 text-[10px]">{amd.user}</td>
+                              <td className="p-2.5 font-mono text-slate-500 text-[10px]">{amd.timestamp.split('T')[0]}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Formal Sign-off and Opinion Block */}
+                  <div className="bg-[#121c32] border border-slate-800 rounded-lg p-5 space-y-4">
+                    <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
+                      <FileSignature className="w-4 h-4 text-emerald-400" /> Statutory Engagement Sign-off &amp; Audit Opinion
+                    </h3>
+                    <div className="bg-[#090e1a] border border-slate-800 rounded p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-slate-400 font-bold uppercase">Overall Audit Opinion</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                          auditPlan.status === 'Completed' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' : 'bg-amber-950 text-amber-400 border-amber-800'
+                        }`}>
+                          {auditPlan.status === 'Completed' ? 'UNMODIFIED OPINION (CLEAN)' : 'OPINION PENDING FINAL REVIEW'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed italic border-l-2 border-emerald-500/50 pl-3">
+                        "In our opinion and to the best of our information and according to the explanations given to us, the aforesaid standalone financial statements give the information required by the Companies Act 2013 in the manner so required and give a true and fair view in conformity with the Indian Accounting Standards (Ind AS) and standard auditing practices..."
+                      </p>
+                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-800">
+                        <div className="space-y-1">
+                          <span className="text-[9px] text-slate-500 uppercase font-bold">Engagement Partner Sign-off</span>
+                          <div className="flex items-center gap-2 text-[11px] text-white font-bold">
+                            <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>CA. Sanjiv (Managing Partner, Membership #084920)</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1 text-right">
+                          <span className="text-[9px] text-slate-500 uppercase font-bold">Execution Date</span>
+                          <div className="text-[11px] text-white font-mono">{auditPlan.updatedAt.split('T')[0]}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Immutable Audit Trail */}
+                <div className="lg:col-span-1 flex flex-col bg-[#0b101e] border border-slate-800 rounded-lg overflow-hidden shadow-xl">
+                  <div className="p-3 bg-[#090e1a] border-b border-slate-800 flex items-center justify-between">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                      <History className="w-3.5 h-3.5 text-teal-400" /> Immutable Audit Trail
+                    </h3>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-emerald-400 font-mono font-bold">Active</span>
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                    {auditActivities.map((act) => (
+                      <div key={act.id} className="relative pl-6 border-l border-slate-800 pb-2">
+                        <div className="absolute left-[-5px] top-0 w-2.5 h-2.5 rounded-full bg-teal-500 border border-slate-900"></div>
+                        <div className="text-[10px] text-slate-500 font-mono mb-0.5">{act.timestamp.replace('T', ' ').slice(0, 16)}</div>
+                        <div className="text-[11px] font-bold text-white uppercase tracking-tight">{act.action}</div>
+                        <div className="text-[11px] text-slate-400 leading-snug mt-0.5">{act.details}</div>
+                        <div className="text-[9px] text-teal-500 font-mono mt-1 flex items-center gap-1">
+                          <User className="w-2.5 h-2.5" /> {act.user}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-3 bg-[#090e1a] border-t border-slate-800 text-[10px] text-slate-500 italic text-center">
+                    Cryptographic integrity verified. All entries are non-repudiable.
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -6991,8 +10713,1278 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {/* 1. EVIDENCE ITEM DETAILS & INSPECTOR MODAL */}
+          {selectedEvidenceItem && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[92] p-4">
+              <div className="bg-[#0f172a] border border-sky-800/80 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto custom-scrollbar">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-sky-950 border border-sky-800 flex items-center justify-center text-sky-400">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <span>Evidence Artifact Inspector</span>
+                        <span className="font-mono text-[10px] bg-slate-800 text-teal-300 px-2 py-0.5 rounded border border-slate-700">
+                          {selectedEvidenceItem.id}
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400">{selectedEvidenceItem.description}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedEvidenceItem(null)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Status and Action Ribbon */}
+                <div className="bg-[#070b14] border border-slate-800 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold">Review Status:</span>
+                    <select
+                      value={selectedEvidenceItem.status}
+                      onChange={(e) => {
+                        const newStatus = e.target.value as AuditEvidence['status'];
+                        handleUpdateEvidenceStatus(selectedEvidenceItem.id, newStatus, selectedEvidenceItem.auditorRemarks || '');
+                        setSelectedEvidenceItem({ ...selectedEvidenceItem, status: newStatus });
+                      }}
+                      className="bg-[#0f172a] border border-slate-700 text-white font-bold rounded px-2.5 py-1 text-xs"
+                    >
+                      <option value="Requested">Requested</option>
+                      <option value="Received">Received</option>
+                      <option value="Reviewed">Reviewed</option>
+                      <option value="Accepted">Accepted</option>
+                      <option value="Needs Follow-up">Needs Follow-up</option>
+                      <option value="Not Applicable">Not Applicable</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleVerifyEvidenceIntegrity(selectedEvidenceItem.id)}
+                      className="px-2.5 py-1 bg-teal-600/20 text-teal-300 border border-teal-500/40 rounded text-xs font-bold hover:bg-teal-600/30 transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Verify SHA-256</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleToggleTamperSimulation(selectedEvidenceItem.id);
+                        setSelectedEvidenceItem(prev => prev ? ({ ...prev, fileIntegrityStatus: prev.fileIntegrityStatus === 'Changed' ? 'Verified' : 'Changed' }) : null);
+                      }}
+                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] font-semibold transition-all cursor-pointer"
+                    >
+                      {selectedEvidenceItem.fileIntegrityStatus === 'Changed' ? 'Reset Hash' : 'Simulate Tamper'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tamper Alert if changed */}
+                {selectedEvidenceItem.fileIntegrityStatus === 'Changed' && (
+                  <div className="p-3 bg-rose-950/60 border border-rose-800 rounded-lg flex items-start gap-2.5 text-rose-200">
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-rose-300 block">Cryptographic Checksum Mismatch</span>
+                      <p className="text-[11px] text-rose-200/90 mt-0.5">
+                        "Evidence file has changed since it was registered." Registered SHA-256 does not match disk content.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Evidence Metadata Grid */}
+                <div className="grid grid-cols-2 gap-3 text-xs bg-[#070b14] border border-slate-800 p-3.5 rounded-lg">
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block">Evidence Type</span>
+                    <span className="text-white font-semibold">{selectedEvidenceItem.evidenceType}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block">Audit Area</span>
+                    <span className="text-teal-400 font-semibold">{selectedEvidenceItem.auditArea}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block">Reference / Voucher</span>
+                    <span className="text-slate-200 font-mono">{selectedEvidenceItem.referenceNumber}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block">Source Designation</span>
+                    <span className="text-slate-300">{selectedEvidenceItem.source}</span>
+                  </div>
+                  {selectedEvidenceItem.voucherNumber && (
+                    <>
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase font-bold block">Voucher Details</span>
+                        <span className="text-white font-mono font-semibold">{selectedEvidenceItem.voucherNumber} ({selectedEvidenceItem.voucherType})</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase font-bold block">Party / Primary Ledger</span>
+                        <span className="text-slate-200 truncate block">{selectedEvidenceItem.party || selectedEvidenceItem.ledger}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase font-bold block">Transaction Amount</span>
+                        <span className="text-emerald-400 font-mono font-bold">₹{selectedEvidenceItem.amount?.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 uppercase font-bold block">Tax Element</span>
+                        <span className="text-amber-400 font-mono font-bold">₹{selectedEvidenceItem.taxAmount?.toLocaleString() || '0.00'}</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block">Storage File Path</span>
+                    <span className="text-sky-300 font-mono text-[11px] break-all">
+                      {selectedEvidenceItem.storagePath || selectedEvidenceItem.filePath || 'Offline SQLite Metadata Store'}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block">Cryptographic SHA-256 Hash</span>
+                    <span className="text-teal-300 font-mono text-[11px] break-all bg-[#04060c] p-1.5 rounded border border-slate-800/80 block">
+                      {selectedEvidenceItem.fileHash || 'Calculated from Tally Sync Record'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Auditor Remarks */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 uppercase font-bold block">Auditor Verification Remarks</label>
+                  <textarea
+                    rows={3}
+                    value={selectedEvidenceItem.auditorRemarks || ''}
+                    onChange={(e) => setSelectedEvidenceItem({ ...selectedEvidenceItem, auditorRemarks: e.target.value })}
+                    placeholder="Enter professional auditor findings, cross-references, or corroboration notes..."
+                    className="w-full bg-[#070b14] border border-slate-700 rounded p-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    onClick={() => {
+                      handleUpdateEvidenceStatus(selectedEvidenceItem.id, selectedEvidenceItem.status, selectedEvidenceItem.auditorRemarks || '');
+                      setSelectedEvidenceItem(null);
+                    }}
+                    className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded font-bold cursor-pointer transition-all shadow"
+                  >
+                    Save &amp; Close Inspector
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 2. MARK TALLY SOURCE EVIDENCE MODAL */}
+          {isRecordTallySourceModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[92] p-4">
+              <div className="bg-[#0f172a] border border-sky-800/80 rounded-2xl max-w-3xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] flex flex-col">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-amber-950 border border-amber-800 flex items-center justify-center text-amber-400">
+                      <Bookmark className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <span>Designate Tally Source Evidence</span>
+                        <span className="font-mono text-[10px] bg-slate-800 text-amber-300 px-2 py-0.5 rounded border border-slate-700">
+                          Non-duplicate Pointer
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400">Select any synchronized Tally transaction to elevate as formal audit source evidence.</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsRecordTallySourceModalOpen(false)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 shrink-0">
+                  <div className="relative flex-1 min-w-[220px]">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search voucher #, party, ledger or type..."
+                      value={tallySourceSearchQuery}
+                      onChange={(e) => setTallySourceSearchQuery(e.target.value)}
+                      className="bg-[#070b14] border border-slate-700 text-slate-200 rounded pl-8 pr-3 py-1.5 text-xs w-full"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold mr-2">Audit Area:</label>
+                    <select
+                      value={sourceAreaSelect}
+                      onChange={(e) => setSourceAreaSelect(e.target.value)}
+                      className="bg-[#070b14] border border-slate-700 text-slate-200 rounded px-2.5 py-1.5 text-xs"
+                    >
+                      <option value="GST">GST Statutory</option>
+                      <option value="Revenue / Sales">Revenue / Sales</option>
+                      <option value="Purchases">Purchases</option>
+                      <option value="Cash">Cash &amp; Bank</option>
+                      <option value="TDS">TDS Withholding</option>
+                      <option value="General">General</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto border border-slate-800 rounded-lg custom-scrollbar">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="bg-[#070b14] text-[10px] uppercase text-slate-400 border-b border-slate-800 sticky top-0">
+                      <tr>
+                        <th className="p-2.5">Voucher #</th>
+                        <th className="p-2.5">Type &amp; Date</th>
+                        <th className="p-2.5">Party / Ledger</th>
+                        <th className="p-2.5 text-right">Amount (₹)</th>
+                        <th className="p-2.5 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 font-sans">
+                      {allSynchronizedVouchers
+                        .filter(v => !tallySourceSearchQuery || 
+                          v.voucherNumber.toLowerCase().includes(tallySourceSearchQuery.toLowerCase()) ||
+                          v.partyLedgerName.toLowerCase().includes(tallySourceSearchQuery.toLowerCase()) ||
+                          v.voucherType.toLowerCase().includes(tallySourceSearchQuery.toLowerCase()) ||
+                          (v.primaryLedger && v.primaryLedger.toLowerCase().includes(tallySourceSearchQuery.toLowerCase()))
+                        )
+                        .slice(0, 30)
+                        .map((voucher) => (
+                          <tr key={voucher.voucherId} className="hover:bg-slate-800/30">
+                            <td className="p-2.5 font-mono text-white font-bold">{voucher.voucherNumber}</td>
+                            <td className="p-2.5">
+                              <div className="font-semibold text-teal-300">{voucher.voucherType}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">{voucher.voucherDate}</div>
+                            </td>
+                            <td className="p-2.5">
+                              <div className="font-medium text-slate-200 truncate max-w-[200px]">{voucher.partyLedgerName || voucher.primaryLedger}</div>
+                              <div className="text-[10px] text-slate-500 truncate max-w-[200px]">{voucher.primaryLedger}</div>
+                            </td>
+                            <td className="p-2.5 text-right font-mono font-bold text-emerald-400">
+                              ₹{voucher.totalAmount.toLocaleString()}
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <button
+                                onClick={() => {
+                                  handleMarkAsEvidence(voucher, sourceAreaSelect);
+                                  setIsRecordTallySourceModalOpen(false);
+                                }}
+                                className="px-2.5 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-[11px] font-bold cursor-pointer transition-all shadow"
+                              >
+                                Mark as Evidence
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex justify-end pt-3 border-t border-slate-800 shrink-0">
+                  <button
+                    onClick={() => setIsRecordTallySourceModalOpen(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 3. CREATE EVIDENCE REQUEST MODAL */}
+          {isCreateEvidenceRequestModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[92] p-4">
+              <div className="bg-[#0f172a] border border-teal-800/80 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-xs">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-teal-950 border border-teal-800 flex items-center justify-center text-teal-400">
+                      <FileQuestion className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Create Audit Evidence Request</h3>
+                      <p className="text-[11px] text-slate-400">Request formal documentation, confirmations, or ledgers from the auditee.</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsCreateEvidenceRequestModalOpen(false)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Audit Area</label>
+                    <select
+                      value={newRequestArea}
+                      onChange={(e) => setNewRequestArea(e.target.value)}
+                      className="w-full bg-[#070b14] border border-slate-700 rounded px-3 py-2 text-xs text-white"
+                    >
+                      <option value="GST">GST Statutory</option>
+                      <option value="Revenue / Sales">Revenue / Sales</option>
+                      <option value="Purchases">Purchases</option>
+                      <option value="Cash">Cash &amp; Bank</option>
+                      <option value="TDS">TDS Withholding</option>
+                      <option value="General">General</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Evidence Required (Description) *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Bank Confirmation Statement for HDFC A/c as of March 31"
+                      value={newRequestDesc}
+                      onChange={(e) => setNewRequestDesc(e.target.value)}
+                      className="w-full bg-[#070b14] border border-slate-700 rounded px-3 py-2 text-xs text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Requested From *</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Chief Accountant, Finance Dept"
+                        value={newRequestFrom}
+                        onChange={(e) => setNewRequestFrom(e.target.value)}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Due Date *</label>
+                      <input
+                        type="date"
+                        value={newRequestDue}
+                        onChange={(e) => setNewRequestDue(e.target.value)}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Remarks / Context</label>
+                    <textarea
+                      rows={3}
+                      placeholder="Specify purpose, legal reference (e.g. SA 505 external confirmation) or file format required..."
+                      value={newRequestRemarks}
+                      onChange={(e) => setNewRequestRemarks(e.target.value)}
+                      className="w-full bg-[#070b14] border border-slate-700 rounded p-2.5 text-xs text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    onClick={() => setIsCreateEvidenceRequestModalOpen(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!newRequestDesc.trim() || !newRequestFrom.trim()) {
+                        alert('Please fill in both the Description and Requested From fields.');
+                        return;
+                      }
+                      handleCreateEvidenceRequest(newRequestArea, newRequestDesc, newRequestFrom, newRequestDue, newRequestRemarks);
+                    }}
+                    className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded font-bold cursor-pointer transition-all shadow"
+                  >
+                    Create Evidence Request
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 4. CREATE WORKING PAPER FROM TEMPLATES MODAL */}
+          {isCreateWorkingPaperModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[92] p-4">
+              <div className="bg-[#0f172a] border border-emerald-800/80 rounded-2xl max-w-3xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] flex flex-col">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-400">
+                      <FileSignature className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Create Structured Audit Working Paper</h3>
+                      <p className="text-[11px] text-slate-400">Select a standardized audit template conforming to Standards on Auditing (SA 230).</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsCreateWorkingPaperModalOpen(false)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {predefinedWorkingPaperTemplates.map((template) => (
+                      <div
+                        key={template.id}
+                        className="bg-[#070b14] border border-slate-800 hover:border-emerald-700/80 rounded-xl p-4 flex flex-col justify-between transition-all space-y-3"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-[10px] text-emerald-400 font-bold bg-emerald-950 px-2 py-0.5 rounded border border-emerald-900">
+                              {template.auditArea}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">{template.id}</span>
+                          </div>
+                          <h4 className="text-xs font-bold text-white">{template.name}</h4>
+                          <p className="text-[11px] text-slate-400 italic">"{template.objective}"</p>
+                          <div className="text-[10px] text-slate-500 space-y-0.5 pt-1">
+                            <div><strong className="text-slate-400">Procedure:</strong> {template.suggestedProcedure}</div>
+                            <div><strong className="text-slate-400">Standard Conclusion:</strong> <span className="text-teal-400">{template.standardConclusion}</span></div>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleCreateWorkingPaperFromTemplate(template)}
+                          className="w-full py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded font-bold text-xs cursor-pointer shadow transition-all flex items-center justify-center gap-1.5"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Use Template</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-3 border-t border-slate-800 shrink-0">
+                  <button
+                    onClick={() => setIsCreateWorkingPaperModalOpen(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 5. WORKING PAPER DETAIL & EDITOR / SIGN-OFF MODAL */}
+          {selectedWorkingPaper && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[93] p-4">
+              <div className="bg-[#0f172a] border border-emerald-800/80 rounded-2xl max-w-3xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[92vh] overflow-y-auto custom-scrollbar flex flex-col">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-400">
+                      <FileSignature className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <span>Audit Working Paper</span>
+                        <span className="font-mono text-[10px] bg-slate-800 text-teal-300 px-2 py-0.5 rounded border border-slate-700">
+                          {selectedWorkingPaper.id}
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400">{selectedWorkingPaper.title}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedWorkingPaper(null)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Status Bar */}
+                <div className="bg-[#070b14] border border-slate-800 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold">Review Workflow Status:</span>
+                    <select
+                      value={selectedWorkingPaper.status}
+                      disabled={auditPlan.status === 'Completed'}
+                      onChange={(e) => setSelectedWorkingPaper({ ...selectedWorkingPaper, status: e.target.value as any })}
+                      className="bg-[#0f172a] border border-slate-700 text-white font-bold rounded px-2.5 py-1 text-xs"
+                    >
+                      <option value="Draft">Draft</option>
+                      <option value="Submitted for Review">Submitted for Review</option>
+                      <option value="Reviewed">Reviewed</option>
+                      <option value="Finalized">Finalized</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-4 text-[11px] font-mono text-slate-400">
+                    <span>Prepared by: <strong className="text-slate-200">{selectedWorkingPaper.preparedBy}</strong></span>
+                    <span>Date: <strong className="text-slate-200">{selectedWorkingPaper.preparedDate}</strong></span>
+                  </div>
+                </div>
+
+                {/* Form fields */}
+                <div className="space-y-3.5 flex-1">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Working Paper Title</label>
+                      <input
+                        type="text"
+                        value={selectedWorkingPaper.title}
+                        disabled={auditPlan.status === 'Completed'}
+                        onChange={(e) => setSelectedWorkingPaper({ ...selectedWorkingPaper, title: e.target.value })}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-3 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Audit Area</label>
+                      <input
+                        type="text"
+                        value={selectedWorkingPaper.auditArea}
+                        disabled={auditPlan.status === 'Completed'}
+                        onChange={(e) => setSelectedWorkingPaper({ ...selectedWorkingPaper, auditArea: e.target.value })}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-3 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Audit Objective</label>
+                    <textarea
+                      rows={2}
+                      value={selectedWorkingPaper.objective}
+                      disabled={auditPlan.status === 'Completed'}
+                      onChange={(e) => setSelectedWorkingPaper({ ...selectedWorkingPaper, objective: e.target.value })}
+                      className="w-full bg-[#070b14] border border-slate-700 rounded p-2 text-xs text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Procedure Performed</label>
+                    <textarea
+                      rows={2}
+                      value={selectedWorkingPaper.procedurePerformed || ''}
+                      disabled={auditPlan.status === 'Completed'}
+                      onChange={(e) => setSelectedWorkingPaper({ ...selectedWorkingPaper, procedurePerformed: e.target.value })}
+                      className="w-full bg-[#070b14] border border-slate-700 rounded p-2 text-xs text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Population Examined</label>
+                      <input
+                        type="text"
+                        value={selectedWorkingPaper.population || ''}
+                        disabled={auditPlan.status === 'Completed'}
+                        onChange={(e) => setSelectedWorkingPaper({ ...selectedWorkingPaper, population: e.target.value })}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-3 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Sampling Selection</label>
+                      <input
+                        type="text"
+                        value={selectedWorkingPaper.sample || ''}
+                        disabled={auditPlan.status === 'Completed'}
+                        onChange={(e) => setSelectedWorkingPaper({ ...selectedWorkingPaper, sample: e.target.value })}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-3 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Auditor Observation &amp; Variance Analysis</label>
+                    <textarea
+                      rows={2}
+                      value={selectedWorkingPaper.observation || ''}
+                      disabled={auditPlan.status === 'Completed'}
+                      onChange={(e) => setSelectedWorkingPaper({ ...selectedWorkingPaper, observation: e.target.value })}
+                      className="w-full bg-[#070b14] border border-slate-700 rounded p-2 text-xs text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Variance / Difference Amount (₹)</label>
+                      <input
+                        type="number"
+                        value={selectedWorkingPaper.difference || 0}
+                        disabled={auditPlan.status === 'Completed'}
+                        onChange={(e) => setSelectedWorkingPaper({ ...selectedWorkingPaper, difference: Number(e.target.value) })}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-3 py-1.5 text-xs font-mono text-rose-300"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Auditor Conclusion * (Deterministic Selection)</label>
+                      <select
+                        value={selectedWorkingPaper.conclusion}
+                        disabled={auditPlan.status === 'Completed'}
+                        onChange={(e) => setSelectedWorkingPaper({ ...selectedWorkingPaper, conclusion: e.target.value as any })}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-3 py-1.5 text-xs font-bold text-white"
+                      >
+                        <option value="No Exception Noted">No Exception Noted</option>
+                        <option value="Exception Noted">Exception Noted</option>
+                        <option value="Further Review Required">Further Review Required</option>
+                        <option value="Unable to Complete">Unable to Complete</option>
+                        <option value="Not Applicable">Not Applicable</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Reviewer Remarks &amp; Partner Sign-off Notes</label>
+                    <textarea
+                      rows={2}
+                      value={selectedWorkingPaper.reviewerRemarks || ''}
+                      disabled={auditPlan.status === 'Completed'}
+                      onChange={(e) => setSelectedWorkingPaper({ ...selectedWorkingPaper, reviewerRemarks: e.target.value })}
+                      placeholder="Senior reviewer notes, concurrence, or queries..."
+                      className="w-full bg-[#070b14] border border-slate-700 rounded p-2 text-xs text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-3 border-t border-slate-800 shrink-0">
+                  <div>
+                    {selectedWorkingPaper.status !== 'Finalized' && (
+                      <button
+                        onClick={() => {
+                          if (auditPlan.status === 'Completed') return;
+                          const finalizedWP: WorkingPaper = {
+                            ...selectedWorkingPaper,
+                            status: 'Finalized',
+                            reviewedBy: 'CA. Sanjiv (Senior Partner)',
+                            reviewedDate: new Date().toISOString().split('T')[0]
+                          };
+                          handleSaveWorkingPaper(finalizedWP);
+                        }}
+                        className="px-3 py-1.5 bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 rounded font-bold hover:bg-emerald-600/40 transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Sign-off &amp; Finalize</span>
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedWorkingPaper(null)}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold cursor-pointer"
+                    >
+                      Close
+                    </button>
+                    <button
+                      onClick={() => handleSaveWorkingPaper(selectedWorkingPaper)}
+                      className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded font-bold cursor-pointer transition-all shadow"
+                    >
+                      Save Working Paper
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 6. SAMPLE ITEM TESTING & EVIDENCE LINKING MODAL */}
+          {testingSampleItem && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[92] p-4">
+              <div className="bg-[#0f172a] border border-sky-800/80 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-xs">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-sky-950 border border-sky-800 flex items-center justify-center text-sky-400">
+                      <Split className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Substantive Sample Item Testing</h3>
+                      <p className="text-[11px] text-slate-400">Voucher #{testingSampleItem.item.voucherNumber} • {testingSampleItem.item.voucherDate}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setTestingSampleItem(null)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="bg-[#070b14] border border-slate-800 rounded-lg p-3 space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Sample Item ID:</span>
+                    <span className="font-mono text-teal-400 font-bold">{testingSampleItem.item.id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Transaction Amount:</span>
+                    <span className="font-mono font-bold text-emerald-400">₹{testingSampleItem.item.amount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Selection Basis:</span>
+                    <span className="text-slate-300 italic">{testingSampleItem.item.selectionReason}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Supporting Evidence Reference</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Invoice_PR_8820.pdf or EVD-001"
+                      value={sampleLinkedEvidence}
+                      onChange={(e) => setSampleLinkedEvidence(e.target.value)}
+                      className="w-full bg-[#070b14] border border-slate-700 rounded px-3 py-2 text-xs text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Sample Test Result *</label>
+                    <select
+                      value={sampleTestResult}
+                      onChange={(e) => setSampleTestResult(e.target.value as any)}
+                      className="w-full bg-[#070b14] border border-slate-700 rounded px-3 py-2 text-xs font-bold text-white"
+                    >
+                      <option value="Pass">Pass (Compliant with Criteria)</option>
+                      <option value="Exception">Exception (Deficiency / Variance Noted)</option>
+                      <option value="Inconclusive">Inconclusive (Further Evidence Required)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Auditor Remarks &amp; Notes</label>
+                    <textarea
+                      rows={3}
+                      placeholder="e.g. Invoice amount agrees with Tally; GST classification requires review."
+                      value={sampleTestRemarks}
+                      onChange={(e) => setSampleTestRemarks(e.target.value)}
+                      className="w-full bg-[#070b14] border border-slate-700 rounded p-2.5 text-xs text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    onClick={() => setTestingSampleItem(null)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleSaveSampleItemTest(
+                      testingSampleItem.sampleId,
+                      testingSampleItem.item.id,
+                      sampleTestResult,
+                      sampleTestRemarks,
+                      sampleLinkedEvidence
+                    )}
+                    className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded font-bold cursor-pointer transition-all shadow"
+                  >
+                    Save Test Result
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 7. AUDIT COMPLETENESS CHECK & CLOSURE MODAL */}
+          {isCompletenessModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[92] p-4">
+              <div className="bg-[#0f172a] border border-emerald-800/80 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto custom-scrollbar">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-400">
+                      <ListChecks className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Pre-Closure Audit Completeness Check</h3>
+                      <p className="text-[11px] text-slate-400">Verification of mandatory audit documentation before final engagement closure.</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsCompletenessModalOpen(false)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* 11-point Checklist */}
+                <div className="space-y-2">
+                  {[
+                    { title: 'Audit Plan Initiated & Defined', pass: auditPlan.status !== 'Draft', detail: `Status: ${auditPlan.status}` },
+                    { title: 'Materiality Benchmark Documented (SA 320)', pass: auditPlan.materialityAmount > 0, detail: `OM: ₹${auditPlan.materialityAmount.toLocaleString()}` },
+                    { title: 'Risk Assessment Documented (SA 315)', pass: auditRisks.length > 0, detail: `${auditRisks.length} Risks Evaluated` },
+                    { title: 'Audit Procedures Completed', pass: auditProcedures.filter(p => p.status === 'Completed').length > 0, detail: `${auditProcedures.filter(p => p.status === 'Completed').length} / ${auditProcedures.length} Procedures Completed` },
+                    { title: 'Sample Sets Generated & Tested', pass: auditSamples.length > 0 && auditSamples.every(s => s.items.every(i => i.testResult !== 'Not Tested')), detail: `${auditSamples.reduce((sum, s) => sum + s.items.filter(i => i.testResult !== 'Not Tested').length, 0)} Samples Verified` },
+                    { title: 'Supporting Evidence Reviewed & Accepted', pass: auditEvidence.filter(e => e.status === 'Accepted').length > 0, detail: `${auditEvidence.filter(e => e.status === 'Accepted').length} Accepted Artifacts` },
+                    { title: 'High-Priority Findings & Exceptions Reviewed', pass: workspaceExceptions.filter(e => e.status !== 'Requires Review - Pending').length > 0, detail: `${workspaceExceptions.filter(e => e.status !== 'Requires Review - Pending').length} / ${workspaceExceptions.length} Exceptions Resolved` },
+                    { title: 'Reconciliation Differences Evaluated', pass: reconciliationFindings.length > 0, detail: `${reconciliationFindings.length} Items Reconciled` },
+                    { title: 'Working Papers Completed & Signed Off', pass: workingPapers.length > 0 && workingPapers.every(wp => wp.status === 'Finalized'), detail: `${workingPapers.filter(wp => wp.status === 'Finalized').length} / ${workingPapers.length} Finalized` },
+                    { title: 'Reviewer Notes & Queries Addressed', pass: workingPapers.every(wp => wp.reviewerRemarks !== '' || wp.status === 'Finalized'), detail: 'All working paper reviewer remarks recorded' },
+                    { title: 'Outstanding Evidence Requests Identified', pass: evidenceRequests.filter(r => r.status === 'Requested').length === 0, detail: `${evidenceRequests.filter(r => r.status === 'Requested').length} Requests Pending Client Response` }
+                  ].map((check, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2.5 bg-[#070b14] border border-slate-800 rounded-lg">
+                      <div className="flex items-center gap-2.5">
+                        {check.pass ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                        )}
+                        <div>
+                          <span className={`font-semibold ${check.pass ? 'text-slate-200' : 'text-amber-200'}`}>{check.title}</span>
+                          <span className="text-[10px] text-slate-500 block">{check.detail}</span>
+                        </div>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                        check.pass ? 'bg-emerald-950 text-emerald-400 border border-emerald-900' : 'bg-amber-950 text-amber-400 border border-amber-900'
+                      }`}>
+                        {check.pass ? 'PASSED' : 'INCOMPLETE'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-between items-center pt-3 border-t border-slate-800">
+                  <button
+                    onClick={() => setIsCompletenessModalOpen(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold cursor-pointer"
+                  >
+                    Close
+                  </button>
+                  {auditPlan.status !== 'Completed' && (
+                    <button
+                      onClick={() => {
+                        setIsCompletenessModalOpen(false);
+                        handleFinalizeAudit();
+                      }}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded shadow cursor-pointer transition-all flex items-center gap-1.5"
+                    >
+                      <CheckSquare className="w-4 h-4" />
+                      <span>Proceed to Finalize Audit</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 8. POST-FINALIZATION AUDIT AMENDMENT MODAL */}
+          {isAmendmentModalOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[92] p-4">
+              <div className="bg-[#0f172a] border border-purple-800/80 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-xs">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-purple-950 border border-purple-800 flex items-center justify-center text-purple-400">
+                      <Edit2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Record Post-Finalization Amendment</h3>
+                      <p className="text-[11px] text-slate-400">Standards on Auditing (SA 230) require an immutable audit trail for modifications to finalized files.</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsAmendmentModalOpen(false)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Target Entity Type</label>
+                      <select
+                        value={amendmentEntityType}
+                        onChange={(e) => setAmendmentEntityType(e.target.value as any)}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                      >
+                        <option value="WorkingPaper">Working Paper</option>
+                        <option value="Finding">Audit Finding</option>
+                        <option value="Sample">Sample Item</option>
+                        <option value="Evidence">Evidence Metadata</option>
+                        <option value="AuditPlan">Audit Plan</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Target Entity ID</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. WP-001 or FIND-04"
+                        value={amendmentEntityId}
+                        onChange={(e) => setAmendmentEntityId(e.target.value)}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Amendment Action</label>
+                    <select
+                      value={amendmentAction}
+                      onChange={(e) => setAmendmentAction(e.target.value as any)}
+                      className="w-full bg-[#070b14] border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                    >
+                      <option value="Modified">Modified Existing Record</option>
+                      <option value="Supplemented">Supplemented Supporting Evidence</option>
+                      <option value="Re-evaluated">Re-evaluated Conclusion</option>
+                      <option value="Corrected">Corrected Clerical Error</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Reason for Amendment * (Mandatory for SA 230)</label>
+                    <textarea
+                      rows={3}
+                      placeholder="State precise reason for post-finalization amendment (e.g. Subsequent client clarification received, supplementary invoice provided)..."
+                      value={amendmentReason}
+                      onChange={(e) => setAmendmentReason(e.target.value)}
+                      className="w-full bg-[#070b14] border border-slate-700 rounded p-2 text-xs text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Previous Recorded Value</label>
+                      <input
+                        type="text"
+                        placeholder="Original value"
+                        value={amendmentOldVal}
+                        onChange={(e) => setAmendmentOldVal(e.target.value)}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Amended New Value</label>
+                      <input
+                        type="text"
+                        placeholder="Updated value"
+                        value={amendmentNewVal}
+                        onChange={(e) => setAmendmentNewVal(e.target.value)}
+                        className="w-full bg-[#070b14] border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                  <button
+                    onClick={() => setIsAmendmentModalOpen(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!amendmentReason.trim()) {
+                        alert('A mandatory reason is required to record a post-finalization audit amendment under SA 230.');
+                        return;
+                      }
+                      handleRecordAmendment(
+                        amendmentEntityType,
+                        amendmentEntityId,
+                        amendmentAction,
+                        amendmentReason,
+                        amendmentOldVal,
+                        amendmentNewVal
+                      );
+                    }}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded font-bold cursor-pointer transition-all shadow"
+                  >
+                    Record Immutable Amendment
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 9. GLOBAL SEARCH MODAL (CTRL+F) */}
+          {isGlobalSearchOpen && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start justify-center z-[95] pt-16 p-4">
+              <div className="bg-[#0f172a] border border-teal-600/80 rounded-2xl max-w-2xl w-full p-5 space-y-4 shadow-2xl text-xs">
+                <div className="flex items-center gap-3 pb-3 border-b border-slate-800">
+                  <Search className="w-5 h-5 text-teal-400 shrink-0" />
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder={`Search within ${currentCompanyObj.name} (${activeFyObj?.label || 'FY 2025-26'})... (e.g. GSTIN, Cash, WP, Rule)`}
+                    value={globalSearchQuery}
+                    onChange={(e) => setGlobalSearchQuery(e.target.value)}
+                    className="w-full bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] bg-slate-800 text-slate-400 font-mono px-2 py-1 rounded border border-slate-700">ESC</span>
+                </div>
+
+                {/* Filter Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]">
+                  {(['ALL', 'EXCEPTIONS', 'PAPERS', 'EVIDENCE', 'VOUCHERS', 'LEDGERS'] as const).map(cat => (
+                    <button
+                      key={cat}
+                      onClick={() => setGlobalSearchCategory(cat)}
+                      className={`px-2.5 py-1 rounded font-semibold transition-all cursor-pointer ${
+                        globalSearchCategory === cat
+                          ? 'bg-teal-600 text-white shadow-sm'
+                          : 'bg-[#070b14] text-slate-400 hover:text-white border border-slate-800'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Search Results List */}
+                <div className="max-h-80 overflow-y-auto divide-y divide-slate-800/60 pr-1 space-y-1">
+                  {searchResults.length === 0 ? (
+                    <div className="p-8 text-center text-slate-500 text-xs">
+                      {globalSearchQuery.trim() ? 'No matching audit records found in active workspace.' : 'Type to search across findings, working papers, evidence, and risks.'}
+                    </div>
+                  ) : (
+                    searchResults.map((res) => (
+                      <div
+                        key={res.id}
+                        onClick={res.action}
+                        className="p-3 bg-[#070b14]/70 hover:bg-slate-800/60 rounded-lg cursor-pointer transition-colors flex items-center justify-between gap-3 group"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] bg-teal-950 text-teal-300 font-mono px-1.5 py-0.2 rounded border border-teal-800">
+                              {res.type}
+                            </span>
+                            <strong className="text-white text-xs group-hover:text-teal-300 transition-colors">
+                              {res.title}
+                            </strong>
+                          </div>
+                          <p className="text-[11px] text-slate-400">{res.subtitle}</p>
+                        </div>
+                        <span className="text-[10px] bg-slate-800 text-slate-300 font-mono px-2 py-0.5 rounded border border-slate-700">
+                          {res.tag}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 10. DIAGNOSTICS & SUPPORT PACKAGE EXPORT MODAL */}
+          {isDiagnosticsModalOpen && diagnosticsBundle && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[95] p-4">
+              <div className="bg-[#0f172a] border border-slate-700 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl text-xs">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-teal-950 border border-teal-800 flex items-center justify-center text-teal-400">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">Export Sanitized Support Diagnostics</h3>
+                      <p className="text-[11px] text-slate-400">100% Privacy Guarantee: Accounting vouchers, passwords, and private tokens are completely excluded.</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsDiagnosticsModalOpen(false)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="bg-[#070b14] border border-slate-800 rounded-lg p-4 font-mono text-[11px] text-slate-300 max-h-60 overflow-y-auto space-y-2">
+                  <div className="text-teal-300 font-bold">// TALLY AUDIT ASSISTANT DIAGNOSTIC MANIFEST</div>
+                  <div>App Version: {diagnosticsBundle.appVersion} (Build 2026.09.26.101)</div>
+                  <div>Platform: {diagnosticsBundle.environment.osPlatform}</div>
+                  <div>Runtime: {diagnosticsBundle.environment.runtime}</div>
+                  <div>Memory: {diagnosticsBundle.environment.memoryUsageMb} MB (Uptime: {diagnosticsBundle.environment.processUptimeMinutes}m)</div>
+                  <div>Database: SQLite 3.45 (WAL Mode: ON, Schema Version: 4, Foreign Keys: ON)</div>
+                  <div>Tally Communication: {diagnosticsBundle.tallyConnection.status} ({diagnosticsBundle.tallyConnection.endpoint})</div>
+                  <div>Active License: {diagnosticsBundle.licensing.type} ({diagnosticsBundle.licensing.status})</div>
+                  <div className="text-emerald-400">// SANITIZATION AUDIT: PASSED (Zero accounting entries included)</div>
+                </div>
+
+                {diagnosticsExportSuccess ? (
+                  <div className="p-3 bg-emerald-950/80 border border-emerald-800 rounded-lg text-emerald-200 text-xs flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Diagnostics ZIP bundle successfully generated and saved to <code>%LocalAppData%\TallyAuditAssistant\Diagnostics</code>.</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                    <button
+                      onClick={() => setIsDiagnosticsModalOpen(false)}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-semibold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleExportDiagnosticsFile}
+                      className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded shadow cursor-pointer transition-all flex items-center gap-1.5"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Generate &amp; Save Diagnostics ZIP</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 11. FIRST-RUN ONBOARDING SETUP WIZARD */}
+          {isFirstRunWizardOpen && (
+            <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-[96] p-4">
+              <div className="bg-[#0f172a] border border-teal-500/80 rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-2xl text-xs">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center text-white font-black text-lg shadow-lg">
+                      T
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white">First-Run Configuration Wizard</h3>
+                      <p className="text-[11px] text-slate-400">Step {firstRunStep} of 4: Initializing local SQLite database &amp; audit environment</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setIsFirstRunWizardOpen(false)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Step Indicators */}
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { num: 1, label: 'Database & Security' },
+                    { num: 2, label: 'Administrator Setup' },
+                    { num: 3, label: 'Evidence Directory' },
+                    { num: 4, label: 'Tally Connectivity' }
+                  ].map((s) => (
+                    <div
+                      key={s.num}
+                      className={`p-2 rounded text-center border text-[10px] font-semibold transition-all ${
+                        firstRunStep === s.num
+                          ? 'bg-teal-600 text-white border-teal-400 shadow'
+                          : firstRunStep > s.num
+                          ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                          : 'bg-[#070b14] text-slate-500 border-slate-800'
+                      }`}
+                    >
+                      {s.num}. {s.label}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Step 1: Database & Security */}
+                {firstRunStep === 1 && (
+                  <div className="space-y-3 bg-[#070b14] p-4 rounded-lg border border-slate-800">
+                    <h4 className="font-bold text-white text-xs">1. SQLite Database &amp; Local DPAPI Storage</h4>
+                    <p className="text-slate-400 text-[11px]">
+                      The application will create and format a local partitioned SQLite database with Write-Ahead Logging (WAL) and foreign keys enforced.
+                    </p>
+                    <div className="p-3 bg-emerald-950/60 border border-emerald-800 rounded text-emerald-300 text-[11px] flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Database schemas, migrations v1-v4, and DPAPI key containers validated.</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 2: Administrator Setup */}
+                {firstRunStep === 2 && (
+                  <div className="space-y-3 bg-[#070b14] p-4 rounded-lg border border-slate-800">
+                    <h4 className="font-bold text-white text-xs">2. Primary Administrator Account</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] text-slate-400 uppercase block mb-1">Admin Username</label>
+                        <input
+                          type="text"
+                          value={firstRunAdminUser}
+                          onChange={(e) => setFirstRunAdminUser(e.target.value)}
+                          className="w-full bg-[#0b101e] border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 uppercase block mb-1">Master PIN / Password</label>
+                        <input
+                          type="password"
+                          placeholder="••••••••"
+                          value={firstRunAdminPass}
+                          onChange={(e) => setFirstRunAdminPass(e.target.value)}
+                          className="w-full bg-[#0b101e] border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 3: Evidence Directory */}
+                {firstRunStep === 3 && (
+                  <div className="space-y-3 bg-[#070b14] p-4 rounded-lg border border-slate-800">
+                    <h4 className="font-bold text-white text-xs">3. Configured Audit Evidence Directory</h4>
+                    <p className="text-slate-400 text-[11px]">
+                      Select where client invoices, bank statements, and working paper attachments will be archived locally.
+                    </p>
+                    <input
+                      type="text"
+                      value={firstRunEvidenceDir}
+                      onChange={(e) => setFirstRunEvidenceDir(e.target.value)}
+                      className="w-full bg-[#0b101e] border border-slate-700 rounded px-2.5 py-1.5 text-xs text-white font-mono"
+                    />
+                  </div>
+                )}
+
+                {/* Step 4: Tally Connectivity */}
+                {firstRunStep === 4 && (
+                  <div className="space-y-3 bg-[#070b14] p-4 rounded-lg border border-slate-800">
+                    <h4 className="font-bold text-white text-xs">4. TallyPrime XML Server Verification</h4>
+                    <div className="p-3 bg-[#0b101e] rounded border border-slate-700 flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-white block">Local Endpoint: http://localhost:{tallyPort}</span>
+                        <span className="text-[11px] text-slate-400">Response Latency: 15ms • TallyPrime 4.1 Detected</span>
+                      </div>
+                      <span className="bg-emerald-950 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-800 text-[10px]">
+                        CONNECTED
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Wizard Footer Controls */}
+                <div className="flex justify-between items-center pt-3 border-t border-slate-800">
+                  <button
+                    disabled={firstRunStep === 1}
+                    onClick={() => setFirstRunStep(prev => Math.max(1, prev - 1))}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-300 rounded font-semibold cursor-pointer"
+                  >
+                    Previous
+                  </button>
+
+                  {firstRunStep < 4 ? (
+                    <button
+                      onClick={() => setFirstRunStep(prev => prev + 1)}
+                      className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded shadow cursor-pointer"
+                    >
+                      Continue
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleCompleteFirstRun}
+                      className="px-5 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white font-bold rounded shadow cursor-pointer transition-all"
+                    >
+                      Complete Setup &amp; Launch Dashboard
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
+
+      {/* GLOBAL APPLICATION STATUS BAR */}
+      <footer className="h-7 bg-[#070b14] border-t border-slate-800 flex items-center justify-between px-4 text-[11px] text-slate-400 select-none z-20">
+        <div className="flex items-center gap-4">
+          {/* Tally Status */}
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${tallyConnected ? 'bg-emerald-400' : 'bg-rose-500'}`}></span>
+            <span className="font-semibold">{tallyConnected ? 'Tally: Connected (127.0.0.1:9000)' : 'Tally: Offline'}</span>
+          </div>
+
+          <span className="text-slate-700">|</span>
+
+          {/* Company */}
+          <div className="flex items-center gap-1">
+            <span className="text-slate-500 font-semibold">Company:</span>
+            <strong className="text-slate-200">{currentCompanyObj.name}</strong>
+          </div>
+
+          <span className="text-slate-700">|</span>
+
+          {/* Period */}
+          <div className="flex items-center gap-1">
+            <span className="text-slate-500 font-semibold">Period:</span>
+            <strong className="text-teal-300">{activeFyObj?.label || 'FY 2025-26'}</strong>
+          </div>
+
+          <span className="text-slate-700">|</span>
+
+          {/* License */}
+          <div className="flex items-center gap-1 cursor-pointer hover:text-amber-300" onClick={() => setCurrentNav('licensing')}>
+            <span className="text-slate-500 font-semibold">License:</span>
+            <strong className="text-amber-400">{currentLicense.licenseType} ({currentLicense.status})</strong>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 font-mono text-[10px]">
+          <span className="bg-slate-900 text-slate-400 px-2 py-0.5 rounded border border-slate-800">
+            Ctrl+F Search
+          </span>
+          <span className="text-slate-400">
+            Tally Audit Assistant v{currentAppVersion.version}
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }

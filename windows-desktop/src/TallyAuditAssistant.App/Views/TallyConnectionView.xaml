@@ -70,10 +70,41 @@
                 </Border>
             </Grid>
 
-            <!-- Company Profile Inspection Card -->
+            <!-- Step 2 & 3: Select Company & Confirm Audit Period -->
             <Border Padding="16" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,20">
                 <StackPanel>
-                    <TextBlock Text="Active Company Statutory Profile" FontWeight="Bold" FontSize="15" Foreground="White" Margin="0,0,0,10"/>
+                    <TextBlock Text="Step 2 &amp; 3: Select Company &amp; Confirm Audit Period" FontWeight="Bold" FontSize="15" Foreground="White" Margin="0,0,0,12"/>
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Company Selector -->
+                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                            <TextBlock Text="Select Company" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
+                            <ComboBox ItemsSource="{Binding AvailableCompanies}" SelectedItem="{Binding SelectedCompany}" Padding="8" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}"/>
+                        </StackPanel>
+
+                        <!-- From Date -->
+                        <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                            <TextBlock Text="Audit From Date" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
+                            <DatePicker SelectedDate="{Binding FromDate}" Padding="4" Background="#0F172A" BorderBrush="{StaticResource BorderBrush}"/>
+                        </StackPanel>
+
+                        <!-- To Date -->
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Audit To Date" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
+                            <DatePicker SelectedDate="{Binding ToDate}" Padding="4" Background="#0F172A" BorderBrush="{StaticResource BorderBrush}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="{Binding ValidationMessage}" Foreground="#EF4444" FontWeight="SemiBold" Margin="0,0,0,12"/>
+
+                    <Separator Background="{StaticResource BorderBrush}" Margin="0,0,0,12"/>
+
+                    <TextBlock Text="Active Company Statutory Profile" FontWeight="Bold" FontSize="14" Foreground="White" Margin="0,0,0,10"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />

@@ -6,7 +6,8 @@ export type ExceptionModule =
   | 'TDS Withholding' 
   | 'Duplicate Detection' 
   | 'Sequencing' 
-  | 'Anomaly & Outlier';
+  | 'Anomaly & Outlier'
+  | 'Planning & Risk';
 
 export type ExceptionReviewStatus = 
   | 'Requires Review - Pending' 
@@ -81,6 +82,7 @@ export interface SourceVoucherDetail {
   voucherDate: string;
   referenceNumber?: string;
   partyLedgerName: string;
+  primaryLedger?: string;
   partyGstin?: string;
   partyPan?: string;
   totalAmount: number;
@@ -1208,6 +1210,65 @@ export const allSynchronizedVouchers: SourceVoucherDetail[] = [
   }
 ];
 
+export interface ReconciliationFinding {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  category: 'Trial Balance' | 'Ledger-Voucher' | 'GST' | 'TDS' | 'Bank';
+  severity: ExceptionSeverity;
+  expectedAmount: number;
+  actualAmount: number;
+  difference: number;
+  ledgerName: string;
+  period: string;
+  evidenceJson: string;
+  whyFlagged: string;
+  status: ExceptionReviewStatus;
+}
+
+export const initialReconciliationFindings: ReconciliationFinding[] = [
+  {
+    id: 'REC-001',
+    ruleId: 'REC-TB-01',
+    ruleName: 'Trial Balance vs Ledger Summation Consistency',
+    category: 'Trial Balance',
+    severity: 'High',
+    expectedAmount: 1420500,
+    actualAmount: 1418500,
+    difference: 2000,
+    ledgerName: 'HDFC Bank A/c 502000',
+    period: 'Apr-2025 to Mar-2026',
+    evidenceJson: JSON.stringify({
+      TrialBalanceBalance: 1420500,
+      SumOfTransactions: 1418500,
+      OpeningBalance: 850000,
+      TotalDebits: 1200000,
+      TotalCredits: 631500
+    }, null, 2),
+    whyFlagged: 'The closing balance in the Trial Balance for HDFC Bank does not match the sum of opening balance and all recorded transactions. A difference of ₹2,000 exists.',
+    status: 'Requires Review - Pending'
+  },
+  {
+    id: 'REC-002',
+    ruleId: 'REC-GST-01',
+    ruleName: 'GSTR-3B vs Ledger Tax Liability Reconciliation',
+    category: 'GST',
+    severity: 'Critical',
+    expectedAmount: 148900,
+    actualAmount: 142500,
+    difference: 6400,
+    ledgerName: 'Output CGST @ 9%',
+    period: 'Jun-2025',
+    evidenceJson: JSON.stringify({
+      LedgerBalance: 148900,
+      GSTR3B_Table3_1_a: 142500,
+      UnreconciledVouchers: ['SAL/25-26/044', 'SAL/25-26/045']
+    }, null, 2),
+    whyFlagged: 'The total tax liability recorded in Output CGST ledger (₹1,48,900) exceeds the liability reported in GSTR-3B (₹1,42,500) for June 2025.',
+    status: 'Requires Review - Pending'
+  }
+];
+
 export const allSynchronizedLedgers: RelatedLedgerInfo[] = [
   {
     ledgerName: 'Acme Technologies Pvt Ltd',
@@ -1296,5 +1357,639 @@ export const allSynchronizedLedgers: RelatedLedgerInfo[] = [
     openingBalance: 18000,
     currentBalance: 92000,
     closingBalanceType: 'Cr'
+  }
+];
+
+export interface AuditArea {
+  id: string;
+  name: string;
+  isEnabled: boolean;
+  riskLevel: 'Low' | 'Medium' | 'High';
+  findingsCount: number;
+}
+
+export interface AuditPlan {
+  id: string;
+  companyId: string;
+  companyName: string;
+  financialPeriod: string;
+  createdAt: string;
+  updatedAt: string;
+  status: 'Draft' | 'In Progress' | 'Review' | 'Completed';
+  materialityAmount: number;
+  performanceMaterialityAmount: number;
+  trivialThreshold: number;
+  materialityBasis: 'Revenue' | 'Profit' | 'Assets' | 'Equity' | 'Other';
+  notes: string;
+  selectedAreas: AuditArea[];
+}
+
+export interface AuditRisk {
+  id: string;
+  planId: string;
+  auditArea: string;
+  description: string;
+  indicator: string;
+  evidenceSource: string;
+  likelihood: number; // 1-5
+  impact: number; // 1-5
+  riskLevel: 'Low' | 'Medium' | 'High';
+  status: 'Open' | 'Addressed' | 'Mitigated';
+  remarks: string;
+}
+
+export interface AuditProcedure {
+  id: string;
+  planId: string;
+  auditArea: string;
+  name: string;
+  objective: string;
+  description: string;
+  status: 'Not Started' | 'In Progress' | 'Completed' | 'Not Applicable';
+  startedAt?: string;
+  completedAt?: string;
+  result?: string;
+  remarks: string;
+  linkedFindingIds: string[];
+  requiredEvidenceCount?: number;
+  linkedEvidenceIds?: string[];
+}
+
+export interface AuditSampleItem {
+  id: string;
+  sampleNumber?: number;
+  voucherNumber: string;
+  voucherDate: string;
+  amount: number;
+  selectionReason: string;
+  testResult: 'Pass' | 'Exception' | 'Not Tested' | 'Inconclusive' | 'Not Applicable';
+  remarks: string;
+  evidenceReference: string;
+  linkedEvidenceId?: string;
+  auditorNotes?: string;
+}
+
+export interface AuditSample {
+  id: string;
+  planId: string;
+  auditArea: string;
+  procedureId: string;
+  selectionMethod: 'Random' | 'Systematic' | 'Targeted' | 'Material-Item' | 'Risk-Based';
+  populationSize: number;
+  sampleSize: number;
+  randomSeed?: string;
+  interval?: number;
+  startPosition?: number;
+  items: AuditSampleItem[];
+}
+
+export type AuditEvidenceType = 
+  | 'Tally Transaction'
+  | 'Tally Ledger'
+  | 'Tally Report'
+  | 'Invoice'
+  | 'Purchase Document'
+  | 'Sales Document'
+  | 'Bank Statement'
+  | 'GST Document'
+  | 'TDS Document'
+  | 'Agreement'
+  | 'Confirmation'
+  | 'Calculation'
+  | 'Working Paper'
+  | 'Other';
+
+export interface AuditEvidence {
+  id: string;
+  planId: string;
+  auditArea: string;
+  procedureId?: string;
+  sampleId?: string;
+  sampleItemId?: string;
+  findingId?: string;
+  evidenceType: AuditEvidenceType;
+  description: string;
+  referenceNumber: string;
+  source: string;
+  fileName?: string;
+  filePath?: string;
+  fileHash?: string;
+  sizeBytes?: number;
+  dateReceived?: string;
+  uploadedAt: string;
+  reviewedAt?: string;
+  status: 'Requested' | 'Received' | 'Reviewed' | 'Accepted' | 'Needs Follow-up' | 'Not Applicable';
+  auditorRemarks: string;
+  // Tally Source Evidence fields (Requirement 4)
+  voucherId?: string;
+  voucherNumber?: string;
+  voucherDate?: string;
+  voucherType?: string;
+  ledger?: string;
+  party?: string;
+  amount?: number;
+  taxAmount?: number;
+  sourceReference?: string;
+  // Integrity & Storage metadata (Requirement 6 & 7)
+  fileIntegrityStatus?: 'Verified' | 'Changed' | 'Corrupted';
+  storagePath?: string;
+}
+
+export interface EvidenceRequest {
+  id: string;
+  planId: string;
+  auditArea: string;
+  procedureId?: string;
+  description: string;
+  requestedFrom: string;
+  requestedDate: string;
+  dueDate: string;
+  status: 'Requested' | 'Received' | 'Reviewed' | 'Closed' | 'Cancelled';
+  remarks: string;
+}
+
+export interface WorkingPaper {
+  id: string;
+  planId: string;
+  auditArea: string;
+  procedureId?: string;
+  findingId?: string;
+  sampleId?: string;
+  title: string;
+  objective: string;
+  procedurePerformed: string;
+  population: string;
+  sample: string;
+  evidenceReferences: string[];
+  observation: string;
+  difference: number;
+  auditorRemarks: string;
+  conclusion: 'No Exception Noted' | 'Exception Noted' | 'Further Review Required' | 'Unable to Complete' | 'Not Applicable';
+  reviewerRemarks: string;
+  status: 'Draft' | 'Submitted for Review' | 'Reviewed' | 'Review Notes' | 'Finalized';
+  preparedBy: string;
+  preparedDate: string;
+  reviewedBy?: string;
+  reviewedDate?: string;
+}
+
+export interface WorkingPaperTemplate {
+  id: string;
+  name: string;
+  auditArea: string;
+  defaultTitle: string;
+  objective: string;
+  suggestedProcedure: string;
+  populationDescription: string;
+  sampleCriteria: string;
+  commonObservationGuide: string;
+  standardConclusion: 'No Exception Noted' | 'Exception Noted' | 'Further Review Required' | 'Unable to Complete' | 'Not Applicable';
+}
+
+export const predefinedWorkingPaperTemplates: WorkingPaperTemplate[] = [
+  {
+    id: 'WPT-GST',
+    name: 'Statutory GST - Tax Component & Rate Verification',
+    auditArea: 'GST',
+    defaultTitle: 'GST Interstate vs Intrastate & ITC Reconciliation Working Paper',
+    objective: 'Verify whether input tax credit is availed on valid tax invoices and whether interstate vs intrastate GST components (IGST vs CGST/SGST) are correctly mapped per POS rules.',
+    suggestedProcedure: '1. Scrutinize supplier GSTIN state prefix against place of supply on voucher.\n2. Verify GSTR-2B compliance.\n3. Validate tax rates against HSN definitions.',
+    populationDescription: 'All B2B purchase vouchers with GST components for the fiscal period (Population: 3,840 records)',
+    sampleCriteria: 'High value material transactions > ₹1,00,000 and all interstate purchases from unregistered or mixed-state vendors.',
+    commonObservationGuide: 'Check for local taxes applied on interstate supplies or missing vendor GSTINs.',
+    standardConclusion: 'Exception Noted'
+  },
+  {
+    id: 'WPT-REV',
+    name: 'Revenue & Trade Receivables - Substantive Testing',
+    auditArea: 'Revenue / Sales',
+    defaultTitle: 'Revenue Recognition & Trade Debtor Cut-off Working Paper',
+    objective: 'Substantiate accuracy, occurrence, completeness, and cut-off of sales transactions recorded during the financial year.',
+    suggestedProcedure: '1. Inspect sales orders, e-way bills, and customer acknowledgement.\n2. Trace debtor opening and closing ledger balances to external confirmations.\n3. Test year-end cut-off invoices (+/- 5 days of FY close).',
+    populationDescription: 'All sales invoices generated in Tally during FY 2025-26 (Population: 5,420 invoices, Total Value: ₹18.42 Cr)',
+    sampleCriteria: 'All invoices exceeding Performance Materiality (₹1,87,500) + systematic sampling of 20 routine invoices.',
+    commonObservationGuide: 'Verify serial sequencing, date alignment, and GST e-invoice IRN validity.',
+    standardConclusion: 'No Exception Noted'
+  },
+  {
+    id: 'WPT-PUR',
+    name: 'Purchases & Trade Payables - 3-Way Matching & ITC',
+    auditArea: 'Purchases',
+    defaultTitle: 'Procurement Completeness & Trade Creditors Scrutiny',
+    objective: 'Ascertain that goods and services received have been recorded in the appropriate accounting period and reflect legitimate company obligations.',
+    suggestedProcedure: '1. Perform 3-way match: Purchase Order vs Goods Receipt Note (GRN) vs Vendor Tax Invoice.\n2. Review purchase register for unrecorded liabilities.\n3. Validate TDS deduction under section 194Q.',
+    populationDescription: 'All procurement vouchers recorded under Sundry Creditors (Population: 4,110 vouchers)',
+    sampleCriteria: 'Stratified sampling across major raw material suppliers and top 10 vendor accounts.',
+    commonObservationGuide: 'Watch for missing purchase order numbers or discrepancies between GRN and Invoice date.',
+    standardConclusion: 'No Exception Noted'
+  },
+  {
+    id: 'WPT-BANK',
+    name: 'Cash & Bank Balances - BRS & Physical Count',
+    auditArea: 'Cash',
+    defaultTitle: 'Bank Reconciliation & Petty Cash Imprest Verification',
+    objective: 'Confirm the physical existence, ownership, and accurate cutoff of liquid cash and bank balances appearing in the balance sheet.',
+    suggestedProcedure: '1. Obtain direct independent bank confirmation letters.\n2. Verify monthly Bank Reconciliation Statements (BRS).\n3. Conduct surprise physical cash verification and compare against Tally cash book.',
+    populationDescription: 'All transactions posted to Bank Accounts and Cash-in-Hand ledgers across FY 2025-26',
+    sampleCriteria: '100% verification of month-end BRS for all active bank accounts; sample of unpresented cheques outstanding > 90 days.',
+    commonObservationGuide: 'Look for negative intraday cash balances and stale cheques not written back.',
+    standardConclusion: 'No Exception Noted'
+  },
+  {
+    id: 'WPT-TDS',
+    name: 'Statutory TDS - Withholding & Deposit Compliance',
+    auditArea: 'TDS',
+    defaultTitle: 'TDS Applicability, Section Rates & Challan Remittance Working Paper',
+    objective: 'Evaluate compliance with Chapter XVII-B of the Income Tax Act 1961 regarding deduction rates, threshold limits, and timely remittance to the government.',
+    suggestedProcedure: '1. Filter payments for contractors (194C), professionals (194J), rent (194I), and goods (194Q).\n2. Test deduction rates based on PAN status.\n3. Trace TDS deducted to OLTAS deposit challans and Form 26Q returns.',
+    populationDescription: 'All expense vouchers attracting withholding tax obligations (Population: 1,120 transactions)',
+    sampleCriteria: 'Threshold-based selection of vendor ledger totals exceeding annual statutory limits.',
+    commonObservationGuide: 'Verify if 20% higher TDS rate was applied for non-furnishing or inoperative PANs under Sec 206AA.',
+    standardConclusion: 'Further Review Required'
+  },
+  {
+    id: 'WPT-CUSTOM',
+    name: 'Blank / Custom Audit Procedure Working Paper',
+    auditArea: 'General',
+    defaultTitle: 'General Substantive Procedure Working Paper',
+    objective: 'Document specific substantive or analytical audit procedures performed by the engagement team.',
+    suggestedProcedure: 'Detail the exact audit testing steps, verification source documents, and sampling strategy.',
+    populationDescription: 'Targeted ledger transactions under examination',
+    sampleCriteria: 'Selected based on professional auditor judgment and risk assessment.',
+    commonObservationGuide: 'Record factual observations and variance calculations.',
+    standardConclusion: 'No Exception Noted'
+  }
+];
+
+export interface AuditActivity {
+  id: string;
+  planId: string;
+  timestamp: string;
+  user: string;
+  action: string;
+  details: string;
+}
+
+export interface AuditAmendment {
+  id: string;
+  planId: string;
+  entityType: 'AuditPlan' | 'WorkingPaper' | 'Finding' | 'Evidence';
+  entityId: string;
+  action: 'Created' | 'Modified' | 'Deleted' | 'Reopened';
+  oldValue?: string;
+  newValue?: string;
+  user: string;
+  timestamp: string;
+  reason: string;
+}
+
+export const initialAuditPlan: AuditPlan = {
+  id: 'PLAN-2026-001',
+  companyId: 'COMP-001',
+  companyName: 'Apex Industrial Solutions Pvt Ltd',
+  financialPeriod: 'FY 2025-26',
+  createdAt: '2026-09-20T10:00:00Z',
+  updatedAt: '2026-09-25T09:14:00Z',
+  status: 'In Progress',
+  materialityAmount: 250000,
+  performanceMaterialityAmount: 187500,
+  trivialThreshold: 12500,
+  materialityBasis: 'Revenue',
+  notes: 'Audit focused on GST compliance and revenue recognition for the FY.',
+  selectedAreas: [
+    { id: 'AREA-001', name: 'Revenue / Sales', isEnabled: true, riskLevel: 'Medium', findingsCount: 3 },
+    { id: 'AREA-002', name: 'Purchases', isEnabled: true, riskLevel: 'Low', findingsCount: 2 },
+    { id: 'AREA-003', name: 'GST', isEnabled: true, riskLevel: 'High', findingsCount: 8 },
+    { id: 'AREA-004', name: 'TDS', isEnabled: true, riskLevel: 'Medium', findingsCount: 4 },
+    { id: 'AREA-005', name: 'Cash', isEnabled: true, riskLevel: 'Medium', findingsCount: 1 },
+    { id: 'AREA-006', name: 'Journal Entries', isEnabled: true, riskLevel: 'High', findingsCount: 2 }
+  ]
+};
+
+export const initialAuditRisks: AuditRisk[] = [
+  {
+    id: 'RISK-001',
+    planId: 'PLAN-2026-001',
+    auditArea: 'GST',
+    description: 'Incorrect tax rate application or interstate vs intrastate mismatch.',
+    indicator: 'GST reconciliation differences and rule violations detected.',
+    evidenceSource: 'GSTR-3B vs Ledger Comparison',
+    likelihood: 4,
+    impact: 5,
+    riskLevel: 'High',
+    status: 'Open',
+    remarks: 'Requires detailed verification of interstate purchase vouchers.'
+  },
+  {
+    id: 'RISK-002',
+    planId: 'PLAN-2026-001',
+    auditArea: 'Cash',
+    description: 'Potential physical cash deficit or unrecorded disbursements.',
+    indicator: 'Intraday negative cash balance finding.',
+    evidenceSource: 'Petty Cash Ledger',
+    likelihood: 2,
+    impact: 4,
+    riskLevel: 'Medium',
+    status: 'Open',
+    remarks: 'Verify replenishment timing vs disbursement.'
+  }
+];
+
+export const initialAuditProcedures: AuditProcedure[] = [
+  {
+    id: 'PROC-001',
+    planId: 'PLAN-2026-001',
+    auditArea: 'GST',
+    name: 'Verify Interstate vs Intrastate Allocation',
+    objective: 'Ensure correct GST component application based on Place of Supply.',
+    description: 'Select samples of purchase vouchers with IGST/CGST/SGST and verify against supplier GSTIN state codes.',
+    status: 'In Progress',
+    remarks: 'Focusing on supplier Tata Steel Gujarat plant mismatch.',
+    linkedFindingIds: ['EXC-2026-001'],
+    requiredEvidenceCount: 2,
+    linkedEvidenceIds: ['EVD-001', 'EVD-TALLY-001']
+  },
+  {
+    id: 'PROC-002',
+    planId: 'PLAN-2026-001',
+    auditArea: 'Revenue / Sales',
+    name: 'Test Year-End Cut-off on Sales Invoices',
+    objective: 'Ascertain that sales are recorded in the proper financial year.',
+    description: 'Examine sales invoices 5 days before and after fiscal year-end, tracing to dispatch notes and e-Way bills.',
+    status: 'Completed',
+    remarks: 'Cut-off testing complete; all invoices tested were recognized in correct period.',
+    linkedFindingIds: [],
+    requiredEvidenceCount: 1,
+    linkedEvidenceIds: ['EVD-004']
+  },
+  {
+    id: 'PROC-003',
+    planId: 'PLAN-2026-001',
+    auditArea: 'Purchases',
+    name: '3-Way Match Verification of Major Capital Goods',
+    objective: 'Confirm valid receipt of goods, vendor invoice amount, and PO authorization.',
+    description: 'Match purchase invoice, GRN, and PO for transactions exceeding ₹1,00,000.',
+    status: 'In Progress',
+    remarks: 'Awaiting delivery challan for 2 purchase vouchers.',
+    linkedFindingIds: ['EXC-2026-002'],
+    requiredEvidenceCount: 2,
+    linkedEvidenceIds: ['EVD-001', 'EVD-TALLY-001']
+  },
+  {
+    id: 'PROC-004',
+    planId: 'PLAN-2026-001',
+    auditArea: 'Cash',
+    name: 'Monthly Bank Reconciliation Statement Audit',
+    objective: 'Ensure all reconciling items between Tally cash/bank book and bank statements are valid and timely cleared.',
+    description: 'Examine bank confirmation and monthly BRS for all operational bank accounts.',
+    status: 'Completed',
+    remarks: 'HDFC & SBI statements verified against closing ledger balances.',
+    linkedFindingIds: [],
+    requiredEvidenceCount: 1,
+    linkedEvidenceIds: ['EVD-003']
+  }
+];
+
+export const initialAuditEvidence: AuditEvidence[] = [
+  {
+    id: 'EVD-001',
+    planId: 'PLAN-2026-001',
+    auditArea: 'GST',
+    procedureId: 'PROC-001',
+    findingId: 'EXC-2026-001',
+    evidenceType: 'Invoice',
+    description: 'Tata Steel Gujarat Plant Purchase Invoice (Scanned Copy)',
+    referenceNumber: 'TSL-GJ-8891',
+    source: 'External PDF Upload',
+    fileName: 'INV_TSL_GJ_8891.pdf',
+    filePath: 'AuditData/Apex Industrial Solutions Pvt Ltd/FY 2025-26/PLAN-2026-001/Evidence/INV_TSL_GJ_8891.pdf',
+    fileHash: 'sha256:7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069',
+    fileIntegrityStatus: 'Verified',
+    storagePath: 'AuditData/Apex Industrial Solutions Pvt Ltd/FY 2025-26/PLAN-2026-001/Evidence/INV_TSL_GJ_8891.pdf',
+    sizeBytes: 425600,
+    dateReceived: '2026-09-25',
+    uploadedAt: '2026-09-25T11:00:00Z',
+    reviewedAt: '2026-09-25T14:30:00Z',
+    status: 'Accepted',
+    auditorRemarks: 'Verified against Tally voucher PUR-05. Confirms supplier GSTIN starts with state code 24 (Gujarat).'
+  },
+  {
+    id: 'EVD-TALLY-001',
+    planId: 'PLAN-2026-001',
+    auditArea: 'GST',
+    procedureId: 'PROC-001',
+    findingId: 'EXC-2026-001',
+    evidenceType: 'Tally Transaction',
+    description: 'Tally Synchronized Voucher PUR-05 (Tata Steel Ltd)',
+    referenceNumber: 'PUR-05',
+    source: 'Tally ERP/Prime Sync (Source Evidence)',
+    voucherId: 'V5',
+    voucherNumber: 'PUR-05',
+    voucherDate: '05-Jun-2025',
+    voucherType: 'Purchase',
+    ledger: 'Raw Material Purchases - Steel',
+    party: 'Tata Steel Ltd (Gujarat Plant)',
+    amount: 147500,
+    taxAmount: 22500,
+    sourceReference: 'Gateway of Tally > Account Books > Purchase Register > PUR-05',
+    fileIntegrityStatus: 'Verified',
+    uploadedAt: '2026-09-25T09:14:00Z',
+    status: 'Accepted',
+    auditorRemarks: 'Tagged directly as Source Evidence from local SQLite database during voucher review.'
+  },
+  {
+    id: 'EVD-003',
+    planId: 'PLAN-2026-001',
+    auditArea: 'Cash',
+    procedureId: 'PROC-004',
+    evidenceType: 'Bank Statement',
+    description: 'HDFC Bank Ltd Current Account E-Statement (Month ended March 2026)',
+    referenceNumber: 'HDFC-CA-00928371',
+    source: 'NetBanking Download',
+    fileName: 'HDFC_Bank_Stmt_March2026.pdf',
+    filePath: 'AuditData/Apex Industrial Solutions Pvt Ltd/FY 2025-26/PLAN-2026-001/Evidence/HDFC_Bank_Stmt_March2026.pdf',
+    fileHash: 'sha256:d54128f72f073d8a149171b3e819b7875b22b07e78d91a9f384d5dfd6efdf81e',
+    fileIntegrityStatus: 'Verified',
+    storagePath: 'AuditData/Apex Industrial Solutions Pvt Ltd/FY 2025-26/PLAN-2026-001/Evidence/HDFC_Bank_Stmt_March2026.pdf',
+    sizeBytes: 1248000,
+    dateReceived: '2026-09-24',
+    uploadedAt: '2026-09-24T16:20:00Z',
+    reviewedAt: '2026-09-25T10:15:00Z',
+    status: 'Accepted',
+    auditorRemarks: 'Closing balance of ₹14,25,800 matches Tally BRS after adjusting unpresented cheque #402918.'
+  },
+  {
+    id: 'EVD-004',
+    planId: 'PLAN-2026-001',
+    auditArea: 'Revenue / Sales',
+    procedureId: 'PROC-002',
+    evidenceType: 'GST Document',
+    description: 'GSTR-2B Auto-Drafted ITC Statement from GST Portal (Excel Export)',
+    referenceNumber: 'GSTR2B-NOV2025-27AAACT2727Q',
+    source: 'GST Portal API Export',
+    fileName: 'GSTR2B_Nov2025_Portal.xlsx',
+    filePath: 'AuditData/Apex Industrial Solutions Pvt Ltd/FY 2025-26/PLAN-2026-001/Evidence/GSTR2B_Nov2025_Portal.xlsx',
+    fileHash: 'sha256:a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef0',
+    fileIntegrityStatus: 'Verified',
+    storagePath: 'AuditData/Apex Industrial Solutions Pvt Ltd/FY 2025-26/PLAN-2026-001/Evidence/GSTR2B_Nov2025_Portal.xlsx',
+    sizeBytes: 892000,
+    dateReceived: '2026-09-25',
+    uploadedAt: '2026-09-25T13:45:00Z',
+    status: 'Reviewed',
+    auditorRemarks: 'Used for reconciliation with purchase register ITC.'
+  },
+  {
+    id: 'EVD-005',
+    planId: 'PLAN-2026-001',
+    auditArea: 'General',
+    evidenceType: 'Agreement',
+    description: 'Commercial Office & Warehouse Lease Agreement 2025-2028',
+    referenceNumber: 'AGR-LEASE-2025-01',
+    source: 'Legal Department',
+    fileName: 'Industrial_Premises_Lease_Deed.pdf',
+    filePath: 'AuditData/Apex Industrial Solutions Pvt Ltd/FY 2025-26/PLAN-2026-001/Evidence/Industrial_Premises_Lease_Deed.pdf',
+    fileHash: 'sha256:e4d909c290d0fb1ca068ffaddf22cbd0add8abdf1a0e72650777ac85c7023f2f',
+    fileIntegrityStatus: 'Verified',
+    storagePath: 'AuditData/Apex Industrial Solutions Pvt Ltd/FY 2025-26/PLAN-2026-001/Evidence/Industrial_Premises_Lease_Deed.pdf',
+    sizeBytes: 2840000,
+    dateReceived: '2026-09-21',
+    uploadedAt: '2026-09-21T10:00:00Z',
+    status: 'Accepted',
+    auditorRemarks: 'Monthly rent ₹85,000 + GST. Validates rent expense vouchers and TDS deduction under Sec 194I.'
+  }
+];
+
+export const initialEvidenceRequests: EvidenceRequest[] = [
+  {
+    id: 'REQ-001',
+    planId: 'PLAN-2026-001',
+    auditArea: 'GST',
+    procedureId: 'PROC-001',
+    description: 'Missing RCM supporting transport consignment notes (LR copies) for July 2025',
+    requestedFrom: 'Accounts Payable Team (Attn: Mr. Suresh K.)',
+    requestedDate: '2026-09-22',
+    dueDate: '2026-09-28',
+    status: 'Received',
+    remarks: 'Scanned LR copies received via secure internal transfer on 25-Sep-2026.'
+  },
+  {
+    id: 'REQ-002',
+    planId: 'PLAN-2026-001',
+    auditArea: 'Cash',
+    procedureId: 'PROC-004',
+    description: 'Standard Bank Confirmation Certificate as on 31st March 2026 for SBI Credit Facility',
+    requestedFrom: 'State Bank of India (Industrial Finance Branch)',
+    requestedDate: '2026-09-23',
+    dueDate: '2026-10-05',
+    status: 'Requested',
+    remarks: 'Formal confirmation letter dispatched under auditor cover letter.'
+  },
+  {
+    id: 'REQ-003',
+    planId: 'PLAN-2026-001',
+    auditArea: 'TDS',
+    description: 'Lower TDS Deduction Certificate under Section 197 for TechLogix Systems',
+    requestedFrom: 'Vendor Finance Controller',
+    requestedDate: '2026-09-20',
+    dueDate: '2026-09-24',
+    status: 'Requested',
+    remarks: 'Due date passed; reminder sent to client accounts manager.'
+  }
+];
+
+export const initialWorkingPapers: WorkingPaper[] = [
+  {
+    id: 'WP-001',
+    planId: 'PLAN-2026-001',
+    auditArea: 'GST',
+    procedureId: 'PROC-001',
+    findingId: 'EXC-2026-001',
+    title: 'Verification of Interstate Purchases & Place of Supply (POS)',
+    objective: 'Confirm correct IGST application for Gujarat vendors and identify misclassified local tax postings.',
+    procedurePerformed: 'Selected 5 high-value purchase vouchers from Gujarat suppliers and verified against supplier GSTIN prefix 24.',
+    population: 'All interstate purchase vouchers for FY 2025-26 (3,840 records)',
+    sample: '5 Vouchers (₹12,45,000 total)',
+    evidenceReferences: ['EVD-001', 'EVD-TALLY-001'],
+    observation: 'Voucher PUR-05 (Tata Steel Gujarat) was erroneously recorded with local CGST 9% + SGST 9% instead of IGST 18%.',
+    difference: 22500,
+    auditorRemarks: 'Tax discrepancy of ₹22,500 identified. Supplier has filed invoice under B2B with POS 27. Rectification entry required in Tally.',
+    conclusion: 'Exception Noted',
+    reviewerRemarks: 'Agreed with finding. Management has agreed to pass reversal entry and adjust in subsequent GSTR-3B return.',
+    status: 'Finalized',
+    preparedBy: 'CA. Sanjiv (Senior Auditor)',
+    preparedDate: '2026-09-25',
+    reviewedBy: 'Partner (Audit Head)',
+    reviewedDate: '2026-09-25'
+  },
+  {
+    id: 'WP-002',
+    planId: 'PLAN-2026-001',
+    auditArea: 'Revenue / Sales',
+    procedureId: 'PROC-002',
+    title: 'Revenue Recognition & Year-End Sales Cut-off Substantive Testing',
+    objective: 'Confirm that sales invoiced in March 2026 reflect goods physically dispatched prior to midnight 31st March 2026.',
+    procedurePerformed: 'Selected last 10 invoices of FY 2025-26 and first 10 invoices of FY 2026-27. Traced each to e-Way bill generate time and transporter delivery receipt.',
+    population: 'All sales vouchers recorded in Q4 FY 2025-26 (1,450 invoices)',
+    sample: '20 Invoices spanning cut-off window (₹38,90,000 total)',
+    evidenceReferences: ['EVD-004'],
+    observation: 'All sampled sales invoices matched dispatch dates and delivery log. No premature revenue recognition detected.',
+    difference: 0,
+    auditorRemarks: 'Cut-off assertion verified without exception.',
+    conclusion: 'No Exception Noted',
+    reviewerRemarks: 'Sampling methodology is appropriate. Satisfied with audit evidence obtained.',
+    status: 'Finalized',
+    preparedBy: 'Associate Auditor',
+    preparedDate: '2026-09-24',
+    reviewedBy: 'CA. Sanjiv (Senior Auditor)',
+    reviewedDate: '2026-09-25'
+  },
+  {
+    id: 'WP-003',
+    planId: 'PLAN-2026-001',
+    auditArea: 'Cash',
+    procedureId: 'PROC-004',
+    title: 'Bank Reconciliation & Petty Cash Surprise Verification',
+    objective: 'Ascertain accurate cutoff of liquid bank balances and absence of negative intraday cash balances.',
+    procedurePerformed: '1. Scrutinized month-end BRS for HDFC and SBI accounts. 2. Performed surprise physical cash count at factory cash chest.',
+    population: 'All 12 monthly BRS sheets and daily petty cash ledger',
+    sample: '100% of bank accounts + physical cash count on 24-Sep-2026',
+    evidenceReferences: ['EVD-003'],
+    observation: 'Physical cash tallied with Tally cash book within ₹12 rounding difference. No unrecorded cash disbursements.',
+    difference: 12,
+    auditorRemarks: 'Reconciling items on HDFC account are regular clearing items cleared by 5th April.',
+    conclusion: 'No Exception Noted',
+    reviewerRemarks: 'Physical cash count memo signed by custodian inspected and approved.',
+    status: 'Reviewed',
+    preparedBy: 'Associate Auditor',
+    preparedDate: '2026-09-24',
+    reviewedBy: 'CA. Sanjiv (Senior Auditor)',
+    reviewedDate: '2026-09-25'
+  }
+];
+
+export const initialAuditActivities: AuditActivity[] = [
+  {
+    id: 'ACT-001',
+    planId: 'PLAN-2026-001',
+    timestamp: '2026-09-25T09:15:00Z',
+    user: 'CA. Sanjiv (Senior Auditor)',
+    action: 'Audit Run Completed',
+    details: 'Automated audit rules executed across 14,280 vouchers. Identified 24 potential exceptions.'
+  },
+  {
+    id: 'ACT-002',
+    planId: 'PLAN-2026-001',
+    timestamp: '2026-09-25T11:05:00Z',
+    user: 'CA. Sanjiv (Senior Auditor)',
+    action: 'Evidence Registered',
+    details: 'Uploaded supplier invoice INV_TSL_GJ_8891.pdf and linked to finding EXC-2026-001.'
+  },
+  {
+    id: 'ACT-003',
+    planId: 'PLAN-2026-001',
+    timestamp: '2026-09-25T14:30:00Z',
+    user: 'CA. Sanjiv (Senior Auditor)',
+    action: 'Working Paper Signed Off',
+    details: 'Working paper WP-001 (Interstate Purchases) marked as Finalized.'
   }
 ];

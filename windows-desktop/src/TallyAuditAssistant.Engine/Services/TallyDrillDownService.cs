@@ -32,9 +32,9 @@ public class TallyDrillDownService : ITallyDrillDownService
 
         const string voucherSql = @"
             SELECT 
-                v.VoucherId,
+                v.Id AS VoucherId,
                 v.CompanyId,
-                c.CompanyName,
+                c.TallyCompanyName AS CompanyName,
                 v.VoucherNumber,
                 v.VoucherTypeName,
                 v.VoucherDate,
@@ -42,11 +42,10 @@ public class TallyDrillDownService : ITallyDrillDownService
                 v.PartyLedgerName,
                 v.TotalAmount,
                 v.Narration,
-                v.MasterId,
                 v.AlterId
             FROM Vouchers v
-            LEFT JOIN Companies c ON v.CompanyId = c.CompanyId
-            WHERE v.VoucherId = @VoucherId OR v.VoucherNumber = @VoucherId";
+            LEFT JOIN Companies c ON v.CompanyId = c.Id
+            WHERE v.Id = @VoucherId OR v.VoucherNumber = @VoucherId";
 
         var voucher = await connection.QueryFirstOrDefaultAsync<dynamic>(
             new CommandDefinition(voucherSql, new { VoucherId = voucherId }, cancellationToken: cancellationToken));
@@ -59,25 +58,25 @@ public class TallyDrillDownService : ITallyDrillDownService
 
         const string entriesSql = @"
             SELECT 
-                EntryId,
-                LedgerName,
-                ParentGroup,
-                Amount,
-                IsDebit,
-                HsnCode AS HsnOrSac,
-                TaxRate AS TaxOrTdsRate
-            FROM VoucherEntries
-            WHERE VoucherId = @VoucherId
-            ORDER BY EntryId";
+                ve.Id AS EntryId,
+                ve.LedgerName,
+                l.ParentGroup,
+                ve.Amount,
+                ve.IsDebit,
+                l.HsnCode AS HsnOrSac,
+                l.GstRate AS TaxOrTdsRate
+            FROM VoucherEntries ve
+            LEFT JOIN Ledgers l ON l.CompanyId = @CompanyId AND l.Name = ve.LedgerName
+            WHERE ve.VoucherId = @VoucherId";
 
         var entries = (await connection.QueryAsync<TallyVoucherLinePosting>(
-            new CommandDefinition(entriesSql, new { VoucherId = (string)voucher.VoucherId }, cancellationToken: cancellationToken))).ToList();
+            new CommandDefinition(entriesSql, new { CompanyId = companyId, VoucherId = (string)voucher.VoucherId }, cancellationToken: cancellationToken))).ToList();
 
         DateTime vDate = DateTime.TryParse((string)voucher.VoucherDate, out DateTime dt) ? dt : DateTime.Today;
         string companyName = (string)voucher.CompanyName ?? "Active Company";
         string voucherNumber = (string)voucher.VoucherNumber ?? voucherId;
         string voucherTypeName = (string)voucher.VoucherTypeName ?? "Journal";
-        string? masterId = (string?)voucher.MasterId;
+        string? masterId = null;
 
         var navGuide = GenerateNavigationGuide(companyName, voucherNumber, voucherTypeName, vDate, masterId);
 

@@ -41,12 +41,16 @@ import {
 
 interface AuditReportingModuleProps {
   exceptions: WorkspaceExceptionItem[];
+  companyName?: string;
+  financialYear?: string;
   onOpenDrillDown?: (exception: WorkspaceExceptionItem) => void;
   onNavigateToWorkspace?: (exceptionId?: string) => void;
 }
 
 export const AuditReportingModule: React.FC<AuditReportingModuleProps> = ({
   exceptions,
+  companyName,
+  financialYear,
   onOpenDrillDown,
   onNavigateToWorkspace
 }) => {
@@ -59,7 +63,7 @@ export const AuditReportingModule: React.FC<AuditReportingModuleProps> = ({
   const [exportSuccessMessage, setExportSuccessMessage] = useState<string | null>(null);
 
   const activeReportDef = reportDefinitions.find(r => r.id === selectedReportType) || reportDefinitions[0];
-  const metadata = getReportMetadata(exceptions);
+  const metadata = getReportMetadata(exceptions, companyName, financialYear);
   const filteredForReport = filterExceptionsForReport(selectedReportType, exceptions);
 
   const displayItems = filteredForReport.filter(item => {

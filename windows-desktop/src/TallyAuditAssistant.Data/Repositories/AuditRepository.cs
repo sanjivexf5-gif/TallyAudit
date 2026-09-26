@@ -150,4 +150,95 @@ public class AuditRepository : IAuditRepository
         var result = await connection.QueryAsync<AuditRule>(new CommandDefinition(sql, cancellationToken: cancellationToken));
         return result.ToList();
     }
+
+    public async Task<IReadOnlyList<AuditException>> GetExceptionsFilteredAsync(
+        string companyId,
+        string? category = null,
+        string? severity = null,
+        string? status = null,
+        string? searchQuery = null,
+        string? sortBy = null,
+        bool isDescending = true,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        var sql = "SELECT * FROM Exceptions WHERE CompanyId = @CompanyId";
+        var parameters = new DynamicParameters();
+        parameters.Add("CompanyId", companyId);
+
+        if (!string.IsNullOrEmpty(category) && category != "All")
+        {
+            sql += " AND Category = @Category";
+            if (Enum.TryParse<RuleCategory>(category, out var catEnum))
+            {
+                parameters.Add("Category", (int)catEnum);
+            }
+        }
+
+        if (!string.IsNullOrEmpty(severity) && severity != "All")
+        {
+            sql += " AND Severity = @Severity";
+            if (Enum.TryParse<SeverityLevel>(severity, out var sevEnum))
+            {
+                parameters.Add("Severity", (int)sevEnum);
+            }
+        }
+
+        if (!string.IsNullOrEmpty(status) && status != "All")
+        {
+            sql += " AND Status = @Status";
+            // Map Terminology terms
+            var statusTerm = status;
+            if (status == "Unreviewed") statusTerm = "Pending";
+            else if (status == "Accepted") statusTerm = "Resolved";
+            else if (status == "Needs Follow-up") statusTerm = "RequiresClientClarification";
+
+            if (Enum.TryParse<ReviewStatus>(statusTerm, out var statEnum))
+            {
+                parameters.Add("Status", (int)statEnum);
+            }
+        }
+
+        if (!string.IsNullOrEmpty(searchQuery))
+        {
+            sql += " AND (VoucherNumber LIKE @Query OR LedgerName LIKE @Query OR RuleName LIKE @Query OR SuggestedCorrection LIKE @Query)";
+            parameters.Add("Query", $"%{searchQuery}%");
+        }
+
+        // Sorting
+        var sortCol = "VoucherDate";
+        if (sortBy == "Amount") sortCol = "FlaggedAmount";
+        else if (sortBy == "Priority" || sortBy == "Severity") sortCol = "Severity";
+        else if (sortBy == "Category") sortCol = "Category";
+        else if (sortBy == "Review Status" || sortBy == "Status") sortCol = "Status";
+
+        var dir = isDescending ? "DESC" : "ASC";
+        sql += $" ORDER BY {sortCol} {dir}, FlaggedAt DESC";
+
+        var results = await connection.QueryAsync<AuditException>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        return results.ToList();
+    }
+
+    public async Task SaveAuditRunAsync(AuditRun run, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = @"
+            INSERT INTO AuditRuns (Id, CompanyId, Period, StartTime, EndTime, TransactionsAnalysed, FindingsGenerated, Status)
+            VALUES (@Id, @CompanyId, @Period, @StartTime, @EndTime, @TransactionsAnalysed, @FindingsGenerated, @Status)
+            ON CONFLICT(Id) DO UPDATE SET
+                EndTime = excluded.EndTime,
+                TransactionsAnalysed = excluded.TransactionsAnalysed,
+                FindingsGenerated = excluded.FindingsGenerated,
+                Status = excluded.Status;
+        ";
+        await connection.ExecuteAsync(new CommandDefinition(sql, run, cancellationToken: cancellationToken));
+    }
+
+    public async Task<IReadOnlyList<AuditRun>> GetAuditRunsAsync(string companyId, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = "SELECT * FROM AuditRuns WHERE CompanyId = @CompanyId ORDER BY StartTime DESC";
+        var result = await connection.QueryAsync<AuditRun>(new CommandDefinition(sql, new { CompanyId = companyId }, cancellationToken: cancellationToken));
+        return result.ToList();
+    }
 }

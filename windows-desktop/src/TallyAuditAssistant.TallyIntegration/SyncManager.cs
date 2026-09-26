@@ -16,6 +16,7 @@ public class SyncManager : ISyncManager
     private readonly ITallyVoucherService _voucherService;
     private readonly ISyncRepository _syncRepository;
     private readonly IAuditRepository _auditRepository;
+    private readonly ISettingsService _settingsService;
     private readonly ILogger<SyncManager> _logger;
 
     private readonly SemaphoreSlim _pauseSemaphore = new(1, 1);
@@ -37,6 +38,7 @@ public class SyncManager : ISyncManager
         ITallyVoucherService voucherService,
         ISyncRepository syncRepository,
         IAuditRepository auditRepository,
+        ISettingsService settingsService,
         ILogger<SyncManager> logger)
     {
         _connection = connection;
@@ -45,6 +47,7 @@ public class SyncManager : ISyncManager
         _voucherService = voucherService;
         _syncRepository = syncRepository;
         _auditRepository = auditRepository;
+        _settingsService = settingsService;
         _logger = logger;
     }
 
@@ -180,6 +183,20 @@ public class SyncManager : ISyncManager
 
             var fromDate = profile.BooksBeginningFrom;
             var toDate = DateTime.Today;
+
+            var fromDateStr = await _settingsService.GetSettingAsync("AuditPeriodFrom", "");
+            var toDateStr = await _settingsService.GetSettingAsync("AuditPeriodTo", "");
+
+            if (DateTime.TryParseExact(fromDateStr, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var fD))
+            {
+                fromDate = fD;
+            }
+            if (DateTime.TryParseExact(toDateStr, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var tD))
+            {
+                toDate = tD;
+            }
+
+            EmitLog($"Syncing period: {fromDate:dd-MMM-yyyy} to {toDate:dd-MMM-yyyy}");
 
             var voucherBatch = new List<Voucher>();
             const int batchSize = 100;

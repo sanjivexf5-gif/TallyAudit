@@ -186,7 +186,19 @@ public class DatabaseInitializer : IDatabaseInitializer
                 Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
-            -- 7. Performance Indexes
+            -- 7. Audit Runs History
+            CREATE TABLE IF NOT EXISTS AuditRuns (
+                Id TEXT PRIMARY KEY,
+                CompanyId TEXT NOT NULL,
+                Period TEXT NOT NULL,
+                StartTime DATETIME NOT NULL,
+                EndTime DATETIME NOT NULL,
+                TransactionsAnalysed INTEGER DEFAULT 0,
+                FindingsGenerated INTEGER DEFAULT 0,
+                Status TEXT NOT NULL
+            );
+
+            -- 8. Performance Indexes
             CREATE INDEX IF NOT EXISTS idx_vouchers_comp_date ON Vouchers(CompanyId, VoucherDate);
             CREATE INDEX IF NOT EXISTS idx_vouchers_comp_type ON Vouchers(CompanyId, VoucherTypeName);
             CREATE INDEX IF NOT EXISTS idx_vouchers_alterid ON Vouchers(CompanyId, AlterId);
@@ -194,6 +206,7 @@ public class DatabaseInitializer : IDatabaseInitializer
             CREATE INDEX IF NOT EXISTS idx_entries_ledger ON VoucherEntries(LedgerName);
             CREATE INDEX IF NOT EXISTS idx_exceptions_comp_rule ON Exceptions(CompanyId, RuleId);
             CREATE INDEX IF NOT EXISTS idx_exceptions_status ON Exceptions(CompanyId, Status);
+            CREATE INDEX IF NOT EXISTS idx_auditruns_comp ON AuditRuns(CompanyId);
         ";
 
         await connection.ExecuteAsync(new CommandDefinition(schemaSql, cancellationToken: cancellationToken));

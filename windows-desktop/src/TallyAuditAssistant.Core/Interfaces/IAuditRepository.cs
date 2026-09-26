@@ -30,10 +30,23 @@ public interface IAuditRepository
         int take = 50, 
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<AuditException>> GetExceptionsFilteredAsync(
+        string companyId,
+        string? category = null,
+        string? severity = null,
+        string? status = null,
+        string? searchQuery = null,
+        string? sortBy = null,
+        bool isDescending = true,
+        CancellationToken cancellationToken = default);
+
     Task<int> GetExceptionCountAsync(string companyId, RuleCategory? category = null, SeverityLevel? minSeverity = null, ReviewStatus? status = null, CancellationToken cancellationToken = default);
     Task UpdateExceptionStatusAsync(string exceptionId, ReviewStatus newStatus, string? auditorNote, CancellationToken cancellationToken = default);
     
     Task<IReadOnlyList<AuditRule>> GetActiveRulesAsync(CancellationToken cancellationToken = default);
+
+    Task SaveAuditRunAsync(AuditRun run, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AuditRun>> GetAuditRunsAsync(string companyId, CancellationToken cancellationToken = default);
 }
 
 public interface ISettingsService

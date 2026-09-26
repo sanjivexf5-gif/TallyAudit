@@ -11,6 +11,7 @@ public class AuditEngine : IAuditEngine
     private readonly IAuditRuleRepository _ruleRepository;
     private readonly IAuditResultRepository _resultRepository;
     private readonly ILogger<AuditEngine> _logger;
+    private readonly IReconciliationEngine? _reconciliationEngine;
 
     public IReadOnlyList<IAuditRule> RegisteredRules => _rules.AsReadOnly();
 
@@ -20,11 +21,13 @@ public class AuditEngine : IAuditEngine
         IAuditRuleRepository ruleRepository,
         IAuditResultRepository resultRepository,
         ILogger<AuditEngine> logger,
-        IEnumerable<IAuditRule>? initialRules = null)
+        IEnumerable<IAuditRule>? initialRules = null,
+        IReconciliationEngine? reconciliationEngine = null)
     {
         _ruleRepository = ruleRepository;
         _resultRepository = resultRepository;
         _logger = logger;
+        _reconciliationEngine = reconciliationEngine;
 
         if (initialRules != null)
         {
@@ -86,6 +89,13 @@ public class AuditEngine : IAuditEngine
         // Persist discovered audit results to SQLite database
         _logger.LogInformation("Saving {Count} discovered exceptions to local repository...", allResults.Count);
         await _resultRepository.SaveResultsBatchAsync(allResults, cancellationToken);
+
+        if (_reconciliationEngine != null)
+        {
+            _logger.LogInformation("Executing cross-dataset reconciliations...");
+            var reconciliationResults = await _reconciliationEngine.ExecuteReconciliationsAsync(context, cancellationToken);
+            allResults.AddRange(reconciliationResults);
+        }
 
         return allResults;
     }
