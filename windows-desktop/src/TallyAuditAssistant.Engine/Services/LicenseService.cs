@@ -29,7 +29,7 @@ public class LicenseService : ILicenseService
         if (_cachedLicense != null)
             return _cachedLicense;
 
-        var stored = await _secureStorage.GetSecretAsync(LicenseStorageKey, ct);
+        var stored = _secureStorage.GetSecret(LicenseStorageKey);
         if (string.IsNullOrWhiteSpace(stored))
         {
             _cachedLicense = new LicenseInfo
@@ -118,15 +118,13 @@ public class LicenseService : ILicenseService
 
         _cachedLicense = license;
         var token = SerializeLicenseToken(license);
-        await _secureStorage.SetSecretAsync(LicenseStorageKey, token, ct);
+        _secureStorage.SetSecret(LicenseStorageKey, token);
 
-        await _auditTrailService.RecordEventAsync(
-            "LICENSE_ACTIVATION",
-            "SYSTEM",
-            $"Application successfully activated with {type} license key.",
-            null,
-            null,
-            ct);
+        await _auditTrailService.RecordActivityAsync(
+            action: "LICENSE_ACTIVATION",
+            category: "SYSTEM",
+            description: $"Application successfully activated with {type} license key.",
+            ct: ct);
 
         return new LicenseActivationResult
         {
@@ -171,15 +169,13 @@ public class LicenseService : ILicenseService
 
         _cachedLicense = trialLicense;
         var token = SerializeLicenseToken(trialLicense);
-        await _secureStorage.SetSecretAsync(LicenseStorageKey, token, ct);
+        _secureStorage.SetSecret(LicenseStorageKey, token);
 
-        await _auditTrailService.RecordEventAsync(
-            "TRIAL_ACTIVATION",
-            "SYSTEM",
-            $"14-day evaluation trial started for {organizationName} ({contactEmail}).",
-            null,
-            null,
-            ct);
+        await _auditTrailService.RecordActivityAsync(
+            action: "TRIAL_ACTIVATION",
+            category: "SYSTEM",
+            description: $"14-day evaluation trial started for {organizationName} ({contactEmail}).",
+            ct: ct);
 
         return new LicenseActivationResult
         {

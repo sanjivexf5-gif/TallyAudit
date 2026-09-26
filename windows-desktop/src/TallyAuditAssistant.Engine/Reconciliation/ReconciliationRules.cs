@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using TallyAuditAssistant.Core.Domain.Audit;
+using TallyAuditAssistant.Core.Domain.Ledgers;
 using TallyAuditAssistant.Core.Interfaces;
 using TallyAuditAssistant.Data;
 
