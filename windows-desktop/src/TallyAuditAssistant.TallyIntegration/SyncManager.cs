@@ -211,9 +211,10 @@ public class SyncManager : ISyncManager
                 var totalCredits = rawVoucher.Entries.Where(e => !e.IsDebit).Sum(e => Math.Abs(e.Amount));
                 
                 // If single entry or balanced double entry
+                var voucherId = !string.IsNullOrEmpty(rawVoucher.Guid) ? rawVoucher.Guid : $"{companyId}:{rawVoucher.VoucherNumber}";
                 var voucher = new Voucher
                 {
-                    Id = !string.IsNullOrEmpty(rawVoucher.Guid) ? rawVoucher.Guid : $"{companyId}:{rawVoucher.VoucherNumber}",
+                    Id = voucherId,
                     CompanyId = companyId,
                     VoucherTypeId = rawVoucher.VoucherType,
                     VoucherTypeName = rawVoucher.VoucherType,
@@ -228,6 +229,7 @@ public class SyncManager : ISyncManager
                     AlterId = rawVoucher.AlterId,
                     Entries = rawVoucher.Entries.Select(e => new VoucherEntry
                     {
+                        VoucherId = voucherId,
                         LedgerName = e.LedgerName,
                         Amount = e.Amount,
                         IsDebit = e.IsDebit,

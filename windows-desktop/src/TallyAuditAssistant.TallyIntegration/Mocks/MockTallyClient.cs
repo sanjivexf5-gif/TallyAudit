@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using TallyAuditAssistant.Core.Domain.Tally;
 using TallyAuditAssistant.Core.Interfaces;
@@ -86,7 +87,22 @@ public class MockTallyClient : ITallyClient
         }
         else if (payload.Contains("AuditVoucherCollection"))
         {
-            responseContent = TallySyntheticDataGenerator.GenerateVouchersXml();
+            DateTime? fromDate = null;
+            DateTime? toDate = null;
+
+            var fromMatch = Regex.Match(payload, @"<SVFROMDATE>(\d{8})</SVFROMDATE>");
+            if (fromMatch.Success && DateTime.TryParseExact(fromMatch.Groups[1].Value, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var f))
+            {
+                fromDate = f;
+            }
+
+            var toMatch = Regex.Match(payload, @"<SVTODATE>(\d{8})</SVTODATE>");
+            if (toMatch.Success && DateTime.TryParseExact(toMatch.Groups[1].Value, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var t))
+            {
+                toDate = t;
+            }
+
+            responseContent = TallySyntheticDataGenerator.GenerateVouchersXml(fromDate, toDate);
         }
         else
         {

@@ -85,7 +85,7 @@ public static class TallySyntheticDataGenerator
         sb.AppendLine("        </LEDGER>");
     }
 
-    public static string GenerateVouchersXml()
+    public static string GenerateVouchersXml(DateTime? fromDate = null, DateTime? toDate = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine("<ENVELOPE>");
@@ -100,6 +100,9 @@ public static class TallySyntheticDataGenerator
         for (int i = 1; i <= 120; i++)
         {
             var date = new DateTime(2025, 4, 1).AddDays((i * 3) % 360);
+            if (fromDate.HasValue && date < fromDate.Value) continue;
+            if (toDate.HasValue && date > toDate.Value) continue;
+
             var dateStr = date.ToString("yyyyMMdd");
             var vNo = $"SAL-{i:D3}";
             var party = GetPartyForSales(i);
@@ -207,12 +210,15 @@ public static class TallySyntheticDataGenerator
         }
 
         // Add exact duplicate sales voucher (triggers DuplicateVoucherRule and DuplicateInvoiceNumberRule)
-        AddSalesDuplicateVouchers(sb, ref alterId);
+        AddSalesDuplicateVouchers(sb, ref alterId, fromDate, toDate);
 
         // Generate 80 Purchase Invoices
         for (int i = 1; i <= 80; i++)
         {
             var date = new DateTime(2025, 4, 15).AddDays((i * 4) % 350);
+            if (fromDate.HasValue && date < fromDate.Value) continue;
+            if (toDate.HasValue && date > toDate.Value) continue;
+
             var dateStr = date.ToString("yyyyMMdd");
             var vNo = $"PUR-{i:D3}";
             var party = GetPartyForPurchases(i);
@@ -302,6 +308,9 @@ public static class TallySyntheticDataGenerator
         for (int i = 1; i <= 60; i++)
         {
             var date = new DateTime(2025, 5, 1).AddDays((i * 5) % 300);
+            if (fromDate.HasValue && date < fromDate.Value) continue;
+            if (toDate.HasValue && date > toDate.Value) continue;
+
             var dateStr = date.ToString("yyyyMMdd");
             var vNo = $"EXP-{i:D3}";
             var party = "TDS Professional Vendor";
@@ -392,6 +401,9 @@ public static class TallySyntheticDataGenerator
         for (int i = 1; i <= 50; i++)
         {
             var date = new DateTime(2025, 5, 10).AddDays((i * 6) % 310);
+            if (fromDate.HasValue && date < fromDate.Value) continue;
+            if (toDate.HasValue && date > toDate.Value) continue;
+
             var dateStr = date.ToString("yyyyMMdd");
             var vNo = $"PMT-{i:D3}";
             var party = "Mehta Fabrication Works";
@@ -531,10 +543,14 @@ public static class TallySyntheticDataGenerator
         return parties[index % parties.Length];
     }
 
-    private static void AddSalesDuplicateVouchers(StringBuilder sb, ref int alterId)
+    private static void AddSalesDuplicateVouchers(StringBuilder sb, ref int alterId, DateTime? fromDate = null, DateTime? toDate = null)
     {
         // 1. Exact Duplicate (SAL-020-A & SAL-020-B)
         var dateStr = "20250520";
+        var date = new DateTime(2025, 5, 20);
+        if (fromDate.HasValue && date < fromDate.Value) return;
+        if (toDate.HasValue && date > toDate.Value) return;
+
         var vNo = "SAL-DUP-020";
         var totalAmt = 45000.00m;
         var amt = 38135.59m;
