@@ -144,7 +144,7 @@ public class MockTallyIntegrationTests : IAsyncLifetime
         var unregisteredSupplyEx = missingGstinExceptions.FirstOrDefault(e => e.PartyLedgerName == "Unregistered Steel Supplier");
         Assert.NotNull(unregisteredSupplyEx);
         Assert.Equal(SeverityLevel.High, unregisteredSupplyEx.Severity);
-        Assert.Contains("Unregistered Steel Supplier", unregisteredSupplyEx.SuggestedCorrection);
+        Assert.Contains("Unregistered Steel Supplier", unregisteredSupplyEx.Explanation);
 
         // Assert GSTIN Structure format checker rule flags Invalid GSTIN Trader
         var gstinFormatRule = new GstinFormatCheckRule(_factory);
