@@ -3,8 +3,10 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Dapper;
 using Microsoft.Extensions.Logging.Abstractions;
 using TallyAuditAssistant.Core.Domain.Audit;
+using TallyAuditAssistant.Core.Domain.Gst;
 using TallyAuditAssistant.Core.Domain.Sync;
 using TallyAuditAssistant.Core.Domain.Tally;
 using TallyAuditAssistant.Core.Interfaces;
@@ -42,7 +44,7 @@ public class MockTallyIntegrationTests : IAsyncLifetime
         _initializer = new DatabaseInitializer(_factory, NullLogger<DatabaseInitializer>.Instance, _testDbPath);
 
         _syncRepo = new SyncRepository(_factory, NullLogger<SyncRepository>.Instance);
-        _auditRepo = new AuditRepository(_factory, NullLogger<AuditRepository>.Instance);
+        _auditRepo = new AuditRepository(_factory);
 
         _companyService = new MockTallyCompanyService();
         _client = new MockTallyClient(NullLogger<MockTallyClient>.Instance);
@@ -108,10 +110,11 @@ public class MockTallyIntegrationTests : IAsyncLifetime
 
         // 2. Active Company Selection
         var activeCompany = await _companyService.GetActiveCompanyAsync();
+        if (activeCompany == null) throw new InvalidOperationException("Demo company should be active");
         Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", activeCompany);
 
         // 3. Load Company Statutory Profile & Verify marked as synthetic/demo
-        var profile = await _companyService.GetCompanyProfileTypedAsync(activeCompany);
+        var profile = await _companyService.GetCompanyProfileTypedAsync(activeCompany, null);
         Assert.NotNull(profile);
         Assert.Equal("Demo Industrial Solutions Pvt Ltd", profile.FormalName);
         Assert.Equal("27DEMO1234F1Z9", profile.GSTIN);
@@ -133,7 +136,7 @@ public class MockTallyIntegrationTests : IAsyncLifetime
         Assert.True(result.Inserted > 100, $"Expected several hundred synced records but got {result.Inserted}");
 
         // 6. Existing GST rules evaluation on synthetic database
-        var gstContext = new GstAuditContext(activeCompany, new DateTime(2025, 4, 1), new DateTime(2026, 3, 31));
+        var gstContext = new GstAuditContext(activeCompany, new DateTime(2025, 4, 1), new DateTime(2026, 3, 31), "27DEMO1234F1Z9", "Maharashtra");
         var missingGstinRule = new MissingGstinOnB2BRule(_factory);
         var missingGstinExceptions = await missingGstinRule.EvaluateAsync(gstContext);
         
@@ -153,20 +156,22 @@ public class MockTallyIntegrationTests : IAsyncLifetime
         // 7. Verify TDS threshold and incorrect rate rule detections
         // TDS threshold Rule (TDS-CHK-01 or similar) - can be tested directly with SQLite data
         using var conn = await _factory.CreateConnectionAsync();
-        var suspenseEntriesCount = await conn.ExecuteScalarAsync<int>(@"
-            SELECT COUNT(*) FROM VoucherEntries WHERE LedgerName = 'Suspense Account'
-        ");
+        int suspenseEntriesCount = 0;
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT COUNT(*) FROM VoucherEntries WHERE LedgerName = 'Suspense Account'";
+            suspenseEntriesCount = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
         Assert.True(suspenseEntriesCount > 0, "Suspense Account should contain synthetic ledger postings.");
 
         // 8. Duplicate detection asserts against Beta Distributors duplications
-        var duplicateVouchers = await conn.QueryAsync(@"
-            SELECT VoucherNumber, COUNT(*) as Count 
-            FROM Vouchers 
-            WHERE VoucherNumber = 'SAL-DUP-020'
-            GROUP BY VoucherNumber
-        ");
-        Assert.NotEmpty(duplicateVouchers);
-        Assert.Equal(2, duplicateVouchers.First().Count);
+        int duplicateCount = 0;
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT COUNT(*) FROM Vouchers WHERE VoucherNumber = 'SAL-DUP-020'";
+            duplicateCount = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+        Assert.Equal(2, duplicateCount);
 
         // 9. Verify demo mode is purely non-destructive and doesn't modify anything outside local SQLite
         Assert.True(File.Exists(_testDbPath));
@@ -250,7 +255,11 @@ public class MockTallyIntegrationTests : IAsyncLifetime
         public TallyEndpointInfo? ActiveEndpoint { get; set; } = new TallyEndpointInfo("localhost", 9000, true, "Mock/Demo", "Demo Company", 5);
         public string? LastErrorMessage { get; set; } = null;
 
-        public event EventHandler<ConnectionStatus>? StatusChanged;
+        public event EventHandler<ConnectionStatus>? StatusChanged
+        {
+            add { }
+            remove { }
+        }
 
         public Task<bool> CheckIfProcessRunningAsync(CancellationToken cancellationToken = default)
         {

@@ -23,7 +23,10 @@ public class TallyIntegrationTests
         mockClient.Setup(c => c.PingAsync("http://localhost:9000", It.IsAny<CancellationToken>()))
                   .ReturnsAsync(true);
 
-        var connection = new TallyConnection(mockClient.Object, _connectionLogger);
+        var mockSettings = new Mock<ISettingsService>();
+        mockSettings.Setup(s => s.IsMockModeEnabledAsync()).ReturnsAsync(false);
+
+        var connection = new TallyConnection(mockClient.Object, mockSettings.Object, _connectionLogger);
 
         // Act
         var result = await connection.TestConnectionAsync("localhost", 9000);
@@ -43,7 +46,10 @@ public class TallyIntegrationTests
         mockClient.Setup(c => c.PingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                   .ReturnsAsync(false);
 
-        var connection = new TallyConnection(mockClient.Object, _connectionLogger);
+        var mockSettings = new Mock<ISettingsService>();
+        mockSettings.Setup(s => s.IsMockModeEnabledAsync()).ReturnsAsync(false);
+
+        var connection = new TallyConnection(mockClient.Object, mockSettings.Object, _connectionLogger);
 
         // Act
         var result = await connection.TestConnectionAsync("localhost", 9000);
