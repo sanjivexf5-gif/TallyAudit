@@ -41,72 +41,54 @@ public class UpdateService : IUpdateService
             CurrentVersion = AppVersion.Version,
             LatestVersion = AppVersion.Version,
             IsUpdateAvailable = false,
-            ReleaseNotes = "You are using the latest version.",
+            ReleaseNotes = "You are using the latest version of Tally Audit Assistant.",
             DownloadUrl = $"https://github.com/{GitHubRepo}/releases/latest",
             CheckedAt = DateTime.UtcNow
         };
 
         try
         {
-            var url = $"https://api.github.com/repos/{GitHubRepo}/releases/latest";
+            // First try releases list to check all published releases
+            var url = $"https://api.github.com/repos/{GitHubRepo}/releases";
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github.v3+json"));
 
             using var response = await _httpClient.SendAsync(request, ct);
-            if (!response.IsSuccessStatusCode)
+            if (response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("GitHub release check returned HTTP status {StatusCode}", response.StatusCode);
-                update.ReleaseNotes = "Unable to check for updates. You can continue using the current version.";
-                return update;
-            }
-
-            var json = await response.Content.ReadAsStringAsync(ct);
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            var tagName = root.TryGetProperty("tag_name", out var tagProp) ? tagProp.GetString() ?? "" : "";
-            var body = root.TryGetProperty("body", out var bodyProp) ? bodyProp.GetString() ?? "" : "";
-            var htmlUrl = root.TryGetProperty("html_url", out var htmlUrlProp) ? htmlUrlProp.GetString() ?? update.DownloadUrl : update.DownloadUrl;
-
-            var latestVerStr = tagName.TrimStart('v', 'V').Trim();
-            if (string.IsNullOrEmpty(latestVerStr))
-            {
-                latestVerStr = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString()?.TrimStart('v', 'V').Trim() ?? AppVersion.Version : AppVersion.Version;
-            }
-
-            update.LatestVersion = latestVerStr;
-            update.ReleaseNotes = !string.IsNullOrWhiteSpace(body) ? body : $"Release {tagName}";
-            update.DownloadUrl = htmlUrl;
-
-            // Find installer asset (.exe)
-            if (root.TryGetProperty("assets", out var assetsProp) && assetsProp.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var asset in assetsProp.EnumerateArray())
+                var json = await response.Content.ReadAsStringAsync(ct);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.ValueKind == JsonValueKind.Array)
                 {
-                    var name = asset.TryGetProperty("name", out var nProp) ? nProp.GetString() ?? "" : "";
-                    if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (asset.TryGetProperty("browser_download_url", out var dlProp))
-                        {
-                            update.DownloadUrl = dlProp.GetString() ?? update.DownloadUrl;
-                        }
-                        if (asset.TryGetProperty("size", out var sizeProp) && sizeProp.TryGetInt64(out var sizeVal))
-                        {
-                            update.FileSizeBytes = sizeVal;
-                        }
-                        break;
-                    }
+                    EvaluateReleaseArray(doc.RootElement, update, allowPreRelease);
+                    return update;
+                }
+                else if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    EvaluateSingleRelease(doc.RootElement, update, allowPreRelease);
+                    return update;
                 }
             }
 
-            // Compare versions
-            if (Version.TryParse(latestVerStr, out var latestVer) && Version.TryParse(AppVersion.Version, out var curVer))
+            // Fallback to /releases/latest if array endpoint wasn't processed
+            var latestUrl = $"https://api.github.com/repos/{GitHubRepo}/releases/latest";
+            using var latestRequest = new HttpRequestMessage(HttpMethod.Get, latestUrl);
+            latestRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github.v3+json"));
+
+            using var latestResponse = await _httpClient.SendAsync(latestRequest, ct);
+            if (latestResponse.IsSuccessStatusCode)
             {
-                update.IsUpdateAvailable = latestVer > curVer;
+                var json = await latestResponse.Content.ReadAsStringAsync(ct);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    EvaluateSingleRelease(doc.RootElement, update, allowPreRelease);
+                }
             }
             else
             {
-                update.IsUpdateAvailable = !string.Equals(latestVerStr, AppVersion.Version, StringComparison.OrdinalIgnoreCase);
+                _logger.LogWarning("GitHub release check returned HTTP status {StatusCode}", latestResponse.StatusCode);
+                update.ReleaseNotes = "Unable to check for updates. You can continue using the current version.";
             }
         }
         catch (Exception ex)
@@ -116,6 +98,94 @@ public class UpdateService : IUpdateService
         }
 
         return update;
+    }
+
+    private void EvaluateReleaseArray(JsonElement releasesArray, UpdateInfo update, bool allowPreRelease)
+    {
+        Version? highestVersion = null;
+        JsonElement? bestRelease = null;
+
+        foreach (var rel in releasesArray.EnumerateArray())
+        {
+            var isDraft = rel.TryGetProperty("draft", out var dProp) && dProp.GetBoolean();
+            if (isDraft) continue;
+
+            var isPreRelease = rel.TryGetProperty("prerelease", out var prProp) && prProp.GetBoolean();
+            if (isPreRelease && !allowPreRelease) continue;
+
+            var tagName = rel.TryGetProperty("tag_name", out var tagP) ? tagP.GetString() ?? "" : "";
+            var verStr = tagName.TrimStart('v', 'V').Trim();
+            if (string.IsNullOrEmpty(verStr))
+            {
+                verStr = rel.TryGetProperty("name", out var nP) ? nP.GetString()?.TrimStart('v', 'V').Trim() ?? "" : "";
+            }
+
+            if (Version.TryParse(verStr, out var parsedVer))
+            {
+                if (highestVersion == null || parsedVer > highestVersion)
+                {
+                    highestVersion = parsedVer;
+                    bestRelease = rel;
+                }
+            }
+        }
+
+        if (bestRelease.HasValue)
+        {
+            EvaluateSingleRelease(bestRelease.Value, update, allowPreRelease);
+        }
+    }
+
+    private void EvaluateSingleRelease(JsonElement releaseObj, UpdateInfo update, bool allowPreRelease)
+    {
+        var isDraft = releaseObj.TryGetProperty("draft", out var dProp) && dProp.GetBoolean();
+        if (isDraft) return;
+
+        var isPreRelease = releaseObj.TryGetProperty("prerelease", out var prProp) && prProp.GetBoolean();
+        if (isPreRelease && !allowPreRelease) return;
+
+        var tagName = releaseObj.TryGetProperty("tag_name", out var tagProp) ? tagProp.GetString() ?? "" : "";
+        var body = releaseObj.TryGetProperty("body", out var bodyProp) ? bodyProp.GetString() ?? "" : "";
+        var htmlUrl = releaseObj.TryGetProperty("html_url", out var htmlUrlProp) ? htmlUrlProp.GetString() ?? update.DownloadUrl : update.DownloadUrl;
+
+        var latestVerStr = tagName.TrimStart('v', 'V').Trim();
+        if (string.IsNullOrEmpty(latestVerStr))
+        {
+            latestVerStr = releaseObj.TryGetProperty("name", out var nameProp) ? nameProp.GetString()?.TrimStart('v', 'V').Trim() ?? AppVersion.Version : AppVersion.Version;
+        }
+
+        update.LatestVersion = latestVerStr;
+        update.ReleaseNotes = !string.IsNullOrWhiteSpace(body) ? body : $"Release {tagName}";
+        update.DownloadUrl = htmlUrl;
+
+        if (releaseObj.TryGetProperty("assets", out var assetsProp) && assetsProp.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var asset in assetsProp.EnumerateArray())
+            {
+                var name = asset.TryGetProperty("name", out var nProp) ? nProp.GetString() ?? "" : "";
+                if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (asset.TryGetProperty("browser_download_url", out var dlProp))
+                    {
+                        update.DownloadUrl = dlProp.GetString() ?? update.DownloadUrl;
+                    }
+                    if (asset.TryGetProperty("size", out var sizeProp) && sizeProp.TryGetInt64(out var sizeVal))
+                    {
+                        update.FileSizeBytes = sizeVal;
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (Version.TryParse(latestVerStr, out var latestVer) && Version.TryParse(AppVersion.Version, out var curVer))
+        {
+            update.IsUpdateAvailable = latestVer > curVer;
+        }
+        else
+        {
+            update.IsUpdateAvailable = !string.Equals(latestVerStr, AppVersion.Version, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     public async Task<string?> DownloadUpdateAsync(UpdateInfo updateInfo, IProgress<double>? progress = null, CancellationToken ct = default)

@@ -34,25 +34,29 @@ public class UpdateServiceTests
     public void GetCurrentVersion_ReturnsVersionString()
     {
         var service = new UpdateService(NullLogger<UpdateService>.Instance);
-        Assert.Equal("1.0.0", service.GetCurrentVersion());
+        Assert.Equal("1.0.1", service.GetCurrentVersion());
     }
 
     [Fact]
     public async Task CheckForUpdates_WhenNewerVersionExists_SetsIsUpdateAvailableTrue()
     {
-        var jsonResponse = @"{
-            ""tag_name"": ""v1.1.0"",
-            ""name"": ""Release 1.1.0"",
-            ""body"": ""New features included"",
-            ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/v1.1.0"",
-            ""assets"": [
-                {
-                    ""name"": ""TallyAuditAssistant-Setup.exe"",
-                    ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.1.0/TallyAuditAssistant-Setup.exe"",
-                    ""size"": 15420000
-                }
-            ]
-        }";
+        var jsonResponse = @"[
+            {
+                ""tag_name"": ""v1.0.2"",
+                ""name"": ""Release 1.0.2"",
+                ""draft"": false,
+                ""prerelease"": false,
+                ""body"": ""New features included"",
+                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/v1.0.2"",
+                ""assets"": [
+                    {
+                        ""name"": ""TallyAuditAssistant-Setup.exe"",
+                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.2/TallyAuditAssistant-Setup.exe"",
+                        ""size"": 15420000
+                    }
+                ]
+            }
+        ]";
 
         var mockHandler = new MockHttpMessageHandler(req => new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -66,22 +70,56 @@ public class UpdateServiceTests
 
         Assert.NotNull(update);
         Assert.True(update.IsUpdateAvailable);
-        Assert.Equal("1.1.0", update.LatestVersion);
+        Assert.Equal("1.0.2", update.LatestVersion);
         Assert.Equal("New features included", update.ReleaseNotes);
-        Assert.Equal("https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.1.0/TallyAuditAssistant-Setup.exe", update.DownloadUrl);
+        Assert.Equal("https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.2/TallyAuditAssistant-Setup.exe", update.DownloadUrl);
         Assert.Equal(15420000, update.FileSizeBytes);
     }
 
     [Fact]
     public async Task CheckForUpdates_WhenSameVersion_SetsIsUpdateAvailableFalse()
     {
-        var jsonResponse = @"{
-            ""tag_name"": ""v1.0.0"",
-            ""name"": ""Release 1.0.0"",
-            ""body"": ""Initial Release"",
-            ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/v1.0.0"",
-            ""assets"": []
-        }";
+        var jsonResponse = @"[
+            {
+                ""tag_name"": ""v1.0.1"",
+                ""name"": ""Release 1.0.1"",
+                ""draft"": false,
+                ""prerelease"": false,
+                ""body"": ""Current Release"",
+                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/v1.0.1"",
+                ""assets"": []
+            }
+        ]";
+
+        var mockHandler = new MockHttpMessageHandler(req => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
+        });
+
+        var httpClient = new HttpClient(mockHandler);
+        var service = new UpdateService(NullLogger<UpdateService>.Instance, httpClient);
+
+        var update = await service.CheckForUpdatesAsync();
+
+        Assert.NotNull(update);
+        Assert.False(update.IsUpdateAvailable);
+        Assert.Equal("1.0.1", update.LatestVersion);
+    }
+
+    [Fact]
+    public async Task CheckForUpdates_WhenDowngrade_SetsIsUpdateAvailableFalse()
+    {
+        var jsonResponse = @"[
+            {
+                ""tag_name"": ""v1.0.0"",
+                ""name"": ""Release 1.0.0"",
+                ""draft"": false,
+                ""prerelease"": false,
+                ""body"": ""Older Release"",
+                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/v1.0.0"",
+                ""assets"": []
+            }
+        ]";
 
         var mockHandler = new MockHttpMessageHandler(req => new HttpResponseMessage(HttpStatusCode.OK)
         {
@@ -96,6 +134,78 @@ public class UpdateServiceTests
         Assert.NotNull(update);
         Assert.False(update.IsUpdateAvailable);
         Assert.Equal("1.0.0", update.LatestVersion);
+    }
+
+    [Fact]
+    public async Task CheckForUpdates_SemanticVersion1010_IsNewerThan109()
+    {
+        var jsonResponse = @"[
+            {
+                ""tag_name"": ""v1.0.10"",
+                ""name"": ""Release 1.0.10"",
+                ""draft"": false,
+                ""prerelease"": false,
+                ""body"": ""Build 10"",
+                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/v1.0.10"",
+                ""assets"": []
+            }
+        ]";
+
+        var mockHandler = new MockHttpMessageHandler(req => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
+        });
+
+        var httpClient = new HttpClient(mockHandler);
+        var service = new UpdateService(NullLogger<UpdateService>.Instance, httpClient);
+
+        var update = await service.CheckForUpdatesAsync();
+
+        Assert.NotNull(update);
+        Assert.True(update.IsUpdateAvailable);
+        Assert.Equal("1.0.10", update.LatestVersion);
+    }
+
+    [Fact]
+    public async Task CheckForUpdates_IgnoresDraftsAndPrereleases()
+    {
+        var jsonResponse = @"[
+            {
+                ""tag_name"": ""v2.0.0"",
+                ""name"": ""Release 2.0.0 Draft"",
+                ""draft"": true,
+                ""prerelease"": false,
+                ""body"": ""Draft build""
+            },
+            {
+                ""tag_name"": ""v1.5.0-beta"",
+                ""name"": ""Release 1.5.0 Beta"",
+                ""draft"": false,
+                ""prerelease"": true,
+                ""body"": ""Beta build""
+            },
+            {
+                ""tag_name"": ""v1.0.1"",
+                ""name"": ""Release 1.0.1 Stable"",
+                ""draft"": false,
+                ""prerelease"": false,
+                ""body"": ""Current stable""
+            }
+        ]";
+
+        var mockHandler = new MockHttpMessageHandler(req => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
+        });
+
+        var httpClient = new HttpClient(mockHandler);
+        var service = new UpdateService(NullLogger<UpdateService>.Instance, httpClient);
+
+        var update = await service.CheckForUpdatesAsync(allowPreRelease: false);
+
+        Assert.NotNull(update);
+        Assert.False(update.IsUpdateAvailable);
+        Assert.Equal("1.0.1", update.LatestVersion);
     }
 
     [Fact]
@@ -123,11 +233,9 @@ public class UpdateServiceTests
 
             var service = new UpdateService(NullLogger<UpdateService>.Instance);
             
-            // Empty expected checksum should return true for non-empty file
             var resultNoChecksum = await service.VerifyUpdatePackageAsync(tempFile, "");
             Assert.True(resultNoChecksum);
 
-            // Invalid file path should return false
             var resultNonExistent = await service.VerifyUpdatePackageAsync("C:\\NonExistentPathFile.exe", "");
             Assert.False(resultNonExistent);
         }
