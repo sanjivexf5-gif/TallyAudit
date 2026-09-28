@@ -57,15 +57,18 @@ public class ReportsMonetaryTypeHandlerTests : IAsyncLifetime
         using (var connection = await _factory.CreateConnectionAsync())
         {
             await connection.ExecuteAsync(@"
+                INSERT OR IGNORE INTO AuditRules (RuleId, Category, Name, Description, Severity, SuggestedReview, Version, IsEnabled)
+                VALUES ('RULE-TEST-01', 0, 'Test Round Cash Rule', 'Description', 2, 'Review', '1.0.0', 1);
+
                 INSERT INTO Exceptions (
                     Id, CompanyId, RuleId, RuleName, Category, Severity, 
                     EntityId, EntityType, VoucherNumber, VoucherDate, LedgerName, 
                     FlaggedAmount, Explanation, EvidenceJson, Status, FlaggedAt
                 ) VALUES (
-                    'EXC-INT-001', @CompanyId, 'RULE-001', 'Test Round Cash Rule', 0, 2,
+                    'EXC-INT-001', @CompanyId, 'RULE-TEST-01', 'Test Round Cash Rule', 0, 2,
                     'VOUCH-001', 'Voucher', 'PMT-101', '2025-05-10', 'Petty Cash',
                     120000, 'Flagged round integer cash payment', '{}', 0, CURRENT_TIMESTAMP
-                )
+                );
             ", new { CompanyId = companyId });
         }
 
@@ -91,15 +94,18 @@ public class ReportsMonetaryTypeHandlerTests : IAsyncLifetime
         using (var connection = await _factory.CreateConnectionAsync())
         {
             await connection.ExecuteAsync(@"
+                INSERT OR IGNORE INTO AuditRules (RuleId, Category, Name, Description, Severity, SuggestedReview, Version, IsEnabled)
+                VALUES ('RULE-TEST-02', 1, 'Test GST Rate Mismatch', 'Description', 3, 'Review', '1.0.0', 1);
+
                 INSERT INTO Exceptions (
                     Id, CompanyId, RuleId, RuleName, Category, Severity, 
                     EntityId, EntityType, VoucherNumber, VoucherDate, LedgerName, 
                     FlaggedAmount, Explanation, EvidenceJson, Status, FlaggedAt
                 ) VALUES (
-                    'EXC-REAL-001', @CompanyId, 'RULE-002', 'Test GST Rate Mismatch', 1, 3,
+                    'EXC-REAL-001', @CompanyId, 'RULE-TEST-02', 'Test GST Rate Mismatch', 1, 3,
                     'VOUCH-002', 'Voucher', 'INV-202', '2025-06-15', 'Raw Material Purchases',
                     120000.50, 'GST tax calculation variance', '{}', 0, CURRENT_TIMESTAMP
-                )
+                );
             ", new { CompanyId = companyId });
         }
 
@@ -125,15 +131,18 @@ public class ReportsMonetaryTypeHandlerTests : IAsyncLifetime
         using (var connection = await _factory.CreateConnectionAsync())
         {
             await connection.ExecuteAsync(@"
+                INSERT OR IGNORE INTO AuditRules (RuleId, Category, Name, Description, Severity, SuggestedReview, Version, IsEnabled)
+                VALUES ('RULE-TEST-03', 2, 'Missing Voucher Sequence', 'Description', 1, 'Review', '1.0.0', 1);
+
                 INSERT INTO Exceptions (
                     Id, CompanyId, RuleId, RuleName, Category, Severity, 
                     EntityId, EntityType, VoucherNumber, VoucherDate, LedgerName, 
                     FlaggedAmount, Explanation, EvidenceJson, Status, FlaggedAt
                 ) VALUES (
-                    'EXC-NULL-001', @CompanyId, 'RULE-003', 'Missing Voucher Sequence', 2, 1,
+                    'EXC-NULL-001', @CompanyId, 'RULE-TEST-03', 'Missing Voucher Sequence', 2, 1,
                     'VOUCH-003', 'Voucher', 'JRN-303', '2025-07-20', 'Suspense Account',
                     NULL, 'Sequence gap detected without monetary value', '{}', 0, CURRENT_TIMESTAMP
-                )
+                );
             ", new { CompanyId = companyId });
         }
 
@@ -142,5 +151,41 @@ public class ReportsMonetaryTypeHandlerTests : IAsyncLifetime
         Assert.NotEmpty(exceptions);
         var ex = Assert.Single(exceptions);
         Assert.Null(ex.FlaggedAmount);
+    }
+
+    [Fact]
+    public async Task ReportsCenter_WithInt64FlaggedAmount_LoadsSuccessfullyWithoutParsingException()
+    {
+        var companyId = "COMP-TYPE-TEST-4";
+        await _repository.SaveCompanyAsync(new Company
+        {
+            Id = companyId,
+            TallyCompanyName = "Reports Center Test Company",
+            BooksFromDate = new DateTime(2025, 4, 1)
+        });
+
+        using (var connection = await _factory.CreateConnectionAsync())
+        {
+            await connection.ExecuteAsync(@"
+                INSERT OR IGNORE INTO AuditRules (RuleId, Category, Name, Description, Severity, SuggestedReview, Version, IsEnabled)
+                VALUES ('RULE-TEST-04', 0, 'High Value Voucher', 'Description', 3, 'Review', '1.0.0', 1);
+
+                INSERT INTO Exceptions (
+                    Id, CompanyId, RuleId, RuleName, Category, Severity, 
+                    EntityId, EntityType, VoucherNumber, VoucherDate, LedgerName, 
+                    FlaggedAmount, Explanation, EvidenceJson, Status, FlaggedAt
+                ) VALUES (
+                    'EXC-REP-001', @CompanyId, 'RULE-TEST-04', 'High Value Voucher', 0, 3,
+                    'VOUCH-004', 'Voucher', 'PMT-404', '2025-08-10', 'Machinery Account',
+                    120000, 'Large capital voucher flagged for review', '{}', 0, CURRENT_TIMESTAMP
+                );
+            ", new { CompanyId = companyId });
+        }
+
+        var exceptions = await _repository.GetExceptionsAsync(companyId);
+
+        Assert.NotEmpty(exceptions);
+        var ex = Assert.Single(exceptions);
+        Assert.Equal(120000m, ex.FlaggedAmount);
     }
 }
