@@ -8,7 +8,7 @@
         xmlns:converters="clr-namespace:TallyAuditAssistant.App.Converters"
         mc:Ignorable="d"
         Title="{Binding Title}" Height="768" Width="1200"
-        Icon="/Assets/TallyAuditAssistant.ico"
+        Icon="pack://application:,,,/Assets/TallyAuditAssistant.ico"
         MinHeight="600" MinWidth="900"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource SurfaceBackgroundBrush}">

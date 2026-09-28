@@ -83,6 +83,34 @@ public class WpfStartupAndThemeTests
         var fileInfo = new FileInfo(iconPath);
         Assert.True(fileInfo.Length > 1024, $"Icon file size is too small or empty: {fileInfo.Length} bytes");
 
+        // Validate ICO binary structure (reserved=0, type=1, count >= 1)
+        using (var stream = File.OpenRead(iconPath))
+        using (var reader = new BinaryReader(stream))
+        {
+            var reserved = reader.ReadUInt16();
+            var type = reader.ReadUInt16();
+            var count = reader.ReadUInt16();
+
+            Assert.Equal(0, reserved);
+            Assert.Equal(1, type); // 1 = ICO format
+            Assert.True(count >= 1, "Icon file must contain at least 1 image frame.");
+
+            for (int i = 0; i < count; i++)
+            {
+                var width = reader.ReadByte();
+                var height = reader.ReadByte();
+                var colorCount = reader.ReadByte();
+                var res = reader.ReadByte();
+                var planes = reader.ReadUInt16();
+                var bpp = reader.ReadUInt16();
+                var bytesInRes = reader.ReadUInt32();
+                var imageOffset = reader.ReadUInt32();
+
+                Assert.True(bytesInRes > 0, $"Icon frame {i} has invalid data size.");
+                Assert.True(imageOffset + bytesInRes <= fileInfo.Length, $"Icon frame {i} extends beyond file bounds.");
+            }
+        }
+
         // Verify csproj specifies ApplicationIcon correctly
         var csprojPath = Path.Combine(appDir, "TallyAuditAssistant.App.csproj");
         Assert.True(File.Exists(csprojPath), $"Project file not found at: {csprojPath}");
@@ -90,12 +118,9 @@ public class WpfStartupAndThemeTests
         Assert.Contains(@"<ApplicationIcon>Assets\TallyAuditAssistant.ico</ApplicationIcon>", csprojContent);
         Assert.DoesNotContain(@":\", csprojContent); // No hard-coded absolute Windows drive paths
 
-        // Verify MainWindow.xaml has Icon specified
-        var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
-        Assert.True(File.Exists(mainWindowXamlPath), $"MainWindow.xaml not found at: {mainWindowXamlPath}");
-        var mainWindowContent = File.ReadAllText(mainWindowXamlPath);
-        Assert.Contains("Icon=", mainWindowContent);
-        Assert.Contains("TallyAuditAssistant.ico", mainWindowContent);
+        // Verify csproj includes the icon as a WPF Resource and NOT as duplicate Content
+        Assert.Contains(@"<Resource Include=""Assets\TallyAuditAssistant.ico"" />", csprojContent);
+        Assert.DoesNotContain(@"<Content Include=""Assets\TallyAuditAssistant.ico""", csprojContent);
 
         // Verify Inno Setup installer script references the icon
         var windowsDesktopDir = Path.GetDirectoryName(Path.GetDirectoryName(appDir));
@@ -108,6 +133,36 @@ public class WpfStartupAndThemeTests
                 Assert.Contains("TallyAuditAssistant.ico", innoContent);
             }
         }
+    }
+
+    [Fact]
+    public void VerifyMainWindowXamlIconResourceUriAndStructure()
+    {
+        var appDir = FindAppDirectory();
+        var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
+        Assert.True(File.Exists(mainWindowXamlPath), $"MainWindow.xaml not found at: {mainWindowXamlPath}");
+
+        var content = File.ReadAllText(mainWindowXamlPath);
+        var doc = XDocument.Parse(content);
+        var root = doc.Root;
+        Assert.NotNull(root);
+
+        // Verify Icon attribute uses a valid WPF Pack URI
+        var iconAttr = root.Attribute("Icon");
+        Assert.NotNull(iconAttr);
+        var iconVal = iconAttr.Value.Trim();
+
+        // Must start with pack:// to avoid TypeConverterMarkupExtension crash in self-contained deployment
+        Assert.StartsWith("pack://application:,,,/", iconVal, StringComparison.OrdinalIgnoreCase);
+        Assert.False(iconVal.StartsWith("/Assets/", StringComparison.OrdinalIgnoreCase), 
+            "Icon cannot be a relative slash path like '/Assets/...', it must use pack://application:,,,/ to prevent TypeConverterMarkupExtension runtime crashes.");
+        Assert.False(iconVal.StartsWith("Assets\\", StringComparison.OrdinalIgnoreCase),
+            "Icon cannot be a filesystem path.");
+
+        // Extract the resource path from the pack URI
+        var resourcePath = iconVal.Replace("pack://application:,,,/", "").TrimStart('/');
+        var physicalPath = Path.Combine(appDir, resourcePath.Replace('/', Path.DirectorySeparatorChar));
+        Assert.True(File.Exists(physicalPath), $"The resource targeted by pack URI does not exist physically at: {physicalPath}");
     }
 
     private static string FindAppDirectory()

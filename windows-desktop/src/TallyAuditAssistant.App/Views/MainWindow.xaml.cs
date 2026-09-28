@@ -17,7 +17,7 @@ public partial class MainWindow : Window
         {
             if (Icon == null)
             {
-                var iconUri = new Uri("pack://application:,,,/Assets/TallyAuditAssistant.ico", UriKind.RelativeOrAbsolute);
+                var iconUri = new Uri("pack://application:,,,/Assets/TallyAuditAssistant.ico", UriKind.Absolute);
                 Icon = BitmapFrame.Create(iconUri);
             }
         }

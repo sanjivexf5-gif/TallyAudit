@@ -41,9 +41,6 @@
 
   <ItemGroup>
     <Resource Include="Assets\TallyAuditAssistant.ico" />
-    <Content Include="Assets\TallyAuditAssistant.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
 
 </Project>
