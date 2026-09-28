@@ -142,6 +142,12 @@ public partial class DashboardViewModel : ObservableObject
     private string _auditStatusText = "Ready to start audit";
 
     [ObservableProperty]
+    private string _auditButtonText = "⚖️ RUN COMPREHENSIVE AUDIT";
+
+    [ObservableProperty]
+    private bool _canRunAudit = true;
+
+    [ObservableProperty]
     private AuditException? _selectedException;
 
     [ObservableProperty]
@@ -208,70 +214,107 @@ public partial class DashboardViewModel : ObservableObject
     [RelayCommand]
     private async Task RunCompleteAuditAsync()
     {
+        if (IsAuditing) return;
+
         IsAuditing = true;
+        CanRunAudit = false;
+        AuditButtonText = "⏳ AUDIT IN PROGRESS...";
         AuditStatusText = "Preparing audit environment...";
+
+        AuditRun? run = null;
 
         try
         {
+            AuditStatusText = "Loading active company and audit period...";
             var comp = await _companyContext.GetActiveCompanyAsync()
                        ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
             var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
             var companies = await _repository.GetAllCompaniesAsync();
             if (companies == null || companies.Count == 0)
             {
-                AuditStatusText = "No company data synchronized yet. Please connect to Tally and synchronize first.";
+                AuditStatusText = "No synchronized accounting data is available for this company. Please synchronize Tally data first.";
                 return;
             }
             var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
                           ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
 
-            var fromDate = DateTime.Today.AddYears(-1);
-            var toDate = DateTime.Today;
+            AuditStatusText = "Checking synchronized accounting data...";
+            var voucherCount = await _repository.GetVoucherCountAsync(current.Id);
+            if (voucherCount == 0)
+            {
+                AuditStatusText = "No synchronized accounting data is available for this company. Please synchronize Tally data first.";
+                return;
+            }
+
+            DateTime fromDate;
+            DateTime toDate;
 
             var fromDateStr = await _settingsService.GetSettingAsync("AuditPeriodFrom", "");
             var toDateStr = await _settingsService.GetSettingAsync("AuditPeriodTo", "");
 
-            if (DateTime.TryParseExact(fromDateStr, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var fD))
+            if (DateTime.TryParseExact(fromDateStr, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var fD) &&
+                DateTime.TryParseExact(toDateStr, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var tD))
             {
                 fromDate = fD;
-            }
-            if (DateTime.TryParseExact(toDateStr, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var tD))
-            {
                 toDate = tD;
+            }
+            else
+            {
+                var booksFrom = current.BooksFromDate != default ? current.BooksFromDate : new DateTime(2025, 4, 1);
+                fromDate = booksFrom;
+                toDate = booksFrom.AddYears(1).AddDays(-1);
             }
 
             // Create Run History Record
-            var run = new AuditRun
+            run = new AuditRun
             {
                 CompanyId = current.Id,
                 Period = $"{fromDate:dd-MMM-yyyy} to {toDate:dd-MMM-yyyy}",
                 StartTime = DateTime.UtcNow,
-                TransactionsAnalysed = TotalVouchersSynchronized,
+                TransactionsAnalysed = voucherCount,
                 Status = "Running"
             };
             await _repository.SaveAuditRunAsync(run);
 
             var context = new AuditExecutionContext(activeName, fromDate, toDate);
             
-            AuditStatusText = "Executing 19 automated GST/TDS/Accounting hygiene audit rules...";
+            AuditStatusText = "Executing automated GST, TDS, accounting hygiene, and duplicate detection rules...";
             var results = await _auditEngine.ExecuteAuditAsync(context);
 
+            AuditStatusText = "Saving audit findings...";
             // Update Run Record
             run.EndTime = DateTime.UtcNow;
             run.FindingsGenerated = results.Count;
             run.Status = "Completed";
             await _repository.SaveAuditRunAsync(run);
 
-            AuditStatusText = $"Audit run complete! Discovered {results.Count} potential exceptions.";
+            AuditStatusText = "Refreshing dashboard...";
             await LoadDashboardDataAsync();
+
+            AuditStatusText = $"Audit run complete! Discovered {results.Count} potential exceptions.";
         }
         catch (Exception ex)
         {
+            if (run != null)
+            {
+                run.EndTime = DateTime.UtcNow;
+                run.Status = "Failed";
+                try
+                {
+                    await _repository.SaveAuditRunAsync(run);
+                }
+                catch
+                {
+                    // Suppress nested exception during run status failure save
+                }
+            }
             AuditStatusText = $"Audit execution failed: {ex.Message}";
         }
         finally
         {
             IsAuditing = false;
+            CanRunAudit = true;
+            AuditButtonText = "⚖️ RUN COMPREHENSIVE AUDIT";
         }
     }
 

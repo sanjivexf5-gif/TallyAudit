@@ -23,6 +23,8 @@ public static class AuditEngineBootstrapper
         services.AddSingleton<ITallyDrillDownService, Services.TallyDrillDownService>();
         services.AddSingleton<IAuditAiProvider, GeminiAuditProvider>();
         services.AddSingleton<IAuditAssistantService, AuditAssistantService>();
+        services.AddSingleton<IUpdateService, Services.UpdateService>();
+        services.AddSingleton<ILicenseService, Services.LicenseService>();
 
         // Reconciliation Engine & Rules
         services.AddSingleton<IReconciliationRule, TrialBalanceConsistencyRule>();

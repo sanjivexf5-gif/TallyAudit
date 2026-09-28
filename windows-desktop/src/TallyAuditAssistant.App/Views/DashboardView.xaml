@@ -15,29 +15,39 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Executive Top Metadata Header -->
-        <Border Grid.Row="0" Padding="16" Background="#1E1B4B" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,16">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="{Binding ActiveCompanyName, StringFormat='Auditing: {0}'}" FontSize="20" FontWeight="Bold" Foreground="White"/>
-                    <WrapPanel Margin="0,6,0,0">
-                        <TextBlock Text="{Binding FinancialYear, StringFormat='Period: {0}'}" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12" Margin="0,0,16,0"/>
-                        <TextBlock Text="{Binding LastSyncTime, StringFormat='Last Sync: {0}'}" Foreground="#94A3B8" FontSize="12" Margin="0,0,16,0"/>
-                        <TextBlock Text="{Binding LastAuditRunTime, StringFormat='Last Run: {0}'}" Foreground="#10B981" FontWeight="SemiBold" FontSize="12"/>
-                    </WrapPanel>
-                </StackPanel>
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <!-- Executive Top Metadata Header -->
+            <Border Padding="16" Background="#1E1B4B" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="{Binding ActiveCompanyName, StringFormat='Auditing: {0}'}" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                        <WrapPanel Margin="0,6,0,0">
+                            <TextBlock Text="{Binding FinancialYear, StringFormat='Period: {0}'}" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12" Margin="0,0,16,0"/>
+                            <TextBlock Text="{Binding LastSyncTime, StringFormat='Last Sync: {0}'}" Foreground="#94A3B8" FontSize="12" Margin="0,0,16,0"/>
+                            <TextBlock Text="{Binding LastAuditRunTime, StringFormat='Last Run: {0}'}" Foreground="#10B981" FontWeight="SemiBold" FontSize="12"/>
+                        </WrapPanel>
+                    </StackPanel>
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="🔄 Refresh" Command="{Binding RefreshDashboardCommand}" Padding="12,6" Margin="0,0,8,0" Background="#334155" Foreground="White" BorderThickness="0"/>
-                    <Button Content="⚖️ RUN COMPREHENSIVE AUDIT" Command="{Binding RunCompleteAuditCommand}" IsEnabled="{Binding IsAuditing, Converter={x:Null}}" Padding="16,8" Background="#10B981" Foreground="White" FontWeight="Bold" BorderThickness="0"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="🔄 Refresh" Command="{Binding RefreshDashboardCommand}" Padding="12,6" Margin="0,0,8,0" Background="#334155" Foreground="White" BorderThickness="0"/>
+                        <Button Content="{Binding AuditButtonText}" Command="{Binding RunCompleteAuditCommand}" IsEnabled="{Binding CanRunAudit}" Padding="16,8" Background="#10B981" Foreground="White" FontWeight="Bold" BorderThickness="0"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Visible Audit Progress & Status Banner -->
+            <Border Margin="0,8,0,0" Padding="12" Background="#1E293B" CornerRadius="6" BorderBrush="#3B82F6" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="{Binding AuditStatusText}" Foreground="#F8FAFC" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"/>
+                    <ProgressBar IsIndeterminate="{Binding IsAuditing}" Height="4" Margin="0,8,0,0" Foreground="#3B82F6" Background="#0F172A" Visibility="{Binding IsAuditing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                 </StackPanel>
-            </Grid>
-        </Border>
+            </Border>
+        </StackPanel>
 
         <!-- Multi-tab Workspace -->
         <TabControl Grid.Row="1" Background="#0F172A" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
