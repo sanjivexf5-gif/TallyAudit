@@ -148,6 +148,8 @@ public partial class SyncViewModel : ObservableObject
     [RelayCommand]
     private async Task StartFullSyncAsync()
     {
+        if (IsSyncing) return;
+
         if (string.IsNullOrEmpty(CompanyName))
         {
             var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
@@ -159,14 +161,44 @@ public partial class SyncViewModel : ObservableObject
         IsSyncing = true;
         IsPaused = false;
         LiveLogs.Clear();
-        await _syncManager.StartSyncAsync(CompanyName, SyncMode.Full);
-        IsSyncing = false;
+        try
+        {
+            var result = await _syncManager.StartSyncAsync(CompanyName, SyncMode.Full);
+            if (result != null)
+            {
+                if (result.IsSuccess)
+                {
+                    CurrentTaskDescription = $"Synchronization completed successfully. Processed {result.TotalProcessed} records ({result.Inserted} inserted, {result.Updated} updated).";
+                }
+                else
+                {
+                    CurrentTaskDescription = $"Synchronization failed: {result.ErrorMessage ?? "Unknown error occurred"}";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            CurrentTaskDescription = $"Synchronization failed: {ex.Message}";
+        }
+        finally
+        {
+            IsSyncing = false;
+        }
+
         await LoadInitialDataAsync();
+
+        var activeComp = await _companyContext.GetActiveCompanyAsync();
+        if (activeComp != null)
+        {
+            await _companyContext.SetActiveCompanyAsync(activeComp);
+        }
     }
 
     [RelayCommand]
     private async Task StartIncrementalSyncAsync()
     {
+        if (IsSyncing) return;
+
         if (string.IsNullOrEmpty(CompanyName))
         {
             var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
@@ -178,9 +210,86 @@ public partial class SyncViewModel : ObservableObject
         IsSyncing = true;
         IsPaused = false;
         LiveLogs.Clear();
-        await _syncManager.StartSyncAsync(CompanyName, SyncMode.Incremental);
-        IsSyncing = false;
+        try
+        {
+            var result = await _syncManager.StartSyncAsync(CompanyName, SyncMode.Incremental);
+            if (result != null)
+            {
+                if (result.IsSuccess)
+                {
+                    CurrentTaskDescription = $"Incremental synchronization completed successfully. Processed {result.TotalProcessed} records ({result.Inserted} inserted, {result.Updated} updated).";
+                }
+                else
+                {
+                    CurrentTaskDescription = $"Synchronization failed: {result.ErrorMessage ?? "Unknown error occurred"}";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            CurrentTaskDescription = $"Synchronization failed: {ex.Message}";
+        }
+        finally
+        {
+            IsSyncing = false;
+        }
+
         await LoadInitialDataAsync();
+
+        var activeComp = await _companyContext.GetActiveCompanyAsync();
+        if (activeComp != null)
+        {
+            await _companyContext.SetActiveCompanyAsync(activeComp);
+        }
+    }
+
+    [RelayCommand]
+    private async Task RetrySyncAsync()
+    {
+        if (IsSyncing) return;
+
+        if (string.IsNullOrEmpty(CompanyName))
+        {
+            var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            CompanyName = comp?.TallyCompanyName ?? await _companyService.GetActiveCompanyAsync() ?? string.Empty;
+        }
+
+        if (string.IsNullOrEmpty(CompanyName)) return;
+
+        IsSyncing = true;
+        IsPaused = false;
+        LiveLogs.Clear();
+        try
+        {
+            var result = await _syncManager.RetryAsync();
+            if (result != null)
+            {
+                if (result.IsSuccess)
+                {
+                    CurrentTaskDescription = $"Synchronization retry completed successfully. Processed {result.TotalProcessed} records.";
+                }
+                else
+                {
+                    CurrentTaskDescription = $"Synchronization retry failed: {result.ErrorMessage ?? "Unknown error occurred"}";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            CurrentTaskDescription = $"Synchronization retry failed: {ex.Message}";
+        }
+        finally
+        {
+            IsSyncing = false;
+        }
+
+        await LoadInitialDataAsync();
+
+        var activeComp = await _companyContext.GetActiveCompanyAsync();
+        if (activeComp != null)
+        {
+            await _companyContext.SetActiveCompanyAsync(activeComp);
+        }
     }
 
     [RelayCommand]

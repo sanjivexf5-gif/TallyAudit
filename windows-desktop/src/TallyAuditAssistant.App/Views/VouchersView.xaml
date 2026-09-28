@@ -47,7 +47,7 @@
                 </DataGrid>
 
                 <!-- Empty State Overlay -->
-                <Border Background="#1E293B" Visibility="{Binding Vouchers.Count, Converter={x:Null}, FallbackValue=Collapsed}">
+                <Border Background="#1E293B" Visibility="{Binding Vouchers.Count, Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=Inverse, FallbackValue=Collapsed}">
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                         <TextBlock Text="No synchronized data available for this company and financial year." Foreground="{StaticResource TextMutedBrush}" FontSize="14" HorizontalAlignment="Center"/>
                         <TextBlock Text="Ensure TallyPrime is open, connect, and run synchronize first." Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,6,0,0" HorizontalAlignment="Center"/>

@@ -181,8 +181,9 @@ public class SyncManager : ISyncManager
             SetStage(SyncStage.ReadTransactions, "Streaming transaction vouchers in chunked date batches...");
             EmitLog("Streaming voucher transactions (Low-RAM chunking active)...");
 
-            var fromDate = profile.BooksBeginningFrom;
-            var toDate = DateTime.Today;
+            var booksFrom = profile.BooksBeginningFrom != default ? profile.BooksBeginningFrom : new DateTime(2025, 4, 1);
+            var fromDate = booksFrom;
+            var toDate = booksFrom.AddYears(1).AddDays(-1);
 
             var fromDateStr = await _settingsService.GetSettingAsync("AuditPeriodFrom", "");
             var toDateStr = await _settingsService.GetSettingAsync("AuditPeriodTo", "");

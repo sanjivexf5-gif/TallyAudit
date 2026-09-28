@@ -81,7 +81,7 @@
                     <TextBlock Grid.Row="0" Text="Finding Review &amp; Remarks" FontWeight="Bold" Foreground="White" Margin="0,0,0,14"/>
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="0,0,6,0" Visibility="{Binding SelectedException, Converter={x:Null}}">
+                        <StackPanel Margin="0,0,6,0" Visibility="{Binding SelectedException, Converter={StaticResource NullToVisibilityConverter}}">
                             <TextBlock Text="RULE DESCRIPTION" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBlock Text="{Binding SelectedException.RuleName}" FontWeight="Bold" Foreground="White" Margin="0,2,0,12" TextWrapping="Wrap"/>
 
@@ -116,7 +116,7 @@
                         </StackPanel>
                     </ScrollViewer>
 
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0" Visibility="{Binding SelectedException, Converter={x:Null}}">
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0" Visibility="{Binding SelectedException, Converter={StaticResource NullToVisibilityConverter}}">
                         <Button Content="✓ Accept / Resolve" Command="{Binding MarkAsAcceptedCommand}" Margin="0,0,8,0" Padding="12,6"/>
                         <Button Content="👁 Mark Reviewed" Command="{Binding MarkAsReviewedCommand}" Padding="12,6"/>
                     </StackPanel>
