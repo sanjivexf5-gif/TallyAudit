@@ -74,24 +74,9 @@ public class WpfStartupAndThemeTests
     [Fact]
     public void VerifyApplicationIconAssetExists()
     {
-        // Use the same search logic to find the root
-        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        string rootDir = "";
-        
-        var dir = new DirectoryInfo(baseDir);
-        while (dir != null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "TallyAuditAssistant.sln")))
-            {
-                rootDir = dir.FullName;
-                break;
-            }
-            dir = dir.Parent;
-        }
+        var appDir = FindAppDirectory();
 
-        if (string.IsNullOrEmpty(rootDir)) rootDir = Directory.GetCurrentDirectory();
-
-        var iconPath = Path.Combine(rootDir, "windows-desktop", "src", "TallyAuditAssistant.App", "Assets", "TallyAuditAssistant.ico");
+        var iconPath = Path.Combine(appDir, "Assets", "TallyAuditAssistant.ico");
         
         // Assert icon exists and has genuine binary content (> 1KB)
         Assert.True(File.Exists(iconPath), $"Official application icon is missing at: {iconPath}");
@@ -99,25 +84,59 @@ public class WpfStartupAndThemeTests
         Assert.True(fileInfo.Length > 1024, $"Icon file size is too small or empty: {fileInfo.Length} bytes");
 
         // Verify csproj specifies ApplicationIcon correctly
-        var csprojPath = Path.Combine(rootDir, "windows-desktop", "src", "TallyAuditAssistant.App", "TallyAuditAssistant.App.csproj");
+        var csprojPath = Path.Combine(appDir, "TallyAuditAssistant.App.csproj");
         Assert.True(File.Exists(csprojPath), $"Project file not found at: {csprojPath}");
         var csprojContent = File.ReadAllText(csprojPath);
         Assert.Contains(@"<ApplicationIcon>Assets\TallyAuditAssistant.ico</ApplicationIcon>", csprojContent);
         Assert.DoesNotContain(@":\", csprojContent); // No hard-coded absolute Windows drive paths
 
         // Verify MainWindow.xaml has Icon specified
-        var mainWindowXamlPath = Path.Combine(rootDir, "windows-desktop", "src", "TallyAuditAssistant.App", "Views", "MainWindow.xaml");
+        var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
         Assert.True(File.Exists(mainWindowXamlPath), $"MainWindow.xaml not found at: {mainWindowXamlPath}");
         var mainWindowContent = File.ReadAllText(mainWindowXamlPath);
         Assert.Contains("Icon=", mainWindowContent);
         Assert.Contains("TallyAuditAssistant.ico", mainWindowContent);
 
         // Verify Inno Setup installer script references the icon
-        var innoScriptPath = Path.Combine(rootDir, "windows-desktop", "installer", "TallyAuditAssistant.iss");
-        if (File.Exists(innoScriptPath))
+        var windowsDesktopDir = Path.GetDirectoryName(Path.GetDirectoryName(appDir));
+        if (!string.IsNullOrEmpty(windowsDesktopDir))
         {
-            var innoContent = File.ReadAllText(innoScriptPath);
-            Assert.Contains("TallyAuditAssistant.ico", innoContent);
+            var innoScriptPath = Path.Combine(windowsDesktopDir, "installer", "TallyAuditAssistant.iss");
+            if (File.Exists(innoScriptPath))
+            {
+                var innoContent = File.ReadAllText(innoScriptPath);
+                Assert.Contains("TallyAuditAssistant.ico", innoContent);
+            }
         }
+    }
+
+    private static string FindAppDirectory()
+    {
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        var dir = new DirectoryInfo(baseDir);
+        while (dir != null)
+        {
+            var directApp = Path.Combine(dir.FullName, "src", "TallyAuditAssistant.App");
+            if (Directory.Exists(directApp))
+            {
+                return directApp;
+            }
+
+            var desktopApp = Path.Combine(dir.FullName, "windows-desktop", "src", "TallyAuditAssistant.App");
+            if (Directory.Exists(desktopApp))
+            {
+                return desktopApp;
+            }
+
+            dir = dir.Parent;
+        }
+
+        // Fallback relative paths
+        if (Directory.Exists("windows-desktop/src/TallyAuditAssistant.App"))
+            return Path.GetFullPath("windows-desktop/src/TallyAuditAssistant.App");
+        if (Directory.Exists("src/TallyAuditAssistant.App"))
+            return Path.GetFullPath("src/TallyAuditAssistant.App");
+
+        return Path.GetFullPath("windows-desktop/src/TallyAuditAssistant.App");
     }
 }
