@@ -115,9 +115,8 @@ public class ActiveCompanyContext : IActiveCompanyContext
 
             if (isMock)
             {
-                // In mock mode, resolve from MockTallyCompanyService (Demo Industrial Solutions Pvt Ltd (FY 2025-26))
-                targetCompanyName = await _companyService.GetActiveCompanyAsync(null, cancellationToken)
-                                    ?? "Demo Industrial Solutions Pvt Ltd (FY 2025-26)";
+                // In mock mode, resolve from DynamicTallyCompanyService (which delegates to MockTallyCompanyService)
+                targetCompanyName = await _companyService.GetActiveCompanyAsync(null, cancellationToken);
             }
             else if (!string.IsNullOrEmpty(persistedName))
             {
@@ -150,14 +149,14 @@ public class ActiveCompanyContext : IActiveCompanyContext
             {
                 Id = dbCompany?.Id ?? targetCompanyName,
                 TallyCompanyName = profile?.Name ?? targetCompanyName,
-                FormalName = profile?.FormalName ?? (dbCompany?.FormalName ?? (isMock ? "Demo Industrial Solutions Pvt Ltd" : targetCompanyName)),
-                GSTIN = profile?.GSTIN ?? (dbCompany?.GSTIN ?? (isMock ? "27DEMO1234F1Z9" : null)),
-                PAN = profile?.PAN ?? (dbCompany?.PAN ?? (isMock ? "DEMOP1234F" : null)),
-                StateName = profile?.StateName ?? (dbCompany?.StateName ?? (isMock ? "Maharashtra" : null)),
-                StateCode = profile?.StateCode ?? (dbCompany?.StateCode ?? (isMock ? "27" : null)),
-                BooksFromDate = profile?.BooksBeginningFrom ?? (dbCompany?.BooksFromDate ?? new DateTime(2025, 4, 1)),
+                FormalName = profile?.FormalName ?? dbCompany?.FormalName ?? targetCompanyName,
+                GSTIN = profile?.GSTIN ?? dbCompany?.GSTIN,
+                PAN = profile?.PAN ?? dbCompany?.PAN,
+                StateName = profile?.StateName ?? dbCompany?.StateName,
+                StateCode = profile?.StateCode ?? dbCompany?.StateCode,
+                BooksFromDate = profile?.BooksBeginningFrom ?? dbCompany?.BooksFromDate ?? new DateTime(2025, 4, 1),
                 LastSyncDate = dbCompany?.LastSyncDate ?? DateTime.UtcNow,
-                LastAlterId = profile?.AlterId ?? (dbCompany?.LastAlterId ?? 10042),
+                LastAlterId = profile?.AlterId ?? dbCompany?.LastAlterId ?? 10042,
                 IsActive = true,
                 CreatedAt = dbCompany?.CreatedAt ?? DateTime.UtcNow
             };

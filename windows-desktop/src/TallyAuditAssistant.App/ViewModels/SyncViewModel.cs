@@ -115,7 +115,7 @@ public partial class SyncViewModel : ObservableObject
                 }
                 else
                 {
-                    CompanyName = "Demo Industrial Solutions Pvt Ltd (FY 2025-26)";
+                    CompanyName = string.Empty;
                 }
             }
 
@@ -151,8 +151,10 @@ public partial class SyncViewModel : ObservableObject
         if (string.IsNullOrEmpty(CompanyName))
         {
             var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            CompanyName = comp?.TallyCompanyName ?? "Demo Industrial Solutions Pvt Ltd (FY 2025-26)";
+            CompanyName = comp?.TallyCompanyName ?? await _companyService.GetActiveCompanyAsync() ?? string.Empty;
         }
+
+        if (string.IsNullOrEmpty(CompanyName)) return;
 
         IsSyncing = true;
         IsPaused = false;
@@ -168,8 +170,10 @@ public partial class SyncViewModel : ObservableObject
         if (string.IsNullOrEmpty(CompanyName))
         {
             var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            CompanyName = comp?.TallyCompanyName ?? "Demo Industrial Solutions Pvt Ltd (FY 2025-26)";
+            CompanyName = comp?.TallyCompanyName ?? await _companyService.GetActiveCompanyAsync() ?? string.Empty;
         }
+
+        if (string.IsNullOrEmpty(CompanyName)) return;
 
         IsSyncing = true;
         IsPaused = false;

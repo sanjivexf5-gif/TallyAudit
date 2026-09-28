@@ -319,6 +319,127 @@ public class MockTallyIntegrationTests : IAsyncLifetime
         Assert.True(File.Exists(_testDbPath));
     }
 
+    [Fact]
+    public async Task MainWindowViewModel_ResolvesMockActiveCompany_RatherThanActiveTallySession()
+    {
+        await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+
+        // Create a connection with generic ActiveEndpoint company "Active Tally Session"
+        var conn = new MockTallyConnection
+        {
+            ActiveEndpoint = new TallyEndpointInfo("localhost", 9000, true, "Mock/Demo", "Active Tally Session", 5)
+        };
+
+        var mainVm = new MainWindowViewModel(
+            conn,
+            _companyContext,
+            _companyService,
+            _settingsService,
+            new DashboardViewModel(_auditRepo, conn, new AuditEngine(System.Array.Empty<IAuditRule>(), NullLogger<AuditEngine>.Instance), _settingsService, new MockDrillDownService(), new MockAiService(), _companyContext, NullLogger<DashboardViewModel>.Instance),
+            new TallyConnectionViewModel(conn, _companyService, _settingsService, new TallyConnectionMonitor(conn, _settingsService, NullLogger<TallyConnectionMonitor>.Instance), _companyContext),
+            new SyncViewModel(_syncManager, _companyService, _settingsService, _companyContext),
+            new SettingsViewModel(_settingsService, _initializer, _companyContext),
+            new CompaniesViewModel(_auditRepo, _settingsService, _companyContext, _companyService),
+            new GstAuditViewModel(_auditRepo, _settingsService, _companyContext),
+            new TdsAuditViewModel(_auditRepo, _settingsService, _companyContext),
+            new VouchersViewModel(_factory, _settingsService, _auditRepo, _companyContext),
+            new LedgersViewModel(_factory, _settingsService, _auditRepo, _companyContext),
+            new BankAuditViewModel(_auditRepo, _settingsService, _companyContext),
+            new ExceptionsViewModel(_auditRepo, _settingsService, _companyContext),
+            new ReportsViewModel(_auditRepo, _settingsService, _companyContext));
+
+        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", mainVm.ActiveCompany);
+        Assert.NotEqual("Active Tally Session", mainVm.ActiveCompany);
+    }
+
+    [Fact]
+    public async Task RealTallyCompanyResolution_Works_WithoutHardcodedDemoCompany()
+    {
+        var realCompanyService = new MockCustomCompanyService("Custom Enterprise Ltd (FY 2025-26)");
+        var realSettings = new MockSettingsService();
+        await realSettings.SetMockModeEnabledAsync(false);
+
+        var realContext = new ActiveCompanyContext(
+            _auditRepo,
+            realSettings,
+            realCompanyService,
+            NullLogger<ActiveCompanyContext>.Instance);
+
+        var company = await realContext.EnsureAndInitializeActiveCompanyAsync();
+        Assert.NotNull(company);
+        Assert.Equal("Custom Enterprise Ltd (FY 2025-26)", company.TallyCompanyName);
+        Assert.Equal("Custom Enterprise Ltd", company.FormalName);
+
+        var persisted = await realSettings.GetSettingAsync("ActiveCompany");
+        Assert.Equal("Custom Enterprise Ltd (FY 2025-26)", persisted);
+    }
+
+    [Fact]
+    public async Task SettingsViewModel_TogglingMockMode_TriggersCompanyContextInitialization()
+    {
+        var settingsVm = new SettingsViewModel(_settingsService, _initializer, _companyContext);
+        settingsVm.IsMockMode = true;
+        await _settingsService.SetSettingAsync("ActiveCompany", string.Empty);
+
+        // Act - Save settings
+        var saveMethod = typeof(SettingsViewModel).GetMethod("SaveSettingsAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        if (saveMethod != null)
+        {
+            var task = (Task)saveMethod.Invoke(settingsVm, null)!;
+            await task;
+        }
+
+        var active = _companyContext.ActiveCompanyName;
+        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", active);
+    }
+
+    private class MockDrillDownService : ITallyDrillDownService
+    {
+        public Task<TallyVoucherDrillDownResult?> GetVoucherDrillDownAsync(string voucherNumber, string? companyName = null, CancellationToken cancellationToken = default)
+            => Task.FromResult<TallyVoucherDrillDownResult?>(null);
+    }
+
+    private class MockAiService : IAuditAssistantService
+    {
+        public bool IsConfigured => false;
+        public Task<string> ExplainExceptionAsync(AuditException exception, Company company, CancellationToken cancellationToken = default) => Task.FromResult("Mock AI");
+        public Task<string> SuggestCorrectionAsync(AuditException exception, Company company, CancellationToken cancellationToken = default) => Task.FromResult("Mock Correction");
+        public Task<string> DraftAuditorRemarkAsync(AuditException exception, Company company, CancellationToken cancellationToken = default) => Task.FromResult("Mock Remark");
+        public Task<string> GenerateRunExecutiveSummaryAsync(AuditRun run, IReadOnlyList<AuditException> exceptions, Company company, CancellationToken cancellationToken = default) => Task.FromResult("Mock Summary");
+        public Task<string> AskAssistantAsync(string question, string companyName, CancellationToken cancellationToken = default) => Task.FromResult("Mock Answer");
+    }
+
+    private class MockCustomCompanyService : ITallyCompanyService
+    {
+        private readonly string _companyName;
+        public MockCustomCompanyService(string companyName) => _companyName = companyName;
+
+        public Task<IReadOnlyList<string>> GetOpenCompaniesAsync(string? endpointUrl = null, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<string>>(new[] { _companyName });
+
+        public Task<string?> GetActiveCompanyAsync(string? endpointUrl = null, CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>(_companyName);
+
+        public Task<System.Collections.Generic.Dictionary<string, string>> GetCompanyProfileAsync(string endpointUrl, string companyName, CancellationToken cancellationToken = default)
+            => Task.FromResult(new System.Collections.Generic.Dictionary<string, string> { { "Name", companyName } });
+
+        public Task<TallyCompanyProfile?> GetCompanyProfileTypedAsync(string companyName, string? endpointUrl = null, CancellationToken cancellationToken = default)
+        {
+            var profile = new TallyCompanyProfile
+            {
+                Name = companyName,
+                FormalName = companyName.Replace(" (FY 2025-26)", ""),
+                GSTIN = "27CUSTOM1234F1Z1",
+                PAN = "CUSTP1234F",
+                StateName = "Maharashtra",
+                StateCode = "27",
+                BooksBeginningFrom = new DateTime(2025, 4, 1),
+                AlterId = 5001
+            };
+            return Task.FromResult<TallyCompanyProfile?>(profile);
+        }
+    }
+
     private class MockSettingsService : ISettingsService
     {
         private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _settings = new();

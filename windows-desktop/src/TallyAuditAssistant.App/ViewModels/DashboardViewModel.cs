@@ -53,7 +53,7 @@ public partial class DashboardViewModel : ObservableObject
     private bool _isAiChatLoading = false;
 
     [ObservableProperty]
-    private string _activeCompanyName = "Apex Industrial Solutions Pvt Ltd";
+    private string _activeCompanyName = string.Empty;
 
     [ObservableProperty]
     private string _financialYear = "FY 2025-26";

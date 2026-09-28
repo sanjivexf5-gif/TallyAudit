@@ -45,10 +45,7 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
-    public SettingsViewModel(
-        ISettingsService settingsService,
-        IDatabaseInitializer dbInitializer,
-        IActiveCompanyContext companyContext)
+    public SettingsViewModel(ISettingsService settingsService, IDatabaseInitializer dbInitializer, IActiveCompanyContext companyContext)
     {
         _settingsService = settingsService;
         _dbInitializer = dbInitializer;
@@ -88,7 +85,6 @@ public partial class SettingsViewModel : ObservableObject
         await _settingsService.SetTallyHostAsync(TallyHost);
         await _settingsService.SetTallyPortAsync(TallyPort);
         await _settingsService.SetMockModeEnabledAsync(IsMockMode);
-        await _companyContext.InitializeCompanyContextAsync();
 
         await _settingsService.SetSettingAsync("LargeTransactionThreshold", LargeTransactionThreshold.ToString());
         await _settingsService.SetSettingAsync("TdsSinglePaymentLimit", TdsSinglePaymentLimit.ToString());
@@ -96,6 +92,11 @@ public partial class SettingsViewModel : ObservableObject
         await _settingsService.SetSettingAsync("RoundNumberMinAmount", RoundNumberMinAmount.ToString());
         await _settingsService.SetSettingAsync("PeriodEndReviewDays", PeriodEndReviewDays.ToString());
         await _settingsService.SetSettingAsync("DuplicateSensitivity", DuplicateSensitivity);
+
+        if (IsMockMode)
+        {
+            await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+        }
 
         StatusMessage = "Settings saved successfully to local SQLite storage.";
     }
