@@ -2512,9 +2512,9 @@ export default function App() {
       setWorkspaceExceptions(initialWorkspaceExceptions);
       setAuditEvidence(initialAuditEvidence);
       setWorkingPapers(initialWorkingPapers);
-      setAuditSamples(initialAuditProcedures.flatMap(p => p.samples || []));
+      setAuditSamples([]);
       setMockSettingsStatusMessage('Mock Tally Integration enabled. Demo dataset is available.');
-      recordSecurityLog('SYSTEM_CONFIG', 'Mock Tally Mode Enabled', 'Synthetic Demo Industrial Solutions Pvt Ltd company loaded.');
+      recordSecurityLog('SYSTEM', 'Mock Tally Mode Enabled', 'Synthetic Demo Industrial Solutions Pvt Ltd company loaded.');
     } else {
       setTallyConnected(false);
       setLatency(0);
@@ -2539,7 +2539,7 @@ export default function App() {
       setSyncStepMessage('Tally Disconnected — No Active Company Selected');
       setSyncProgress(0);
       setMockSettingsStatusMessage('Mock Tally Integration disabled. Demo data has been cleared and no company is currently selected.');
-      recordSecurityLog('SYSTEM_CONFIG', 'Mock Tally Mode Disabled', 'Synthetic demo dataset cleared and company context unselected.');
+      recordSecurityLog('SYSTEM', 'Mock Tally Mode Disabled', 'Synthetic demo dataset cleared and company context unselected.');
     }
   };
 

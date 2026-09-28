@@ -1,3 +1,4 @@
+using Dapper;
 using Microsoft.Data.Sqlite;
 using System.Data.Common;
 using TallyAuditAssistant.Core.Interfaces;
@@ -7,6 +8,12 @@ namespace TallyAuditAssistant.Data;
 public class SqliteConnectionFactory : ISqliteConnectionFactory
 {
     private readonly string _connectionString;
+
+    static SqliteConnectionFactory()
+    {
+        SqlMapper.AddTypeHandler(SqliteDecimalHandler.Instance);
+        SqlMapper.AddTypeHandler(SqliteNullableDecimalHandler.Instance);
+    }
 
     public SqliteConnectionFactory(string databasePath)
     {

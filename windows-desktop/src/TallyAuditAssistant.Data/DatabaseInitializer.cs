@@ -10,6 +10,12 @@ public class DatabaseInitializer : IDatabaseInitializer
     private readonly ILogger<DatabaseInitializer> _logger;
     private readonly string _databasePath;
 
+    static DatabaseInitializer()
+    {
+        SqlMapper.AddTypeHandler(SqliteDecimalHandler.Instance);
+        SqlMapper.AddTypeHandler(SqliteNullableDecimalHandler.Instance);
+    }
+
     public DatabaseInitializer(SqliteConnectionFactory connectionFactory, ILogger<DatabaseInitializer> logger, string databasePath)
     {
         _connectionFactory = connectionFactory;
