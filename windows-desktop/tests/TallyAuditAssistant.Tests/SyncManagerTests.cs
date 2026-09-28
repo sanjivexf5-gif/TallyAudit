@@ -116,7 +116,7 @@ public class SyncManagerTests
         mockMaster.Setup(m => m.GetLedgersAsync(It.IsAny<string>(), It.IsAny<long?>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<TallyLedgerDto>());
 
         var mockVoucher = new Mock<ITallyVoucherService>();
-        async IAsyncEnumerable<TallyVoucherDto> EmptyStream() { await Task.Yield(); }
+        async IAsyncEnumerable<TallyVoucherDto> EmptyStream() { await Task.Yield(); yield break; }
         mockVoucher.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                    .Returns(EmptyStream());
 
@@ -157,9 +157,9 @@ public class SyncManagerTests
         mockMaster.Setup(m => m.GetLedgersAsync(It.IsAny<string>(), It.IsAny<long?>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<TallyLedgerDto>());
 
         var mockVoucher = new Mock<ITallyVoucherService>();
-        async IAsyncEnumerable<TallyVoucherDto> EmptyStream() { await Task.Yield(); }
+        async IAsyncEnumerable<TallyVoucherDto> EmptyStreamRetry() { await Task.Yield(); yield break; }
         mockVoucher.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                   .Returns(EmptyStream());
+                   .Returns(EmptyStreamRetry());
 
         var syncManager = new SyncManager(
             mockConn.Object, mockCompany.Object, mockMaster.Object, mockVoucher.Object,
@@ -180,7 +180,7 @@ public class SyncManagerTests
         mockConn.Setup(c => c.TestConnectionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(false);
         mockConn.Setup(c => c.ProbePortRangeAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync((string?)null);
+                .ReturnsAsync((TallyEndpointInfo?)null);
 
         var syncManager = new SyncManager(
             mockConn.Object, new Mock<ITallyCompanyService>().Object, new Mock<ITallyMasterService>().Object, new Mock<ITallyVoucherService>().Object,
