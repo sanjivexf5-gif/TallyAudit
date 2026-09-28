@@ -10,6 +10,7 @@ using Serilog.Settings.Configuration;
 using TallyAuditAssistant.App.ViewModels;
 using TallyAuditAssistant.App.Views;
 using TallyAuditAssistant.Core.Interfaces;
+using TallyAuditAssistant.Core.Services;
 using TallyAuditAssistant.Data;
 using TallyAuditAssistant.Data.Repositories;
 using TallyAuditAssistant.Engine;

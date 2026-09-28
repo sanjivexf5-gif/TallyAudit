@@ -1,7 +1,6 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
 
@@ -9,185 +8,167 @@ namespace TallyAuditAssistant.Core.Services;
 
 public class ActiveCompanyContext : IActiveCompanyContext
 {
+    private readonly IAuditRepository _repository;
     private readonly ISettingsService _settingsService;
     private readonly ITallyCompanyService _companyService;
-    private readonly IAuditRepository _auditRepository;
-    private readonly ILogger<ActiveCompanyContext> _logger;
 
-    private readonly SemaphoreSlim _lock = new(1, 1);
+    private Company? _currentCompany;
+    public event EventHandler<Company?>? ActiveCompanyChanged;
 
-    public string? ActiveCompanyId { get; private set; }
-    public string? ActiveCompanyName { get; private set; }
-
-    public event EventHandler<string>? ActiveCompanyChanged;
+    public string? ActiveCompanyName => _currentCompany?.TallyCompanyName;
+    public string? ActiveCompanyId => _currentCompany?.Id;
+    public Company? CurrentCompany => _currentCompany;
 
     public ActiveCompanyContext(
+        IAuditRepository repository,
         ISettingsService settingsService,
-        ITallyCompanyService companyService,
-        IAuditRepository auditRepository,
-        ILogger<ActiveCompanyContext> logger)
+        ITallyCompanyService companyService)
     {
-        _settingsService = settingsService;
-        _companyService = companyService;
-        _auditRepository = auditRepository;
-        _logger = logger;
+        _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _companyService = companyService ?? throw new ArgumentNullException(nameof(companyService));
     }
 
-    public async Task<string> GetActiveCompanyNameAsync(CancellationToken cancellationToken = default)
+    public async Task<Company?> GetActiveCompanyAsync(CancellationToken cancellationToken = default)
     {
-        if (!string.IsNullOrEmpty(ActiveCompanyName) && ActiveCompanyName != "No Company Selected")
+        if (_currentCompany != null)
         {
-            return ActiveCompanyName;
+            return _currentCompany;
         }
 
-        return await InitializeCompanyContextAsync(cancellationToken);
-    }
-
-    public async Task<Company?> GetActiveCompanyRecordAsync(CancellationToken cancellationToken = default)
-    {
-        var name = await GetActiveCompanyNameAsync(cancellationToken);
-        if (string.IsNullOrEmpty(name) || name == "No Company Selected") return null;
-
-        var comp = await _auditRepository.GetCompanyByTallyNameAsync(name, cancellationToken);
-        if (comp == null && !string.IsNullOrEmpty(ActiveCompanyId))
+        var persistedName = await _settingsService.GetSettingAsync("ActiveCompany", string.Empty, cancellationToken);
+        if (!string.IsNullOrEmpty(persistedName))
         {
-            comp = await _auditRepository.GetCompanyByIdAsync(ActiveCompanyId, cancellationToken);
+            _currentCompany = await _repository.GetCompanyByNameAsync(persistedName, cancellationToken)
+                              ?? await _repository.GetCompanyByIdAsync(persistedName, cancellationToken);
+            if (_currentCompany != null)
+            {
+                return _currentCompany;
+            }
         }
 
-        return comp;
+        return await EnsureAndInitializeActiveCompanyAsync(cancellationToken);
     }
 
-    public async Task SetActiveCompanyAsync(string companyName, string? companyId = null, CancellationToken cancellationToken = default)
+    public async Task SetActiveCompanyAsync(Company company, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(company);
+
+        _currentCompany = company;
+        await _settingsService.SetSettingAsync("ActiveCompany", company.TallyCompanyName, cancellationToken);
+        
+        var fy = $"FY {company.BooksFromDate.Year}-{(company.BooksFromDate.Year + 1) % 100:D2}";
+        await _settingsService.SetSettingAsync("FinancialYear", fy, cancellationToken);
+        await _settingsService.SetSettingAsync("AuditPeriodFrom", company.BooksFromDate.ToString("yyyy-MM-dd"), cancellationToken);
+        await _settingsService.SetSettingAsync("AuditPeriodTo", company.BooksFromDate.AddYears(1).AddDays(-1).ToString("yyyy-MM-dd"), cancellationToken);
+
+        ActiveCompanyChanged?.Invoke(this, _currentCompany);
+    }
+
+    public async Task SetActiveCompanyNameAsync(string companyName, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(companyName)) return;
 
-        await _lock.WaitAsync(cancellationToken);
-        try
-        {
-            ActiveCompanyName = companyName;
-            if (!string.IsNullOrEmpty(companyId))
-            {
-                ActiveCompanyId = companyId;
-            }
-            else
-            {
-                var existing = await _auditRepository.GetCompanyByTallyNameAsync(companyName, cancellationToken);
-                if (existing != null)
-                {
-                    ActiveCompanyId = existing.Id;
-                }
-            }
+        var existing = await _repository.GetCompanyByNameAsync(companyName, cancellationToken)
+                       ?? await _repository.GetCompanyByIdAsync(companyName, cancellationToken);
 
-            await _settingsService.SetSettingAsync("ActiveCompany", companyName, cancellationToken);
-            _logger.LogInformation("Active company context updated to: {Company} (Id: {Id})", companyName, ActiveCompanyId);
-        }
-        finally
+        if (existing != null)
         {
-            _lock.Release();
+            await SetActiveCompanyAsync(existing, cancellationToken);
+            return;
         }
 
-        ActiveCompanyChanged?.Invoke(this, companyName);
+        var profile = await _companyService.GetCompanyProfileTypedAsync(companyName, null, cancellationToken);
+        var company = new Company
+        {
+            Id = profile?.Name ?? companyName,
+            TallyCompanyName = profile?.Name ?? companyName,
+            FormalName = profile?.FormalName ?? companyName,
+            GSTIN = profile?.GSTIN,
+            PAN = profile?.PAN,
+            StateName = profile?.StateName,
+            StateCode = profile?.StateCode,
+            BooksFromDate = profile?.BooksBeginningFrom ?? new DateTime(2025, 4, 1),
+            LastSyncDate = DateTime.UtcNow,
+            LastAlterId = profile?.AlterId ?? 0,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var saved = await _repository.EnsureCompanyAsync(company, cancellationToken);
+        await SetActiveCompanyAsync(saved, cancellationToken);
     }
 
-    public async Task<string> InitializeCompanyContextAsync(CancellationToken cancellationToken = default)
+    public async Task<Company?> EnsureAndInitializeActiveCompanyAsync(CancellationToken cancellationToken = default)
     {
-        await _lock.WaitAsync(cancellationToken);
-        string resolvedName = string.Empty;
         try
         {
             var isMock = await _settingsService.IsMockModeEnabledAsync();
+            var persistedName = await _settingsService.GetSettingAsync("ActiveCompany", string.Empty, cancellationToken);
 
-            string? targetCompany = null;
+            string? targetCompanyName = null;
+
             if (isMock)
             {
-                // In mock mode, the active mock company from ITallyCompanyService is authoritative:
-                // "Demo Industrial Solutions Pvt Ltd (FY 2025-26)"
-                targetCompany = await _companyService.GetActiveCompanyAsync(cancellationToken: cancellationToken);
+                // In mock mode, resolve from DynamicTallyCompanyService (which delegates to MockTallyCompanyService)
+                targetCompanyName = await _companyService.GetActiveCompanyAsync(null, cancellationToken);
+            }
+            else if (!string.IsNullOrEmpty(persistedName))
+            {
+                targetCompanyName = persistedName;
             }
             else
             {
-                // In real mode, check persisted settings first, or probe Tally
-                var stored = await _settingsService.GetSettingAsync("ActiveCompany", string.Empty, cancellationToken);
-                if (!string.IsNullOrEmpty(stored))
-                {
-                    targetCompany = stored;
-                }
-                else
-                {
-                    targetCompany = await _companyService.GetActiveCompanyAsync(cancellationToken: cancellationToken);
-                }
+                targetCompanyName = await _companyService.GetActiveCompanyAsync(null, cancellationToken);
             }
 
-            if (string.IsNullOrEmpty(targetCompany))
+            if (string.IsNullOrEmpty(targetCompanyName))
             {
-                targetCompany = await _settingsService.GetSettingAsync("ActiveCompany", string.Empty, cancellationToken);
-            }
-
-            if (!string.IsNullOrEmpty(targetCompany))
-            {
-                resolvedName = targetCompany;
-                ActiveCompanyName = targetCompany;
-
-                // Ensure company exists in repository
-                var existing = await _auditRepository.GetCompanyByTallyNameAsync(targetCompany, cancellationToken);
-                if (existing == null)
+                // Check if repository has any existing companies
+                var all = await _repository.GetAllCompaniesAsync(cancellationToken);
+                if (all.Count > 0)
                 {
-                    var profile = await _companyService.GetCompanyProfileTypedAsync(targetCompany, null, cancellationToken);
-                    var comp = new Company
-                    {
-                        Id = Guid.NewGuid().ToString(),
-                        TallyCompanyName = targetCompany,
-                        FormalName = profile?.FormalName ?? targetCompany,
-                        GSTIN = profile?.GSTIN,
-                        PAN = profile?.PAN,
-                        StateName = profile?.StateName,
-                        StateCode = profile?.StateCode,
-                        BooksFromDate = profile?.BooksBeginningFrom ?? new DateTime(2025, 4, 1),
-                        LastAlterId = profile?.AlterId ?? 0,
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    };
-
-                    var saved = await _auditRepository.EnsureCompanyAsync(comp, cancellationToken);
-                    ActiveCompanyId = saved.Id;
+                    _currentCompany = all[0];
+                    await SetActiveCompanyAsync(_currentCompany, cancellationToken);
+                    return _currentCompany;
                 }
-                else
-                {
-                    ActiveCompanyId = existing.Id;
-                }
-
-                await _settingsService.SetSettingAsync("ActiveCompany", targetCompany, cancellationToken);
-                _logger.LogInformation("Company context initialized to: {Company} (Id: {Id})", resolvedName, ActiveCompanyId);
+                return null;
             }
-            else
+
+            var dbCompany = await _repository.GetCompanyByNameAsync(targetCompanyName, cancellationToken)
+                            ?? await _repository.GetCompanyByIdAsync(targetCompanyName, cancellationToken);
+
+            var profile = await _companyService.GetCompanyProfileTypedAsync(targetCompanyName, null, cancellationToken);
+
+            var companyToEnsure = new Company
             {
-                ActiveCompanyName = "No Company Selected";
-                ActiveCompanyId = null;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error while initializing active company context");
-        }
-        finally
-        {
-            _lock.Release();
-        }
+                Id = dbCompany?.Id ?? targetCompanyName,
+                TallyCompanyName = profile?.Name ?? targetCompanyName,
+                FormalName = profile?.FormalName ?? dbCompany?.FormalName ?? targetCompanyName,
+                GSTIN = profile?.GSTIN ?? dbCompany?.GSTIN,
+                PAN = profile?.PAN ?? dbCompany?.PAN,
+                StateName = profile?.StateName ?? dbCompany?.StateName,
+                StateCode = profile?.StateCode ?? dbCompany?.StateCode,
+                BooksFromDate = profile?.BooksBeginningFrom ?? dbCompany?.BooksFromDate ?? new DateTime(2025, 4, 1),
+                LastSyncDate = dbCompany?.LastSyncDate ?? DateTime.UtcNow,
+                LastAlterId = profile?.AlterId ?? dbCompany?.LastAlterId ?? 10042,
+                IsActive = true,
+                CreatedAt = dbCompany?.CreatedAt ?? DateTime.UtcNow
+            };
 
-        if (!string.IsNullOrEmpty(resolvedName))
-        {
-            ActiveCompanyChanged?.Invoke(this, resolvedName);
+            var saved = await _repository.EnsureCompanyAsync(companyToEnsure, cancellationToken);
+            _currentCompany = saved;
+
+            await _settingsService.SetSettingAsync("ActiveCompany", saved.TallyCompanyName, cancellationToken);
+            var fy = $"FY {saved.BooksFromDate.Year}-{(saved.BooksFromDate.Year + 1) % 100:D2}";
+            await _settingsService.SetSettingAsync("FinancialYear", fy, cancellationToken);
+
+            ActiveCompanyChanged?.Invoke(this, _currentCompany);
+            return _currentCompany;
         }
-
-        return resolvedName;
-    }
-
-    public async Task EnsureActiveCompanyAvailableAsync(CancellationToken cancellationToken = default)
-    {
-        var companies = await _auditRepository.GetAllCompaniesAsync(cancellationToken);
-        if (companies.Count == 0)
+        catch
         {
-            await InitializeCompanyContextAsync(cancellationToken);
+            return null;
         }
     }
 }

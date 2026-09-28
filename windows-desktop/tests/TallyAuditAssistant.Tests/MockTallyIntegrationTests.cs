@@ -12,6 +12,7 @@ using TallyAuditAssistant.Core.Domain.Gst;
 using TallyAuditAssistant.Core.Domain.Sync;
 using TallyAuditAssistant.Core.Domain.Tally;
 using TallyAuditAssistant.Core.Interfaces;
+using TallyAuditAssistant.Core.Services;
 using TallyAuditAssistant.Data;
 using TallyAuditAssistant.Data.Repositories;
 using TallyAuditAssistant.Engine.Duplicates;
@@ -61,8 +62,7 @@ public class MockTallyIntegrationTests : IAsyncLifetime
         _companyContext = new ActiveCompanyContext(
             _auditRepo,
             _settingsService,
-            _companyService,
-            NullLogger<ActiveCompanyContext>.Instance);
+            _companyService);
 
         _voucherService = new TallyVoucherService(
             _client,
@@ -362,8 +362,7 @@ public class MockTallyIntegrationTests : IAsyncLifetime
         var realContext = new ActiveCompanyContext(
             _auditRepo,
             realSettings,
-            realCompanyService,
-            NullLogger<ActiveCompanyContext>.Instance);
+            realCompanyService);
 
         var company = await realContext.EnsureAndInitializeActiveCompanyAsync();
         Assert.NotNull(company);
