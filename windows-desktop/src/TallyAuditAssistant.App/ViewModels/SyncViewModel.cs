@@ -10,7 +10,7 @@ using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
-public partial class SyncViewModel : ObservableObject
+public partial class SyncViewModel : ObservableObject, INavigationAware
 {
     private readonly ISyncManager _syncManager;
     private readonly ITallyCompanyService _companyService;
@@ -78,6 +78,11 @@ public partial class SyncViewModel : ObservableObject
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
 
         _ = LoadInitialDataAsync();
+    }
+
+    public async Task OnNavigatedToAsync()
+    {
+        await LoadInitialDataAsync();
     }
 
     private void OnActiveCompanyChanged(object? sender, Company? comp)

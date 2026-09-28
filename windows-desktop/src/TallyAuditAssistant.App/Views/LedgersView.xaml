@@ -12,12 +12,13 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
+        <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,16">
             <TextBlock Text="Synchronized Chart of Accounts / Ledgers" FontSize="22" FontWeight="Bold" Foreground="White"/>
             <TextBlock Text="Explore ledgers, groups, opening balances, closing balances, and tax registrations synchronized from TallyPrime." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,12"/>
         </StackPanel>
 
-        <!-- Search & Filter bar -->
+        <!-- Search & Filter bar (Visible when data available) -->
         <Border Grid.Row="1" Background="{StaticResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="12" Margin="0,0,0,16">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -28,29 +29,61 @@
                     <TextBlock Text="Search Ledgers: " Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <TextBox Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Width="300" Padding="6,4" VerticalAlignment="Center"/>
                 </StackPanel>
-                <Button Grid.Column="1" Content="🔄 Refresh List" Command="{Binding LoadLedgersCommand}" Padding="10,4"/>
+                <Button Grid.Column="1" Content="🔄 Refresh List" Command="{Binding LoadLedgersCommand}" Padding="12,6"/>
             </Grid>
         </Border>
 
-        <!-- Ledgers DataGrid -->
+        <!-- Main Body Area -->
         <Border Grid.Row="2" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="12">
             <Grid>
-                <DataGrid ItemsSource="{Binding Ledgers}" GridLinesVisibility="None" HeadersVisibility="Column">
+                <!-- State 1: Loading Overlay -->
+                <Border Background="#1E293B" CornerRadius="6" Padding="30" Panel.ZIndex="10" Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="⏳ Loading Synchronized Ledgers..." FontSize="16" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                        <ProgressBar IsIndeterminate="True" Width="260" Height="6" Background="#0F172A" Foreground="{StaticResource PrimaryBrandBrush}" BorderThickness="0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- State 2: Data Available (DataGrid) -->
+                <DataGrid ItemsSource="{Binding Ledgers}" GridLinesVisibility="None" HeadersVisibility="Column"
+                          Visibility="{Binding HasLedgers, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Ledger Name" Binding="{Binding Name}" Width="2*"/>
                         <DataGridTextColumn Header="Parent Group" Binding="{Binding ParentGroup}" Width="1.5*"/>
-                        <DataGridTextColumn Header="GSTIN" Binding="{Binding GSTIN}" Width="150"/>
-                        <DataGridTextColumn Header="PAN" Binding="{Binding PAN}" Width="120"/>
+                        <DataGridTextColumn Header="GSTIN" Binding="{Binding GSTIN, TargetNullValue='—'}" Width="150"/>
+                        <DataGridTextColumn Header="PAN" Binding="{Binding PAN, TargetNullValue='—'}" Width="120"/>
                         <DataGridTextColumn Header="Opening Bal" Binding="{Binding OpeningBalance, StringFormat={}{0:C}}" Width="120"/>
                         <DataGridTextColumn Header="Closing Bal" Binding="{Binding ClosingBalance, StringFormat={}{0:C}}" Width="120"/>
                     </DataGrid.Columns>
                 </DataGrid>
 
-                <!-- Empty State Overlay -->
-                <Border Background="#1E293B" Visibility="{Binding Ledgers.Count, Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=Inverse, FallbackValue=Collapsed}">
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <TextBlock Text="No synchronized data available for this company and financial year." Foreground="{StaticResource TextMutedBrush}" FontSize="14" HorizontalAlignment="Center"/>
-                        <TextBlock Text="Ensure TallyPrime is open, connect, and run synchronize first." Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,6,0,0" HorizontalAlignment="Center"/>
+                <!-- State 3: Empty State -->
+                <Border Background="#1E293B" CornerRadius="6" Padding="40"
+                        Visibility="{Binding HasLedgers, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="500">
+                        <TextBlock Text="📖" FontSize="36" HorizontalAlignment="Center" Margin="0,0,0,12"/>
+                        <TextBlock Text="No synchronized ledger data available." FontSize="18" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                        
+                        <!-- Company & FY Context -->
+                        <Border Background="#0F172A" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="14,10" Margin="0,0,0,18">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="Company: " Foreground="{StaticResource TextMutedBrush}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding ActiveCompanyName, TargetNullValue='No Active Company'}" Foreground="#38BDF8" FontWeight="Bold"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Financial Year: " Foreground="{StaticResource TextMutedBrush}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding FinancialYear}" Foreground="White" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="Synchronize your accounting masters from TallyPrime to view chart of accounts, balances, and statutory tax registrations." Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,24"/>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button Content="🔄 Go to Synchronize" Command="{Binding GoToSyncCommand}" Padding="16,8" Margin="0,0,12,0"/>
+                            <Button Content="Refresh" Command="{Binding LoadLedgersCommand}" Background="#334155" Padding="16,8"/>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </Grid>

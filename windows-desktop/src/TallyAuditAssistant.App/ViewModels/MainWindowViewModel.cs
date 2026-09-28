@@ -14,6 +14,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly IActiveCompanyContext _companyContext;
     private readonly ITallyCompanyService _companyService;
     private readonly ISettingsService _settingsService;
+    private readonly INavigationService _navigationService;
 
     [ObservableProperty]
     private string _title = "Tally Audit Assistant — Auditor Edition";
@@ -51,6 +52,7 @@ public partial class MainWindowViewModel : ObservableObject
         IActiveCompanyContext companyContext,
         ITallyCompanyService companyService,
         ISettingsService settingsService,
+        INavigationService navigationService,
         DashboardViewModel dashboardVM,
         TallyConnectionViewModel connectionVM,
         SyncViewModel syncVM,
@@ -68,6 +70,7 @@ public partial class MainWindowViewModel : ObservableObject
         _companyContext = companyContext;
         _companyService = companyService;
         _settingsService = settingsService;
+        _navigationService = navigationService;
 
         DashboardVM = dashboardVM;
         ConnectionVM = connectionVM;
@@ -83,6 +86,14 @@ public partial class MainWindowViewModel : ObservableObject
         ReportsVM = reportsVM;
 
         _currentViewModel = dashboardVM;
+
+        _navigationService.Navigated += (s, sec) =>
+        {
+            if (CurrentSection != sec)
+            {
+                Navigate(sec);
+            }
+        };
 
         _companyContext.ActiveCompanyChanged += (s, comp) =>
         {
@@ -109,7 +120,7 @@ public partial class MainWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Navigate(string section)
+    public void Navigate(string section)
     {
         ObservableObject? nextVM = section switch
         {
@@ -132,6 +143,25 @@ public partial class MainWindowViewModel : ObservableObject
         {
             CurrentSection = section;
             CurrentViewModel = nextVM;
+            if (_navigationService.CurrentSection != section)
+            {
+                _navigationService.Navigate(section);
+            }
+
+            if (nextVM is INavigationAware navAware)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await navAware.OnNavigatedToAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error on navigating to {section}: {ex.Message}");
+                    }
+                });
+            }
         }
         else
         {

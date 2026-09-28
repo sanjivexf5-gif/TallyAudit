@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Settings.Configuration;
+using TallyAuditAssistant.App.Services;
 using TallyAuditAssistant.App.ViewModels;
 using TallyAuditAssistant.App.Views;
 using TallyAuditAssistant.Core.Interfaces;
@@ -135,6 +136,9 @@ public partial class App : Application
 
         // Core Audit Engine & All 19 Rules
         services.AddAuditEngine();
+
+        // Central Navigation Service
+        services.AddSingleton<INavigationService, NavigationService>();
 
         // ViewModels
         services.AddSingleton<MainWindowViewModel>();

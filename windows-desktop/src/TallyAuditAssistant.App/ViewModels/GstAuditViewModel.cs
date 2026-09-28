@@ -10,11 +10,12 @@ using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
-public partial class GstAuditViewModel : ObservableObject
+public partial class GstAuditViewModel : ObservableObject, INavigationAware
 {
     private readonly IAuditRepository _repository;
     private readonly ISettingsService _settingsService;
     private readonly IActiveCompanyContext _companyContext;
+    private readonly INavigationService _navigationService;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -32,21 +33,28 @@ public partial class GstAuditViewModel : ObservableObject
     private string _statusMessage = string.Empty;
 
     [ObservableProperty]
-    private bool _isListEmpty = true;
+    private bool _hasExceptions;
 
     public ObservableCollection<AuditException> Exceptions { get; } = new();
 
     public GstAuditViewModel(
         IAuditRepository repository,
         ISettingsService settingsService,
-        IActiveCompanyContext companyContext)
+        IActiveCompanyContext companyContext,
+        INavigationService navigationService)
     {
         _repository = repository;
         _settingsService = settingsService;
         _companyContext = companyContext;
+        _navigationService = navigationService;
 
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
         _ = LoadGstExceptionsAsync();
+    }
+
+    public async Task OnNavigatedToAsync()
+    {
+        await LoadGstExceptionsAsync();
     }
 
     private void OnActiveCompanyChanged(object? sender, Company? comp)
@@ -54,6 +62,7 @@ public partial class GstAuditViewModel : ObservableObject
         _ = LoadGstExceptionsAsync();
     }
 
+    [RelayCommand]
     public async Task LoadGstExceptionsAsync()
     {
         IsLoading = true;
@@ -69,7 +78,7 @@ public partial class GstAuditViewModel : ObservableObject
             if (companies.Count == 0)
             {
                 Exceptions.Clear();
-                IsListEmpty = true;
+                HasExceptions = false;
                 return;
             }
 
@@ -93,12 +102,28 @@ public partial class GstAuditViewModel : ObservableObject
             {
                 Exceptions.Add(ex);
             }
-            IsListEmpty = Exceptions.Count == 0;
+            HasExceptions = Exceptions.Count > 0;
+            if (SelectedException == null && Exceptions.Count > 0)
+            {
+                SelectedException = Exceptions[0];
+            }
         }
         finally
         {
             IsLoading = false;
         }
+    }
+
+    [RelayCommand]
+    public void RunComprehensiveAudit()
+    {
+        _navigationService.Navigate("Dashboard");
+    }
+
+    [RelayCommand]
+    public void GoToSync()
+    {
+        _navigationService.Navigate("Sync");
     }
 
     [RelayCommand]

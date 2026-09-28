@@ -14,7 +14,7 @@ using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
-public partial class DashboardViewModel : ObservableObject
+public partial class DashboardViewModel : ObservableObject, INavigationAware
 {
     private readonly IAuditRepository _repository;
     private readonly ITallyConnection _tallyConnection;
@@ -203,6 +203,11 @@ public partial class DashboardViewModel : ObservableObject
         };
 
         _ = LoadDashboardDataAsync();
+    }
+
+    public async Task OnNavigatedToAsync()
+    {
+        await LoadDashboardDataAsync();
     }
 
     [RelayCommand]
@@ -494,15 +499,21 @@ public partial class DashboardViewModel : ObservableObject
 
             sb.AppendLine("</Workbook>");
             
-            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"Audit_Working_Papers_{current.TallyCompanyName.Replace(" ", "_")}.xls");
+            var dir = ReportsViewModel.GetSafeExportDirectory();
+            var fileName = $"Audit_Working_Papers_{ReportsViewModel.SanitizeFileName(current.TallyCompanyName)}_{DateTime.Now:yyyyMMdd_HHmmss}.xls";
+            var path = Path.Combine(dir, fileName);
             await File.WriteAllTextAsync(path, sb.ToString(), Encoding.UTF8);
             
             AuditStatusText = $"Excel Working Papers exported successfully to {path}";
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            try
             {
-                FileName = path,
-                UseShellExecute = true
-            });
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true
+                });
+            }
+            catch { }
         }
         catch (Exception ex)
         {
@@ -640,15 +651,21 @@ public partial class DashboardViewModel : ObservableObject
             html.AppendLine("</body>");
             html.AppendLine("</html>");
             
-            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"Audit_Executive_Summary_{current.TallyCompanyName.Replace(" ", "_")}.html");
+            var dir = ReportsViewModel.GetSafeExportDirectory();
+            var fileName = $"Audit_Executive_Summary_{ReportsViewModel.SanitizeFileName(current.TallyCompanyName)}_{DateTime.Now:yyyyMMdd_HHmmss}.html";
+            var path = Path.Combine(dir, fileName);
             await File.WriteAllTextAsync(path, html.ToString(), Encoding.UTF8);
             
             AuditStatusText = $"PDF-styled HTML Summary Report saved to {path}";
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            try
             {
-                FileName = path,
-                UseShellExecute = true
-            });
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true
+                });
+            }
+            catch { }
         }
         catch (Exception ex)
         {

@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Dapper;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Domain.Vouchers;
@@ -11,12 +12,13 @@ using TallyAuditAssistant.Data;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
-public partial class VouchersViewModel : ObservableObject
+public partial class VouchersViewModel : ObservableObject, INavigationAware
 {
     private readonly SqliteConnectionFactory _connectionFactory;
     private readonly ISettingsService _settingsService;
     private readonly IAuditRepository _repository;
     private readonly IActiveCompanyContext _companyContext;
+    private readonly INavigationService _navigationService;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -25,7 +27,13 @@ public partial class VouchersViewModel : ObservableObject
     private string _activeCompanyName = string.Empty;
 
     [ObservableProperty]
+    private string _financialYear = "FY 2025-26";
+
+    [ObservableProperty]
     private string _searchQuery = string.Empty;
+
+    [ObservableProperty]
+    private bool _hasVouchers = false;
 
     public ObservableCollection<Voucher> Vouchers { get; } = new();
 
@@ -33,15 +41,22 @@ public partial class VouchersViewModel : ObservableObject
         SqliteConnectionFactory connectionFactory,
         ISettingsService settingsService,
         IAuditRepository repository,
-        IActiveCompanyContext companyContext)
+        IActiveCompanyContext companyContext,
+        INavigationService navigationService)
     {
         _connectionFactory = connectionFactory;
         _settingsService = settingsService;
         _repository = repository;
         _companyContext = companyContext;
+        _navigationService = navigationService;
 
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
         _ = LoadVouchersAsync();
+    }
+
+    public async Task OnNavigatedToAsync()
+    {
+        await LoadVouchersAsync();
     }
 
     private void OnActiveCompanyChanged(object? sender, Company? comp)
@@ -49,6 +64,7 @@ public partial class VouchersViewModel : ObservableObject
         _ = LoadVouchersAsync();
     }
 
+    [RelayCommand]
     public async Task LoadVouchersAsync()
     {
         IsLoading = true;
@@ -63,6 +79,7 @@ public partial class VouchersViewModel : ObservableObject
             if (companies.Count == 0)
             {
                 Vouchers.Clear();
+                HasVouchers = false;
                 return;
             }
 
@@ -70,6 +87,12 @@ public partial class VouchersViewModel : ObservableObject
                           ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
 
             ActiveCompanyName = current.TallyCompanyName;
+
+            if (current.BooksFrom.HasValue)
+            {
+                var year = current.BooksFrom.Value.Year;
+                FinancialYear = $"FY {year}-{(year + 1) % 100:D2}";
+            }
 
             using var connection = await _connectionFactory.CreateConnectionAsync();
             var sql = "SELECT * FROM Vouchers WHERE CompanyId = @CompanyId";
@@ -90,11 +113,18 @@ public partial class VouchersViewModel : ObservableObject
             {
                 Vouchers.Add(v);
             }
+            HasVouchers = Vouchers.Count > 0;
         }
         finally
         {
             IsLoading = false;
         }
+    }
+
+    [RelayCommand]
+    public void GoToSync()
+    {
+        _navigationService.Navigate("Sync");
     }
 
     async partial void OnSearchQueryChanged(string value) => await LoadVouchersAsync();

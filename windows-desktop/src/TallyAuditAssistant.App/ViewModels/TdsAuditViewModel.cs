@@ -10,11 +10,12 @@ using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
-public partial class TdsAuditViewModel : ObservableObject
+public partial class TdsAuditViewModel : ObservableObject, INavigationAware
 {
     private readonly IAuditRepository _repository;
     private readonly ISettingsService _settingsService;
     private readonly IActiveCompanyContext _companyContext;
+    private readonly INavigationService _navigationService;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -31,19 +32,29 @@ public partial class TdsAuditViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
+    [ObservableProperty]
+    private bool _hasExceptions;
+
     public ObservableCollection<AuditException> Exceptions { get; } = new();
 
     public TdsAuditViewModel(
         IAuditRepository repository,
         ISettingsService settingsService,
-        IActiveCompanyContext companyContext)
+        IActiveCompanyContext companyContext,
+        INavigationService navigationService)
     {
         _repository = repository;
         _settingsService = settingsService;
         _companyContext = companyContext;
+        _navigationService = navigationService;
 
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
         _ = LoadTdsExceptionsAsync();
+    }
+
+    public async Task OnNavigatedToAsync()
+    {
+        await LoadTdsExceptionsAsync();
     }
 
     private void OnActiveCompanyChanged(object? sender, Company? comp)
@@ -51,6 +62,7 @@ public partial class TdsAuditViewModel : ObservableObject
         _ = LoadTdsExceptionsAsync();
     }
 
+    [RelayCommand]
     public async Task LoadTdsExceptionsAsync()
     {
         IsLoading = true;
@@ -66,6 +78,7 @@ public partial class TdsAuditViewModel : ObservableObject
             if (companies.Count == 0)
             {
                 Exceptions.Clear();
+                HasExceptions = false;
                 return;
             }
 
@@ -89,11 +102,28 @@ public partial class TdsAuditViewModel : ObservableObject
             {
                 Exceptions.Add(ex);
             }
+            HasExceptions = Exceptions.Count > 0;
+            if (SelectedException == null && Exceptions.Count > 0)
+            {
+                SelectedException = Exceptions[0];
+            }
         }
         finally
         {
             IsLoading = false;
         }
+    }
+
+    [RelayCommand]
+    public void RunComprehensiveAudit()
+    {
+        _navigationService.Navigate("Dashboard");
+    }
+
+    [RelayCommand]
+    public void GoToSync()
+    {
+        _navigationService.Navigate("Sync");
     }
 
     [RelayCommand]

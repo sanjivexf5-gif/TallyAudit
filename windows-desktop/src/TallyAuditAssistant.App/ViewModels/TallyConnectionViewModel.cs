@@ -11,7 +11,7 @@ using TallyAuditAssistant.TallyIntegration;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
-public partial class TallyConnectionViewModel : ObservableObject
+public partial class TallyConnectionViewModel : ObservableObject, INavigationAware
 {
     private readonly ITallyConnection _tallyConnection;
     private readonly ITallyCompanyService _companyService;
@@ -130,6 +130,11 @@ public partial class TallyConnectionViewModel : ObservableObject
                 DetectedVersion = endpoint.ServerVersion ?? "TallyPrime XML Server";
             });
         }
+    }
+
+    public async Task OnNavigatedToAsync()
+    {
+        await LoadSettingsAsync();
     }
 
     private async Task LoadSettingsAsync()

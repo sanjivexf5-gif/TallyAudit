@@ -9,7 +9,7 @@ using TallyAuditAssistant.Core.Licensing;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
-public partial class SettingsViewModel : ObservableObject
+public partial class SettingsViewModel : ObservableObject, INavigationAware
 {
     private readonly ISettingsService _settingsService;
     private readonly IDatabaseInitializer _dbInitializer;
@@ -92,6 +92,11 @@ public partial class SettingsViewModel : ObservableObject
         _databasePath = _dbInitializer.DatabasePath;
 
         _ = LoadSettingsAsync();
+    }
+
+    public async Task OnNavigatedToAsync()
+    {
+        await LoadSettingsAsync();
     }
 
     private async Task LoadSettingsAsync()

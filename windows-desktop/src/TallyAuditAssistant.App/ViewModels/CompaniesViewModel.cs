@@ -9,12 +9,13 @@ using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
-public partial class CompaniesViewModel : ObservableObject
+public partial class CompaniesViewModel : ObservableObject, INavigationAware
 {
     private readonly IAuditRepository _repository;
     private readonly ISettingsService _settingsService;
     private readonly IActiveCompanyContext _companyContext;
     private readonly ITallyCompanyService _companyService;
+    private readonly INavigationService _navigationService;
 
     [ObservableProperty]
     private Company? _selectedCompany;
@@ -34,15 +35,22 @@ public partial class CompaniesViewModel : ObservableObject
         IAuditRepository repository,
         ISettingsService settingsService,
         IActiveCompanyContext companyContext,
-        ITallyCompanyService companyService)
+        ITallyCompanyService companyService,
+        INavigationService navigationService)
     {
         _repository = repository;
         _settingsService = settingsService;
         _companyContext = companyContext;
         _companyService = companyService;
+        _navigationService = navigationService;
 
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
         _ = LoadCompaniesAsync();
+    }
+
+    public async Task OnNavigatedToAsync()
+    {
+        await LoadCompaniesAsync();
     }
 
     private void OnActiveCompanyChanged(object? sender, Company? comp)
@@ -56,12 +64,12 @@ public partial class CompaniesViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
     public async Task LoadCompaniesAsync()
     {
         IsLoading = true;
         try
         {
-            // Ensure company context if empty or in mock mode
             var currentActive = await _companyContext.GetActiveCompanyAsync()
                                 ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
 
@@ -101,5 +109,11 @@ public partial class CompaniesViewModel : ObservableObject
     private async Task RefreshCompaniesAsync()
     {
         await LoadCompaniesAsync();
+    }
+
+    [RelayCommand]
+    public void GoToSync()
+    {
+        _navigationService.Navigate("Sync");
     }
 }
