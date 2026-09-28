@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -18,28 +19,30 @@ public class UpdateService : IUpdateService
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<UpdateService> _logger;
+    private readonly string _installedVersion;
     private const string GitHubRepo = "sanjivexf5-gif/TallyAudit";
 
-    public UpdateService(ILogger<UpdateService> logger, HttpClient? httpClient = null)
+    public UpdateService(ILogger<UpdateService> logger, HttpClient? httpClient = null, string? installedVersion = null)
     {
         _logger = logger;
         _httpClient = httpClient ?? new HttpClient();
+        _installedVersion = !string.IsNullOrWhiteSpace(installedVersion) ? installedVersion : AppVersion.Version;
         if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
         {
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "TallyAuditAssistant-App");
         }
     }
 
-    public string GetCurrentVersion() => AppVersion.Version;
+    public string GetCurrentVersion() => _installedVersion;
 
     public async Task<UpdateInfo> CheckForUpdatesAsync(bool allowPreRelease = false, CancellationToken ct = default)
     {
-        _logger.LogInformation("Checking for updates for {ApplicationName} (Current version: {Version})", AppVersion.ApplicationName, AppVersion.Version);
+        _logger.LogInformation("Checking for updates for {ApplicationName} (Current version: {Version})", AppVersion.ApplicationName, _installedVersion);
 
         var update = new UpdateInfo
         {
-            CurrentVersion = AppVersion.Version,
-            LatestVersion = AppVersion.Version,
+            CurrentVersion = _installedVersion,
+            LatestVersion = _installedVersion,
             IsUpdateAvailable = false,
             ReleaseNotes = "You are using the latest version of Tally Audit Assistant.",
             DownloadUrl = $"https://github.com/{GitHubRepo}/releases/latest",
@@ -104,6 +107,9 @@ public class UpdateService : IUpdateService
     {
         Version? highestVersion = null;
         JsonElement? bestRelease = null;
+        string bestVersionStr = string.Empty;
+        string bestDownloadUrl = string.Empty;
+        long bestFileSize = 0;
 
         foreach (var rel in releasesArray.EnumerateArray())
         {
@@ -115,24 +121,35 @@ public class UpdateService : IUpdateService
 
             var tagName = rel.TryGetProperty("tag_name", out var tagP) ? tagP.GetString() ?? "" : "";
             var verStr = tagName.TrimStart('v', 'V').Trim();
-            if (string.IsNullOrEmpty(verStr))
+            if (string.IsNullOrEmpty(verStr) || !Version.TryParse(verStr, out var parsedVer))
             {
-                verStr = rel.TryGetProperty("name", out var nP) ? nP.GetString()?.TrimStart('v', 'V').Trim() ?? "" : "";
+                continue;
             }
 
-            if (Version.TryParse(verStr, out var parsedVer))
+            // CRITICAL: Validate release.tag_name and asset.name match the same version!
+            if (!TryFindMatchingAsset(rel, verStr, out var downloadUrl, out var fileSize))
             {
-                if (highestVersion == null || parsedVer > highestVersion)
-                {
-                    highestVersion = parsedVer;
-                    bestRelease = rel;
-                }
+                _logger.LogWarning("Release tag {TagName} does not contain a matching installer asset for version {Version}", tagName, verStr);
+                continue;
+            }
+
+            if (highestVersion == null || parsedVer > highestVersion)
+            {
+                highestVersion = parsedVer;
+                bestRelease = rel;
+                bestVersionStr = verStr;
+                bestDownloadUrl = downloadUrl;
+                bestFileSize = fileSize;
             }
         }
 
-        if (bestRelease.HasValue)
+        if (bestRelease.HasValue && highestVersion != null)
         {
-            EvaluateSingleRelease(bestRelease.Value, update, allowPreRelease);
+            ApplyRelease(bestRelease.Value, bestVersionStr, bestDownloadUrl, bestFileSize, update);
+        }
+        else
+        {
+            update.IsUpdateAvailable = false;
         }
     }
 
@@ -145,47 +162,96 @@ public class UpdateService : IUpdateService
         if (isPreRelease && !allowPreRelease) return;
 
         var tagName = releaseObj.TryGetProperty("tag_name", out var tagProp) ? tagProp.GetString() ?? "" : "";
+        var verStr = tagName.TrimStart('v', 'V').Trim();
+        if (string.IsNullOrEmpty(verStr) || !Version.TryParse(verStr, out var parsedVer))
+        {
+            return;
+        }
+
+        update.LatestVersion = verStr;
+
+        if (!TryFindMatchingAsset(releaseObj, verStr, out var downloadUrl, out var fileSize))
+        {
+            _logger.LogWarning("Single release {TagName} has no matching installer asset pairing for version {Version}", tagName, verStr);
+            update.IsUpdateAvailable = false;
+            update.ReleaseNotes = $"Release {tagName} contains no valid installer asset pairing for version {verStr}.";
+            return;
+        }
+
+        ApplyRelease(releaseObj, verStr, downloadUrl, fileSize, update);
+    }
+
+    private void ApplyRelease(JsonElement releaseObj, string releaseVersionStr, string downloadUrl, long fileSize, UpdateInfo update)
+    {
+        var tagName = releaseObj.TryGetProperty("tag_name", out var tagProp) ? tagProp.GetString() ?? "" : "";
         var body = releaseObj.TryGetProperty("body", out var bodyProp) ? bodyProp.GetString() ?? "" : "";
         var htmlUrl = releaseObj.TryGetProperty("html_url", out var htmlUrlProp) ? htmlUrlProp.GetString() ?? update.DownloadUrl : update.DownloadUrl;
 
-        var latestVerStr = tagName.TrimStart('v', 'V').Trim();
-        if (string.IsNullOrEmpty(latestVerStr))
-        {
-            latestVerStr = releaseObj.TryGetProperty("name", out var nameProp) ? nameProp.GetString()?.TrimStart('v', 'V').Trim() ?? AppVersion.Version : AppVersion.Version;
-        }
-
-        update.LatestVersion = latestVerStr;
+        update.LatestVersion = releaseVersionStr;
         update.ReleaseNotes = !string.IsNullOrWhiteSpace(body) ? body : $"Release {tagName}";
-        update.DownloadUrl = htmlUrl;
+        update.DownloadUrl = !string.IsNullOrEmpty(downloadUrl) ? downloadUrl : htmlUrl;
+        update.FileSizeBytes = fileSize;
 
-        if (releaseObj.TryGetProperty("assets", out var assetsProp) && assetsProp.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var asset in assetsProp.EnumerateArray())
-            {
-                var name = asset.TryGetProperty("name", out var nProp) ? nProp.GetString() ?? "" : "";
-                if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (asset.TryGetProperty("browser_download_url", out var dlProp))
-                    {
-                        update.DownloadUrl = dlProp.GetString() ?? update.DownloadUrl;
-                    }
-                    if (asset.TryGetProperty("size", out var sizeProp) && sizeProp.TryGetInt64(out var sizeVal))
-                    {
-                        update.FileSizeBytes = sizeVal;
-                    }
-                    break;
-                }
-            }
-        }
-
-        if (Version.TryParse(latestVerStr, out var latestVer) && Version.TryParse(AppVersion.Version, out var curVer))
+        if (Version.TryParse(releaseVersionStr, out var latestVer) && Version.TryParse(_installedVersion, out var curVer))
         {
             update.IsUpdateAvailable = latestVer > curVer;
         }
         else
         {
-            update.IsUpdateAvailable = !string.Equals(latestVerStr, AppVersion.Version, StringComparison.OrdinalIgnoreCase);
+            update.IsUpdateAvailable = false;
         }
+    }
+
+    public static bool TryFindMatchingAsset(JsonElement releaseObj, string releaseVersionStr, out string downloadUrl, out long fileSize)
+    {
+        downloadUrl = string.Empty;
+        fileSize = 0;
+
+        if (!releaseObj.TryGetProperty("assets", out var assetsProp) || assetsProp.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        foreach (var asset in assetsProp.EnumerateArray())
+        {
+            var name = asset.TryGetProperty("name", out var nProp) ? nProp.GetString() ?? "" : "";
+            if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            // Validate that the asset name pairs with the release version
+            if (IsAssetVersionMatching(name, releaseVersionStr))
+            {
+                if (asset.TryGetProperty("browser_download_url", out var dlProp))
+                {
+                    downloadUrl = dlProp.GetString() ?? "";
+                }
+                if (asset.TryGetProperty("size", out var sizeProp) && sizeProp.TryGetInt64(out var sizeVal))
+                {
+                    fileSize = sizeVal;
+                }
+                return !string.IsNullOrEmpty(downloadUrl);
+            }
+        }
+
+        return false;
+    }
+
+    public static bool IsAssetVersionMatching(string assetName, string releaseVersionStr)
+    {
+        // Extract version numbers from the asset filename (e.g., TallyAuditAssistant-Setup-1.0.1.exe -> 1.0.1)
+        var match = Regex.Match(
+            assetName, 
+            @"(?:Setup[_-]?)v?(\d+\.\d+(?:\.\d+)?(?:\.\d+)?)\.exe$", 
+            RegexOptions.IgnoreCase);
+
+        if (match.Success)
+        {
+            var assetVersion = match.Groups[1].Value;
+            return string.Equals(assetVersion, releaseVersionStr, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Generic installer (e.g. TallyAuditAssistant-Setup.exe) without an embedded version
+        return assetName.Equals("TallyAuditAssistant-Setup.exe", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<string?> DownloadUpdateAsync(UpdateInfo updateInfo, IProgress<double>? progress = null, CancellationToken ct = default)

@@ -28,6 +28,73 @@ jobs:
       - name: Display .NET SDK Environment
         run: dotnet --info
 
+      - name: Extract Authoritative Application Version
+        id: versioning
+        shell: pwsh
+        run: |
+          $appVersionPath = "windows-desktop/src/TallyAuditAssistant.Core/Common/AppVersion.cs"
+          if (-not (Test-Path $appVersionPath)) {
+            throw "AppVersion.cs not found at $appVersionPath"
+          }
+          $content = Get-Content $appVersionPath -Raw
+          if ($content -match 'public const string Version\s*=\s*"([^"]+)";') {
+            $ver = $matches[1]
+          } else {
+            throw "Could not find 'public const string Version' in $appVersionPath"
+          }
+          $tag = "v$ver"
+          $installerName = "TallyAuditAssistant-Setup-$ver.exe"
+          Write-Host "=========================================="
+          Write-Host "AUTHORITATIVE VERSION: $ver"
+          Write-Host "TARGET RELEASE TAG:    $tag"
+          Write-Host "TARGET INSTALLER EXE:  $installerName"
+          Write-Host "=========================================="
+          "VERSION=$ver" >> $env:GITHUB_OUTPUT
+          "RELEASE_TAG=$tag" >> $env:GITHUB_OUTPUT
+          "INSTALLER_NAME=$installerName" >> $env:GITHUB_OUTPUT
+
+      - name: Verify Inno Setup Script Version Alignment
+        shell: pwsh
+        run: |
+          $issPath = "windows-desktop/installer/TallyAuditAssistant.iss"
+          $expectedVer = "${{ steps.versioning.outputs.VERSION }}"
+          $issContent = Get-Content $issPath -Raw
+          if ($issContent -notmatch "#define MyAppVersion\s+`"$expectedVer`"") {
+            throw "Inno Setup script $issPath MyAppVersion does not match authoritative version $expectedVer!"
+          }
+          Write-Host "Inno Setup version definition verified: $expectedVer"
+
+      - name: Check for Release Collision
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.versioning.outputs.RELEASE_TAG }}
+        run: |
+          $repo = $env:GITHUB_REPOSITORY
+          if (-not $repo) {
+            Write-Host "GITHUB_REPOSITORY not set, skipping API collision check."
+            return
+          }
+          $url = "https://api.github.com/repos/$repo/releases/tags/$env:TAG_NAME"
+          $headers = @{
+            "Authorization" = "Bearer $env:GITHUB_TOKEN"
+            "Accept" = "application/vnd.github.v3+json"
+            "User-Agent" = "TallyAuditAssistant-CI"
+          }
+          try {
+            $resp = Invoke-RestMethod -Uri $url -Headers $headers -Method Get
+            if ($resp -and $resp.tag_name -eq $env:TAG_NAME) {
+              throw "FATAL: GitHub release for tag '$env:TAG_NAME' already exists! Releases cannot be overwritten. Increment version in AppVersion.cs to create a new release."
+            }
+          } catch {
+            if ($_.Exception.Response.StatusCode.value__ -eq 404) {
+              Write-Host "Confirmed: Release tag '$env:TAG_NAME' does not exist yet. Safe to proceed."
+            } else {
+              Write-Host "Release collision check response: $($_.Exception.Message)"
+            }
+          }
+
       - name: Restore dependencies
         run: dotnet restore windows-desktop/TallyAuditAssistant.sln
 
@@ -55,7 +122,8 @@ jobs:
           if (-not (Test-Path "./publish/TallyAuditAssistant.App.exe")) {
             throw "Executable TallyAuditAssistant.App.exe was not generated in publish directory!"
           }
-          Write-Host "Executable validated: $((Get-Item ./publish/TallyAuditAssistant.App.exe).Length / 1MB) MB"
+          $exe = Get-Item "./publish/TallyAuditAssistant.App.exe"
+          Write-Host "Executable validated: $($exe.FullName) ($([math]::Round($exe.Length / 1MB, 2)) MB)"
 
       - name: Compile Inno Setup Windows Installer
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
@@ -65,36 +133,38 @@ jobs:
       - name: Verify Windows Installer
         shell: pwsh
         run: |
-          $installer = Get-ChildItem "./windows-desktop/installer_output/*.exe" -File | Select-Object -First 1
-          if ($null -eq $installer) {
-            throw "Windows installer EXE was not generated."
+          $expectedInstaller = "./windows-desktop/installer_output/${{ steps.versioning.outputs.INSTALLER_NAME }}"
+          if (-not (Test-Path $expectedInstaller)) {
+            throw "Expected installer '$expectedInstaller' was not generated in ./windows-desktop/installer_output/! Verify Inno Setup OutputBaseFilename configuration."
           }
+          $installer = Get-Item $expectedInstaller
           Write-Host "Installer validated: $($installer.FullName)"
-          Write-Host "Installer size: $($installer.Length / 1MB) MB"
+          Write-Host "Installer size: $([math]::Round($installer.Length / 1MB, 2)) MB"
 
       - name: Upload Windows Standalone Binaries
         uses: actions/upload-artifact@v4
         with:
-          name: TallyAuditAssistant-Windows-x64
+          name: TallyAuditAssistant-Windows-x64-${{ steps.versioning.outputs.VERSION }}
           path: ./publish/
           if-no-files-found: error
 
       - name: Upload Windows Installer Setup
         uses: actions/upload-artifact@v4
         with:
-          name: TallyAuditAssistant-Installer-Setup
-          path: ./windows-desktop/installer_output/
+          name: TallyAuditAssistant-Installer-Setup-${{ steps.versioning.outputs.VERSION }}
+          path: ./windows-desktop/installer_output/${{ steps.versioning.outputs.INSTALLER_NAME }}
           if-no-files-found: error
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.0.0' }}
-          name: Tally Audit Assistant ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.0.0' }}
+          tag_name: ${{ steps.versioning.outputs.RELEASE_TAG }}
+          name: Tally Audit Assistant ${{ steps.versioning.outputs.RELEASE_TAG }}
           draft: false
           prerelease: false
+          make_latest: true
           files: |
-            ./windows-desktop/installer_output/*.exe
+            ./windows-desktop/installer_output/${{ steps.versioning.outputs.INSTALLER_NAME }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
