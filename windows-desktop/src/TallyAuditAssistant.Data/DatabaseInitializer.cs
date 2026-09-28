@@ -207,7 +207,54 @@ public class DatabaseInitializer : IDatabaseInitializer
                 Status TEXT NOT NULL
             );
 
-            -- 8. Performance Indexes
+            -- 8. Tally Corrections & Audit Logs
+            CREATE TABLE IF NOT EXISTS TallyCorrections (
+                Id TEXT PRIMARY KEY,
+                CompanyId TEXT NOT NULL REFERENCES Companies(Id) ON DELETE CASCADE,
+                FinancialPeriodId TEXT,
+                AuditFindingId TEXT,
+                VoucherId TEXT,
+                VoucherNumber TEXT,
+                LedgerId TEXT,
+                LedgerName TEXT,
+                CorrectionType INTEGER NOT NULL,
+                FieldName TEXT NOT NULL,
+                OriginalValue TEXT,
+                ProposedValue TEXT,
+                OriginalAmount DECIMAL(18,2),
+                ProposedAmount DECIMAL(18,2),
+                Reason TEXT NOT NULL,
+                EvidenceId TEXT,
+                Status INTEGER DEFAULT 0,
+                CreatedBy TEXT NOT NULL,
+                CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                ApprovedBy TEXT,
+                ApprovedAt DATETIME,
+                AppliedBy TEXT,
+                AppliedAt DATETIME,
+                TallyResponse TEXT,
+                TallyTransactionReference TEXT,
+                VerificationStatus TEXT,
+                VerifiedAt DATETIME,
+                FailureReason TEXT,
+                BeforeSnapshot TEXT,
+                AfterSnapshot TEXT,
+                CorrelationId TEXT NOT NULL,
+                IsAiAssisted INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS TallyCorrectionAuditLogs (
+                Id TEXT PRIMARY KEY,
+                CorrectionId TEXT NOT NULL REFERENCES TallyCorrections(Id) ON DELETE CASCADE,
+                CompanyId TEXT NOT NULL,
+                Action TEXT NOT NULL,
+                Actor TEXT NOT NULL,
+                Details TEXT NOT NULL,
+                CorrelationId TEXT NOT NULL,
+                Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- 9. Performance Indexes
             CREATE INDEX IF NOT EXISTS idx_vouchers_comp_date ON Vouchers(CompanyId, VoucherDate);
             CREATE INDEX IF NOT EXISTS idx_vouchers_comp_type ON Vouchers(CompanyId, VoucherTypeName);
             CREATE INDEX IF NOT EXISTS idx_vouchers_alterid ON Vouchers(CompanyId, AlterId);
@@ -216,6 +263,7 @@ public class DatabaseInitializer : IDatabaseInitializer
             CREATE INDEX IF NOT EXISTS idx_exceptions_comp_rule ON Exceptions(CompanyId, RuleId);
             CREATE INDEX IF NOT EXISTS idx_exceptions_status ON Exceptions(CompanyId, Status);
             CREATE INDEX IF NOT EXISTS idx_auditruns_comp ON AuditRuns(CompanyId);
+            CREATE INDEX IF NOT EXISTS idx_corrections_comp_status ON TallyCorrections(CompanyId, Status);
         ";
 
         await connection.ExecuteAsync(new CommandDefinition(schemaSql, cancellationToken: cancellationToken));

@@ -65,4 +65,22 @@ public class AuthorizationService : IAuthorizationService
             throw new UnauthorizedAccessException($"Access Denied: Current role '{role}' does not possess required permission '{permission}'.");
         }
     }
+
+    public bool CanPerformAction(AppUser user, PermissionAction action)
+    {
+        if (user == null) return false;
+        return user.Role switch
+        {
+            UserRole.Administrator => true,
+            UserRole.Auditor => true,
+            UserRole.Reviewer => action switch
+            {
+                PermissionAction.CreateTallyCorrection => true,
+                PermissionAction.ApproveTallyCorrection => true,
+                _ => false
+            },
+            UserRole.ReadOnly => false,
+            _ => false
+        };
+    }
 }

@@ -8,6 +8,13 @@ public enum UserRole
     ReadOnly = 3
 }
 
+public enum PermissionAction
+{
+    ApplyTallyCorrection = 0,
+    ApproveTallyCorrection = 1,
+    CreateTallyCorrection = 2
+}
+
 public enum AuditPermission
 {
     ApplicationSettings,
@@ -25,7 +32,8 @@ public enum AuditPermission
     UserManagement,
     BackupRestore,
     AuditFinalization,
-    ReopenFinalizedAudit
+    ReopenFinalizedAudit,
+    ApplyTallyCorrection
 }
 
 public class AppUser

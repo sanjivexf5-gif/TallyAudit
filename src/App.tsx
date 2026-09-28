@@ -187,6 +187,7 @@ type NavItem =
   | 'evidence'
   | 'audit-file'
   | 'reports' 
+  | 'corrections'
   | 'settings'
   | 'csharp-explorer'
   | 'optimization'
@@ -3405,6 +3406,19 @@ export default function App() {
               <FileText className="w-4 h-4 text-teal-400" />
               <span>Audit Reports</span>
               <span className="ml-auto bg-teal-950 text-teal-300 text-[10px] px-1.5 py-0.2 rounded font-semibold border border-teal-800">10</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentNav('corrections')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md font-medium text-left transition-all ${
+                currentNav === 'corrections' 
+                  ? 'bg-teal-600 text-white shadow-sm' 
+                  : 'text-slate-300 hover:bg-slate-800/60 hover:text-white'
+              }`}
+            >
+              <CheckCircle className="w-4 h-4 text-amber-400" />
+              <span>Tally Corrections</span>
+              <span className="ml-auto bg-amber-950 text-amber-300 text-[10px] px-1.5 py-0.2 rounded font-semibold border border-amber-800">New</span>
             </button>
           </div>
 
@@ -8289,6 +8303,158 @@ export default function App() {
                 setCurrentNav('exceptions');
               }}
             />
+          )}
+
+          {/* CONTROLLED TALLY PRIME CORRECTION WORKFLOW SCREEN */}
+          {currentNav === 'corrections' && (
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-bold text-white tracking-tight">Controlled TallyPrime Correction Workflow</h2>
+                    <span className="bg-amber-950 text-amber-300 text-xs px-2 py-0.5 rounded font-mono font-bold border border-amber-800">
+                      Isolated Accounting Write Boundary
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Auditor-authorized proposal pipeline. Accept/Resolve and Mark Reviewed remain 100% audit-read-only. Accounting changes require explicit multi-step approval and confirmation.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className={`px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-2 border ${
+                    tallyConnected ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800' : 'bg-amber-950/80 text-amber-300 border-amber-800'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${tallyConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+                    <span>{tallyConnected ? 'Tally Connected (Write Boundary Ready)' : 'Offline / Tally Disconnected'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* STATS METRICS SUMMARY */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg">
+                  <span className="text-[11px] font-medium text-slate-400 uppercase">Draft</span>
+                  <div className="text-xl font-bold text-slate-200 mt-0.5">1</div>
+                </div>
+                <div className="bg-slate-900 border border-amber-800/50 p-3 rounded-lg bg-amber-950/20">
+                  <span className="text-[11px] font-medium text-amber-400 uppercase">Pending Approval</span>
+                  <div className="text-xl font-bold text-amber-300 mt-0.5">1</div>
+                </div>
+                <div className="bg-slate-900 border border-blue-800/50 p-3 rounded-lg bg-blue-950/20">
+                  <span className="text-[11px] font-medium text-blue-400 uppercase">Approved</span>
+                  <div className="text-xl font-bold text-blue-300 mt-0.5">1</div>
+                </div>
+                <div className="bg-slate-900 border border-purple-800/50 p-3 rounded-lg bg-purple-950/20">
+                  <span className="text-[11px] font-medium text-purple-400 uppercase">Applied</span>
+                  <div className="text-xl font-bold text-purple-300 mt-0.5">1</div>
+                </div>
+                <div className="bg-slate-900 border border-emerald-800/50 p-3 rounded-lg bg-emerald-950/20">
+                  <span className="text-[11px] font-medium text-emerald-400 uppercase">Verified</span>
+                  <div className="text-xl font-bold text-emerald-300 mt-0.5">1</div>
+                </div>
+                <div className="bg-slate-900 border border-rose-800/50 p-3 rounded-lg bg-rose-950/20">
+                  <span className="text-[11px] font-medium text-rose-400 uppercase">Failed</span>
+                  <div className="text-xl font-bold text-rose-300 mt-0.5">0</div>
+                </div>
+                <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg">
+                  <span className="text-[11px] font-medium text-slate-500 uppercase">Rejected</span>
+                  <div className="text-xl font-bold text-slate-400 mt-0.5">0</div>
+                </div>
+              </div>
+
+              {/* BEFORE / AFTER COMPARATIVE CORRECTION CARD */}
+              <div className="bg-slate-900 border border-amber-800/60 rounded-xl p-5 space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-3">
+                    <span className="px-2.5 py-1 rounded bg-amber-950 text-amber-300 text-xs font-mono font-bold border border-amber-800">
+                      CORR-2026-001
+                    </span>
+                    <h3 className="text-base font-bold text-white">PUR-015: Supplier GSTIN Statutory Correction</h3>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-blue-950 text-blue-300 text-xs font-semibold border border-blue-800 w-fit">
+                    Status: Approved (Ready for Tally Application)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-950 border border-rose-900/40 p-4 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between text-xs text-rose-400 font-semibold border-b border-rose-950 pb-1">
+                      <span>CURRENT TALLYPRIME VALUE</span>
+                      <span>Read-Only Source</span>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <div className="text-slate-400">Field: <span className="text-white font-mono">PartyGSTIN</span></div>
+                      <div className="text-slate-400">Value: <span className="text-rose-300 font-mono font-bold bg-rose-950/60 px-1.5 py-0.5 rounded">27AAAAA0000A1Z5</span></div>
+                      <div className="text-slate-400">Voucher: <span className="text-slate-200 font-mono">PUR-015 (Purchase Invoice)</span></div>
+                      <div className="text-slate-400">Amount: <span className="text-slate-200 font-mono">₹6,120.00</span></div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950 border border-emerald-900/40 p-4 rounded-lg space-y-2">
+                    <div className="flex items-center justify-between text-xs text-emerald-400 font-semibold border-b border-emerald-950 pb-1">
+                      <span>PROPOSED AUTHORIZED VALUE</span>
+                      <span>Auditor Review Verified</span>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <div className="text-slate-400">Field: <span className="text-white font-mono">PartyGSTIN</span></div>
+                      <div className="text-slate-400">Value: <span className="text-emerald-300 font-mono font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded">27AAACA9999P1Z1</span></div>
+                      <div className="text-slate-400">Reason: <span className="text-slate-200">GST Portal GSTR-2B filing match verification</span></div>
+                      <div className="text-slate-400">Evidence ID: <span className="text-teal-300 font-mono">EVI-2026-GST-015</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800">
+                  <div className="text-xs text-slate-400">
+                    Created by <span className="text-slate-200 font-medium">Auditor (Sanji V)</span> • Approved by <span className="text-slate-200 font-medium">Senior Partner</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => alert("Correction proposal rejected.")}
+                      className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-all"
+                    >
+                      Reject Proposal
+                    </button>
+                    <button 
+                      onClick={() => {
+                        if (confirm("THIS ACTION WILL MODIFY TALLYPRIME ACCOUNTING DATA.\n\nCompany: Demo Industrial Solutions Pvt Ltd\nVoucher: PUR-015\nField: PartyGSTIN\nCurrent: 27AAAAA0000A1Z5\nNew: 27AAACA9999P1Z1\n\nAre you sure you want to apply this correction to TallyPrime?")) {
+                          alert("Correction successfully applied to TallyPrime! Reference: TALLY-REF-99201. Re-synchronization scheduled for verification.");
+                        }
+                      }}
+                      className="px-4 py-2 rounded bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold text-xs shadow-lg flex items-center gap-1.5 transition-all transition-all"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Apply Correction to TallyPrime</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* CORRECTION PIPELINE AUDIT TRAIL TIMELINE */}
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-teal-400" />
+                  <span>Correction Audit Trail &amp; Verification Log</span>
+                </h4>
+                <div className="space-y-2 text-xs font-mono">
+                  <div className="flex items-start gap-3 p-2 bg-slate-950 rounded border border-slate-800">
+                    <span className="text-emerald-400">2026-09-28 05:30:12</span>
+                    <span className="text-teal-300 font-bold">[VERIFIED]</span>
+                    <span className="text-slate-300">Voucher PMT-088 narration updated and re-synchronized value confirmed.</span>
+                  </div>
+                  <div className="flex items-start gap-3 p-2 bg-slate-950 rounded border border-slate-800">
+                    <span className="text-amber-400">2026-09-28 05:25:00</span>
+                    <span className="text-amber-300 font-bold">[APPROVED]</span>
+                    <span className="text-slate-300">CORR-2026-001 approved by Senior Partner for Tally write boundary.</span>
+                  </div>
+                  <div className="flex items-start gap-3 p-2 bg-slate-950 rounded border border-slate-800">
+                    <span className="text-slate-400">2026-09-28 05:20:00</span>
+                    <span className="text-slate-400 font-bold">[CREATED]</span>
+                    <span className="text-slate-300">Proposal drafted from Audit Finding PUR-015 GST mismatch.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* TALLY CONNECTION & OFFLINE ENGINE CONTROLLER */}

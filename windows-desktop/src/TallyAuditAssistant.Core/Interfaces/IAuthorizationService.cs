@@ -7,4 +7,5 @@ public interface IAuthorizationService
     bool HasPermission(UserRole role, AuditPermission permission);
     bool HasPermission(AuditPermission permission);
     void DemandPermission(AuditPermission permission);
+    bool CanPerformAction(AppUser user, PermissionAction action);
 }
