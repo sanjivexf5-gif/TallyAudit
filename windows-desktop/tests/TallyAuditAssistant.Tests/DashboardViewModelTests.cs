@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Domain.Companies;
+using TallyAuditAssistant.Core.Domain.Tally;
 using TallyAuditAssistant.Core.Domain.Vouchers;
 using TallyAuditAssistant.Core.Interfaces;
 using TallyAuditAssistant.Core.Services;
@@ -61,12 +62,18 @@ public class DashboardViewModelTests : IAsyncLifetime
     {
         public bool ExecuteCalled { get; private set; }
 
-        public Task<IReadOnlyList<AuditException>> ExecuteAuditAsync(AuditExecutionContext context, CancellationToken cancellationToken = default)
+        public IReadOnlyList<IAuditRule> RegisteredRules => new List<IAuditRule>();
+
+        public event EventHandler<AuditEngineProgress>? ProgressChanged;
+
+        public void RegisterRule(IAuditRule rule) { }
+
+        public Task<IReadOnlyList<AuditResult>> ExecuteAuditAsync(AuditExecutionContext context, CancellationToken cancellationToken = default)
         {
             ExecuteCalled = true;
-            IReadOnlyList<AuditException> results = new List<AuditException>
+            IReadOnlyList<AuditResult> results = new List<AuditResult>
             {
-                new AuditException
+                new AuditResult
                 {
                     CompanyId = context.CompanyId,
                     RuleId = "TEST-01",
@@ -74,10 +81,21 @@ public class DashboardViewModelTests : IAsyncLifetime
                     Category = RuleCategory.GST,
                     Severity = SeverityLevel.High,
                     VoucherNumber = "VOUCH-101",
-                    FlaggedAmount = 5000m
+                    FlaggedAmount = 5000m,
+                    Explanation = "Test finding explanation"
                 }
             };
             return Task.FromResult(results);
+        }
+
+        public Task<IReadOnlyList<AuditResult>> ExecuteCategoryAsync(RuleCategory category, AuditExecutionContext context, CancellationToken cancellationToken = default)
+        {
+            return ExecuteAuditAsync(context, cancellationToken);
+        }
+
+        public Task<IReadOnlyList<AuditResult>> ExecuteRuleAsync(string ruleId, AuditExecutionContext context, CancellationToken cancellationToken = default)
+        {
+            return ExecuteAuditAsync(context, cancellationToken);
         }
     }
 
@@ -107,7 +125,7 @@ public class DashboardViewModelTests : IAsyncLifetime
     private class MockDrillDownService : ITallyDrillDownService
     {
         public Task<TallyVoucherDrillDownInfo?> GetVoucherDrillDownAsync(string companyId, string voucherId, CancellationToken cancellationToken = default) => Task.FromResult<TallyVoucherDrillDownInfo?>(null);
-        public Task<TallyOpenAttemptResult> AttemptOpenInTallyAsync(string companyId, string voucherId, CancellationToken cancellationToken = default) => Task.FromResult(new TallyOpenAttemptResult { IsSuccess = false });
+        public Task<TallyOpenAttemptResult> AttemptOpenInTallyAsync(string companyId, string voucherId, CancellationToken cancellationToken = default) => Task.FromResult(new TallyOpenAttemptResult { IsDirectLaunchSuccess = false });
         public TallyNavigationBreadcrumb GenerateNavigationGuide(string companyName, string voucherNumber, string voucherTypeName, DateTime voucherDate, string? masterId = null) => new TallyNavigationBreadcrumb();
     }
 
@@ -159,7 +177,7 @@ public class DashboardViewModelTests : IAsyncLifetime
             new Voucher
             {
                 Id = "VOUCH-001",
-                CompanyId = comp.Id,
+                CompanyId = comp!.Id,
                 VoucherNumber = "V-1001",
                 VoucherTypeName = "Sales",
                 VoucherDate = new DateTime(2025, 5, 10),

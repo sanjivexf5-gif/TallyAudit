@@ -1,10 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging.Abstractions;
+using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Domain.Sync;
 using TallyAuditAssistant.Core.Interfaces;
-using TallyAuditAssistant.TallyIntegration;
 using TallyAuditAssistant.TallyIntegration.Mocks;
 using Xunit;
 
@@ -59,41 +59,36 @@ public class SyncViewModelTests
     private class MockContext : IActiveCompanyContext
     {
         public string? ActiveCompanyName => "Demo Industrial Solutions Pvt Ltd (FY 2025-26)";
-        public event EventHandler<Core.Domain.Companies.Company?>? ActiveCompanyChanged;
-
-        public Task<Core.Domain.Companies.Company?> GetActiveCompanyAsync(CancellationToken cancellationToken = default)
+        public string? ActiveCompanyId => "COMP-01";
+        public Company? CurrentCompany => new Company
         {
-            return Task.FromResult<Core.Domain.Companies.Company?>(new Core.Domain.Companies.Company
-            {
-                Id = "COMP-01",
-                TallyCompanyName = "Demo Industrial Solutions Pvt Ltd (FY 2025-26)",
-                BooksFromDate = new DateTime(2025, 4, 1)
-            });
+            Id = "COMP-01",
+            TallyCompanyName = "Demo Industrial Solutions Pvt Ltd (FY 2025-26)",
+            BooksFromDate = new DateTime(2025, 4, 1)
+        };
+
+        public event EventHandler<Company?>? ActiveCompanyChanged;
+
+        public Task<Company?> GetActiveCompanyAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<Company?>(CurrentCompany);
         }
 
-        public Task SetActiveCompanyAsync(Core.Domain.Companies.Company company, CancellationToken cancellationToken = default)
+        public Task SetActiveCompanyAsync(Company company, CancellationToken cancellationToken = default)
         {
             ActiveCompanyChanged?.Invoke(this, company);
             return Task.CompletedTask;
         }
 
-        public Task SetActiveCompanyByNameAsync(string companyName, CancellationToken cancellationToken = default)
+        public Task SetActiveCompanyNameAsync(string companyName, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
 
-        public Task<Core.Domain.Companies.Company> EnsureAndInitializeActiveCompanyAsync(CancellationToken cancellationToken = default)
+        public Task<Company?> EnsureAndInitializeActiveCompanyAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(new Core.Domain.Companies.Company
-            {
-                Id = "COMP-01",
-                TallyCompanyName = "Demo Industrial Solutions Pvt Ltd (FY 2025-26)",
-                BooksFromDate = new DateTime(2025, 4, 1)
-            });
+            return Task.FromResult<Company?>(CurrentCompany);
         }
-
-        public Task RefreshActiveCompanyAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task ClearActiveCompanyAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     [Fact]
