@@ -72,6 +72,7 @@ public partial class LedgersViewModel : ObservableObject, INavigationAware
         {
             var comp = await _companyContext.GetActiveCompanyAsync()
                        ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            var period = await _companyContext.GetActivePeriodAsync();
             var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
             ActiveCompanyName = activeName;
 
@@ -88,9 +89,13 @@ public partial class LedgersViewModel : ObservableObject, INavigationAware
 
             ActiveCompanyName = current.TallyCompanyName;
 
-            if (current.BooksFrom.HasValue)
+            if (period != null)
             {
-                var year = current.BooksFrom.Value.Year;
+                FinancialYear = period.FinancialYear;
+            }
+            else if (current.BooksFromDate != default)
+            {
+                var year = current.BooksFromDate.Year;
                 FinancialYear = $"FY {year}-{(year + 1) % 100:D2}";
             }
 

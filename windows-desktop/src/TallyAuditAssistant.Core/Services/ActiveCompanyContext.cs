@@ -13,11 +13,30 @@ public class ActiveCompanyContext : IActiveCompanyContext
     private readonly ITallyCompanyService _companyService;
 
     private Company? _currentCompany;
+    private FinancialPeriod? _currentPeriod;
     public event EventHandler<Company?>? ActiveCompanyChanged;
 
     public string? ActiveCompanyName => _currentCompany?.TallyCompanyName;
     public string? ActiveCompanyId => _currentCompany?.Id;
     public Company? CurrentCompany => _currentCompany;
+    public FinancialPeriod? CurrentPeriod => _currentPeriod ?? (_currentCompany != null ? CreatePeriodForCompany(_currentCompany) : null);
+    public string? ActiveFinancialYear => CurrentPeriod?.FinancialYear;
+    public string? ActiveFinancialPeriodId => CurrentPeriod?.FinancialPeriodId;
+    public DateTime? ActivePeriodFrom => CurrentPeriod?.StartDate;
+    public DateTime? ActivePeriodTo => CurrentPeriod?.EndDate;
+
+    private static FinancialPeriod CreatePeriodForCompany(Company company)
+    {
+        var startDate = company.BooksFromDate != default ? company.BooksFromDate : new DateTime(2025, 4, 1);
+        var endDate = startDate.AddYears(1).AddDays(-1);
+        return new FinancialPeriod
+        {
+            Id = $"{company.Id}-FY{startDate.Year}",
+            CompanyId = company.Id,
+            StartDate = startDate,
+            EndDate = endDate
+        };
+    }
 
     public ActiveCompanyContext(
         IAuditRepository repository,
@@ -33,6 +52,10 @@ public class ActiveCompanyContext : IActiveCompanyContext
     {
         if (_currentCompany != null)
         {
+            if (_currentPeriod == null)
+            {
+                _currentPeriod = CreatePeriodForCompany(_currentCompany);
+            }
             return _currentCompany;
         }
 
@@ -43,6 +66,7 @@ public class ActiveCompanyContext : IActiveCompanyContext
                               ?? await _repository.GetCompanyByIdAsync(persistedName, cancellationToken);
             if (_currentCompany != null)
             {
+                _currentPeriod = CreatePeriodForCompany(_currentCompany);
                 return _currentCompany;
             }
         }
@@ -50,17 +74,34 @@ public class ActiveCompanyContext : IActiveCompanyContext
         return await EnsureAndInitializeActiveCompanyAsync(cancellationToken);
     }
 
+    public async Task<FinancialPeriod?> GetActivePeriodAsync(CancellationToken cancellationToken = default)
+    {
+        if (_currentPeriod != null)
+        {
+            return _currentPeriod;
+        }
+
+        var comp = await GetActiveCompanyAsync(cancellationToken);
+        if (comp == null) return null;
+
+        _currentPeriod = CreatePeriodForCompany(comp);
+        return _currentPeriod;
+    }
+
     public async Task SetActiveCompanyAsync(Company company, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(company);
 
         _currentCompany = company;
+        _currentPeriod = CreatePeriodForCompany(company);
+
         await _settingsService.SetSettingAsync("ActiveCompany", company.TallyCompanyName, cancellationToken);
         
-        var fy = $"FY {company.BooksFromDate.Year}-{(company.BooksFromDate.Year + 1) % 100:D2}";
+        var fy = _currentPeriod.FinancialYear;
         await _settingsService.SetSettingAsync("FinancialYear", fy, cancellationToken);
-        await _settingsService.SetSettingAsync("AuditPeriodFrom", company.BooksFromDate.ToString("yyyy-MM-dd"), cancellationToken);
-        await _settingsService.SetSettingAsync("AuditPeriodTo", company.BooksFromDate.AddYears(1).AddDays(-1).ToString("yyyy-MM-dd"), cancellationToken);
+        await _settingsService.SetSettingAsync("FinancialPeriodId", _currentPeriod.FinancialPeriodId, cancellationToken);
+        await _settingsService.SetSettingAsync("AuditPeriodFrom", _currentPeriod.StartDate.ToString("yyyy-MM-dd"), cancellationToken);
+        await _settingsService.SetSettingAsync("AuditPeriodTo", _currentPeriod.EndDate.ToString("yyyy-MM-dd"), cancellationToken);
 
         ActiveCompanyChanged?.Invoke(this, _currentCompany);
     }
@@ -158,10 +199,14 @@ public class ActiveCompanyContext : IActiveCompanyContext
 
             var saved = await _repository.EnsureCompanyAsync(companyToEnsure, cancellationToken);
             _currentCompany = saved;
+            _currentPeriod = CreatePeriodForCompany(saved);
 
             await _settingsService.SetSettingAsync("ActiveCompany", saved.TallyCompanyName, cancellationToken);
-            var fy = $"FY {saved.BooksFromDate.Year}-{(saved.BooksFromDate.Year + 1) % 100:D2}";
+            var fy = _currentPeriod.FinancialYear;
             await _settingsService.SetSettingAsync("FinancialYear", fy, cancellationToken);
+            await _settingsService.SetSettingAsync("FinancialPeriodId", _currentPeriod.FinancialPeriodId, cancellationToken);
+            await _settingsService.SetSettingAsync("AuditPeriodFrom", _currentPeriod.StartDate.ToString("yyyy-MM-dd"), cancellationToken);
+            await _settingsService.SetSettingAsync("AuditPeriodTo", _currentPeriod.EndDate.ToString("yyyy-MM-dd"), cancellationToken);
 
             ActiveCompanyChanged?.Invoke(this, _currentCompany);
             return _currentCompany;

@@ -34,7 +34,48 @@ public class UpdateServiceTests
     public void GetCurrentVersion_ReturnsVersionString()
     {
         var service = new UpdateService(NullLogger<UpdateService>.Instance);
-        Assert.Equal("1.0.1", service.GetCurrentVersion());
+        Assert.Equal("1.0.2", service.GetCurrentVersion());
+    }
+
+    [Fact]
+    public async Task CheckForUpdates_Installed101_GitHubRelease102_UpdateAvailableTrue()
+    {
+        // Test: installed = 1.0.1, GitHub release: tag_name = v1.0.2, asset = TallyAuditAssistant-Setup-1.0.2.exe
+        // Expected: update available = true
+        var jsonResponse = @"[
+            {
+                ""tag_name"": ""v1.0.2"",
+                ""name"": ""Tally Audit Assistant v1.0.2"",
+                ""draft"": false,
+                ""prerelease"": false,
+                ""body"": ""Workflow context corrections and reports enhancement"",
+                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/tag/v1.0.2"",
+                ""assets"": [
+                    {
+                        ""name"": ""TallyAuditAssistant-Setup-1.0.2.exe"",
+                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.2/TallyAuditAssistant-Setup-1.0.2.exe"",
+                        ""size"": 15500000
+                    }
+                ]
+            }
+        ]";
+
+        var mockHandler = new MockHttpMessageHandler(req => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
+        });
+
+        var httpClient = new HttpClient(mockHandler);
+        var service = new UpdateService(NullLogger<UpdateService>.Instance, httpClient, installedVersion: "1.0.1");
+
+        var update = await service.CheckForUpdatesAsync();
+
+        Assert.NotNull(update);
+        Assert.True(update.IsUpdateAvailable);
+        Assert.Equal("1.0.2", update.LatestVersion);
+        Assert.Equal("1.0.1", update.CurrentVersion);
+        Assert.Equal("https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.2/TallyAuditAssistant-Setup-1.0.2.exe", update.DownloadUrl);
+        Assert.Equal(15500000, update.FileSizeBytes);
     }
 
     [Fact]

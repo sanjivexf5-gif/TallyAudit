@@ -16,11 +16,21 @@ public class Company
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
-public class FinancialYear
+public class FinancialPeriod
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string CompanyId { get; set; } = string.Empty;
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public bool IsAudited { get; set; } = false;
+
+    // Authoritative properties for domain consumers and ViewModels
+    public string FinancialPeriodId => Id;
+    public string FinancialYear => $"FY {StartDate.Year}-{(StartDate.Year + 1) % 100:D2}";
+    public DateTime BooksFrom => StartDate;
+    public DateTime BooksTo => EndDate;
+}
+
+public class FinancialYear : FinancialPeriod
+{
 }

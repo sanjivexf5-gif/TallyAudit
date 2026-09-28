@@ -68,7 +68,7 @@ public class GeminiAuditProvider : IAuditAiProvider
 
             _logger.LogInformation("Sending prompt to Gemini AI...");
 
-            using var client = _httpClientFactory.CreateClient();
+            var client = _httpClientFactory?.CreateClient() ?? new HttpClient();
             client.Timeout = TimeSpan.FromSeconds(30);
 
             // Using the recommended standard model 'gemini-2.5-flash' for basic text tasks

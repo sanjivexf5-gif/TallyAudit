@@ -22,18 +22,28 @@ public class GeminiAuditProviderTests
             .Setup(s => s.GetSettingAsync("GeminiApiKey", It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(string.Empty);
 
-        var provider = new GeminiAuditProvider(
-            mockHttpClientFactory.Object,
-            mockSettingsService.Object,
-            NullLogger<GeminiAuditProvider>.Instance);
+        var prevEnv = System.Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+        try
+        {
+            System.Environment.SetEnvironmentVariable("GEMINI_API_KEY", null);
 
-        // Act
-        var result = await provider.GenerateTextAsync("You are an auditor.", "Explain rule GST-01");
+            var provider = new GeminiAuditProvider(
+                mockHttpClientFactory.Object,
+                mockSettingsService.Object,
+                NullLogger<GeminiAuditProvider>.Instance);
 
-        // Assert
-        Assert.NotNull(result);
-        Assert.Contains("AI assistance is not configured", result);
-        Assert.False(provider.IsConfigured);
+            // Act
+            var result = await provider.GenerateTextAsync("You are an auditor.", "Explain rule GST-01");
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Contains("AI assistance is not configured", result);
+            Assert.False(provider.IsConfigured);
+        }
+        finally
+        {
+            System.Environment.SetEnvironmentVariable("GEMINI_API_KEY", prevEnv);
+        }
     }
 
     [Fact]
