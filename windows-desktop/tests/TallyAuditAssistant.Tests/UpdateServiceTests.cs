@@ -31,10 +31,18 @@ public class UpdateServiceTests
     }
 
     [Fact]
+    public void AppVersion_Properties_Match_Authoritative_104_Values()
+    {
+        Assert.Equal("1.0.4", AppVersion.Version);
+        Assert.Equal("2026.09.28.104", AppVersion.BuildNumber);
+        Assert.Contains("v1.0.4", AppVersion.DisplayString);
+    }
+
+    [Fact]
     public void GetCurrentVersion_ReturnsVersionString()
     {
         var service = new UpdateService(NullLogger<UpdateService>.Instance);
-        Assert.Equal("1.0.3", service.GetCurrentVersion());
+        Assert.Equal("1.0.4", service.GetCurrentVersion());
     }
 
     [Fact]
@@ -120,23 +128,23 @@ public class UpdateServiceTests
     }
 
     [Fact]
-    public async Task CheckForUpdates_Installed103_GitHubRelease103_UpdateAvailableFalse()
+    public async Task CheckForUpdates_Installed103_GitHubRelease104_UpdateAvailableTrue()
     {
-        // Test: installed = 1.0.3, GitHub: v1.0.3
-        // Expected: update available = false
+        // Test: installed = 1.0.3, GitHub release: v1.0.4
+        // Expected: update available = true
         var jsonResponse = @"[
             {
-                ""tag_name"": ""v1.0.3"",
-                ""name"": ""Tally Audit Assistant v1.0.3"",
+                ""tag_name"": ""v1.0.4"",
+                ""name"": ""Tally Audit Assistant v1.0.4"",
                 ""draft"": false,
                 ""prerelease"": false,
-                ""body"": ""Normalize SQLite monetary decimal fields and fix Reports Center"",
-                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/tag/v1.0.3"",
+                ""body"": ""Full release 1.0.4 with completed synchronization progress 100%"",
+                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/tag/v1.0.4"",
                 ""assets"": [
                     {
-                        ""name"": ""TallyAuditAssistant-Setup-1.0.3.exe"",
-                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.3/TallyAuditAssistant-Setup-1.0.3.exe"",
-                        ""size"": 15600000
+                        ""name"": ""TallyAuditAssistant-Setup-1.0.4.exe"",
+                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.4/TallyAuditAssistant-Setup-1.0.4.exe"",
+                        ""size"": 15650000
                     }
                 ]
             }
@@ -153,9 +161,49 @@ public class UpdateServiceTests
         var update = await service.CheckForUpdatesAsync();
 
         Assert.NotNull(update);
-        Assert.False(update.IsUpdateAvailable);
-        Assert.Equal("1.0.3", update.LatestVersion);
+        Assert.True(update.IsUpdateAvailable);
+        Assert.Equal("1.0.4", update.LatestVersion);
         Assert.Equal("1.0.3", update.CurrentVersion);
+        Assert.Equal("https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.4/TallyAuditAssistant-Setup-1.0.4.exe", update.DownloadUrl);
+    }
+
+    [Fact]
+    public async Task CheckForUpdates_Installed104_GitHubRelease104_UpdateAvailableFalse()
+    {
+        // Test: installed = 1.0.4, GitHub: v1.0.4
+        // Expected: update available = false
+        var jsonResponse = @"[
+            {
+                ""tag_name"": ""v1.0.4"",
+                ""name"": ""Tally Audit Assistant v1.0.4"",
+                ""draft"": false,
+                ""prerelease"": false,
+                ""body"": ""Current 1.0.4 release"",
+                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/tag/v1.0.4"",
+                ""assets"": [
+                    {
+                        ""name"": ""TallyAuditAssistant-Setup-1.0.4.exe"",
+                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.4/TallyAuditAssistant-Setup-1.0.4.exe"",
+                        ""size"": 15650000
+                    }
+                ]
+            }
+        ]";
+
+        var mockHandler = new MockHttpMessageHandler(req => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
+        });
+
+        var httpClient = new HttpClient(mockHandler);
+        var service = new UpdateService(NullLogger<UpdateService>.Instance, httpClient, installedVersion: "1.0.4");
+
+        var update = await service.CheckForUpdatesAsync();
+
+        Assert.NotNull(update);
+        Assert.False(update.IsUpdateAvailable);
+        Assert.Equal("1.0.4", update.LatestVersion);
+        Assert.Equal("1.0.4", update.CurrentVersion);
     }
 
     [Fact]
