@@ -34,7 +34,7 @@ public class UpdateServiceTests
     public void GetCurrentVersion_ReturnsVersionString()
     {
         var service = new UpdateService(NullLogger<UpdateService>.Instance);
-        Assert.Equal("1.0.2", service.GetCurrentVersion());
+        Assert.Equal("1.0.3", service.GetCurrentVersion());
     }
 
     [Fact]
@@ -120,23 +120,23 @@ public class UpdateServiceTests
     }
 
     [Fact]
-    public async Task CheckForUpdates_Installed101_GitHubRelease101_UpdateAvailableFalse()
+    public async Task CheckForUpdates_Installed103_GitHubRelease103_UpdateAvailableFalse()
     {
-        // Test: installed = 1.0.1, GitHub: v1.0.1
+        // Test: installed = 1.0.3, GitHub: v1.0.3
         // Expected: update available = false
         var jsonResponse = @"[
             {
-                ""tag_name"": ""v1.0.1"",
-                ""name"": ""Tally Audit Assistant v1.0.1"",
+                ""tag_name"": ""v1.0.3"",
+                ""name"": ""Tally Audit Assistant v1.0.3"",
                 ""draft"": false,
                 ""prerelease"": false,
-                ""body"": ""Current release"",
-                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/tag/v1.0.1"",
+                ""body"": ""Normalize SQLite monetary decimal fields and fix Reports Center"",
+                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/tag/v1.0.3"",
                 ""assets"": [
                     {
-                        ""name"": ""TallyAuditAssistant-Setup-1.0.1.exe"",
-                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.1/TallyAuditAssistant-Setup-1.0.1.exe"",
-                        ""size"": 15420000
+                        ""name"": ""TallyAuditAssistant-Setup-1.0.3.exe"",
+                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.3/TallyAuditAssistant-Setup-1.0.3.exe"",
+                        ""size"": 15600000
                     }
                 ]
             }
@@ -148,14 +148,14 @@ public class UpdateServiceTests
         });
 
         var httpClient = new HttpClient(mockHandler);
-        var service = new UpdateService(NullLogger<UpdateService>.Instance, httpClient, installedVersion: "1.0.1");
+        var service = new UpdateService(NullLogger<UpdateService>.Instance, httpClient, installedVersion: "1.0.3");
 
         var update = await service.CheckForUpdatesAsync();
 
         Assert.NotNull(update);
         Assert.False(update.IsUpdateAvailable);
-        Assert.Equal("1.0.1", update.LatestVersion);
-        Assert.Equal("1.0.1", update.CurrentVersion);
+        Assert.Equal("1.0.3", update.LatestVersion);
+        Assert.Equal("1.0.3", update.CurrentVersion);
     }
 
     [Fact]
