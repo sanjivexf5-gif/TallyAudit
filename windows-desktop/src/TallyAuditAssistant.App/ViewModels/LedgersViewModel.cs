@@ -70,22 +70,18 @@ public partial class LedgersViewModel : ObservableObject, INavigationAware
         IsLoading = true;
         try
         {
-            var comp = await _companyContext.GetActiveCompanyAsync()
-                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            var period = await _companyContext.GetActivePeriodAsync();
-            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
-            ActiveCompanyName = activeName;
-
-            var companies = await _repository.GetAllCompaniesAsync();
-            if (companies.Count == 0)
+            var comp = await _companyContext.GetActiveCompanyAsync();
+            if (comp == null)
             {
+                ActiveCompanyName = "No Company Selected";
+                FinancialYear = "—";
                 Ledgers.Clear();
                 HasLedgers = false;
                 return;
             }
 
-            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
-                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
+            var period = await _companyContext.GetActivePeriodAsync();
+            var current = comp;
 
             ActiveCompanyName = current.TallyCompanyName;
 

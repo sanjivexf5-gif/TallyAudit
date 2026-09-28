@@ -13,6 +13,7 @@ public class Company
     public DateTime? LastSyncDate { get; set; }
     public long LastAlterId { get; set; } = 0;
     public bool IsActive { get; set; } = true;
+    public bool IsMock { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

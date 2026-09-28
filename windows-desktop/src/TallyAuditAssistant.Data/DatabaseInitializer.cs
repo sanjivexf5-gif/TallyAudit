@@ -58,6 +58,7 @@ public class DatabaseInitializer : IDatabaseInitializer
                 LastSyncDate DATETIME,
                 LastAlterId INTEGER DEFAULT 0,
                 IsActive INTEGER DEFAULT 1,
+                IsMock INTEGER DEFAULT 0,
                 CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -212,6 +213,31 @@ public class DatabaseInitializer : IDatabaseInitializer
         ";
 
         await connection.ExecuteAsync(new CommandDefinition(schemaSql, cancellationToken: cancellationToken));
+
+        try
+        {
+            await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE Companies ADD COLUMN IsMock INTEGER DEFAULT 0;", cancellationToken: cancellationToken));
+        }
+        catch
+        {
+            // Column already present
+        }
+
+        try
+        {
+            await connection.ExecuteAsync(new CommandDefinition(@"
+                UPDATE Companies 
+                SET IsMock = 1 
+                WHERE TallyCompanyName LIKE '%Demo Industrial%' 
+                   OR TallyCompanyName LIKE '%Apex Industrial%' 
+                   OR TallyCompanyName LIKE '%Delta Retail%';
+            ", cancellationToken: cancellationToken));
+        }
+        catch
+        {
+            // Ignore if already configured
+        }
+
         _logger.LogInformation("Database tables and indexes verified successfully.");
     }
 

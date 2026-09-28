@@ -87,22 +87,16 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware
         StatusMessage = string.Empty;
         try
         {
-            var comp = await _companyContext.GetActiveCompanyAsync()
-                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
-            ActiveCompanyName = activeName;
-
-            var companies = await _repository.GetAllCompaniesAsync();
-            if (companies.Count == 0)
+            var comp = await _companyContext.GetActiveCompanyAsync();
+            if (comp == null)
             {
+                ActiveCompanyName = "No Company Selected";
                 Exceptions.Clear();
                 HasExceptions = false;
                 return;
             }
 
-            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
-                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
-
+            var current = comp;
             ActiveCompanyName = current.TallyCompanyName;
 
             var list = await _repository.GetExceptionsFilteredAsync(

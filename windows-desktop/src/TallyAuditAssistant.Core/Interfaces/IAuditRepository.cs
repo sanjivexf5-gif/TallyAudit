@@ -49,6 +49,7 @@ public interface IAuditRepository
 
     Task SaveAuditRunAsync(AuditRun run, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AuditRun>> GetAuditRunsAsync(string companyId, CancellationToken cancellationToken = default);
+    Task ClearMockDatasetAsync(CancellationToken cancellationToken = default);
 }
 
 public interface ISettingsService

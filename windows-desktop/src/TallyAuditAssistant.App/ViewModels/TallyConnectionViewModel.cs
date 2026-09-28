@@ -93,13 +93,30 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
         _connectionMonitor.EndpointChanged += OnMonitorEndpointChanged;
         _companyContext.ActiveCompanyChanged += (s, comp) =>
         {
-            if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
+            void Update()
             {
-                ActiveCompany = comp.TallyCompanyName;
-                if (SelectedCompany != comp.TallyCompanyName)
+                if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
                 {
-                    SelectedCompany = comp.TallyCompanyName;
+                    ActiveCompany = comp.TallyCompanyName;
+                    if (SelectedCompany != comp.TallyCompanyName)
+                    {
+                        SelectedCompany = comp.TallyCompanyName;
+                    }
                 }
+                else
+                {
+                    ActiveCompany = "—";
+                    SelectedCompany = null;
+                }
+            }
+
+            if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
+            {
+                App.Current.Dispatcher.Invoke(Update);
+            }
+            else
+            {
+                Update();
             }
         };
 

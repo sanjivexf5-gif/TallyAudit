@@ -231,25 +231,23 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
         try
         {
             AuditStatusText = "Loading active company and audit period...";
-            var comp = await _companyContext.GetActiveCompanyAsync()
-                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
-            var companies = await _repository.GetAllCompaniesAsync();
-            if (companies == null || companies.Count == 0)
+            var comp = await _companyContext.GetActiveCompanyAsync();
+            if (comp == null)
             {
                 AuditStatusText = "No synchronized accounting data is available for this company. Please synchronize Tally data first.";
                 return;
             }
-            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
-                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
 
             AuditStatusText = "Checking synchronized accounting data...";
-            var voucherCount = await _repository.GetVoucherCountAsync(current.Id);
+            var voucherCount = await _repository.GetVoucherCountAsync(comp.Id);
             if (voucherCount == 0)
             {
                 AuditStatusText = "No synchronized accounting data is available for this company. Please synchronize Tally data first.";
                 return;
             }
+
+            var current = comp;
+            var activeName = comp.TallyCompanyName;
 
             DateTime fromDate;
             DateTime toDate;
@@ -389,13 +387,9 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
     {
         try
         {
-            var comp = await _companyContext.GetActiveCompanyAsync()
-                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
-            var companies = await _repository.GetAllCompaniesAsync();
-            if (companies.Count == 0) return;
-            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
-                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
+            var comp = await _companyContext.GetActiveCompanyAsync();
+            if (comp == null) return;
+            var current = comp;
             
             var allExceptions = await _repository.GetExceptionsAsync(current.Id, take: 1000);
             
@@ -526,13 +520,9 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
     {
         try
         {
-            var comp = await _companyContext.GetActiveCompanyAsync()
-                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
-            var companies = await _repository.GetAllCompaniesAsync();
-            if (companies.Count == 0) return;
-            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
-                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
+            var comp = await _companyContext.GetActiveCompanyAsync();
+            if (comp == null) return;
+            var current = comp;
             
             var allExceptions = await _repository.GetExceptionsAsync(current.Id, take: 1000);
             
@@ -726,98 +716,121 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
         IsLoading = true;
         try
         {
-            var comp = await _companyContext.GetActiveCompanyAsync()
-                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
-            var companies = await _repository.GetAllCompaniesAsync();
-            if (companies.Count > 0)
+            var comp = await _companyContext.GetActiveCompanyAsync();
+            if (comp == null)
             {
-                var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
-                              ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
-                ActiveCompanyName = current.TallyCompanyName;
-                FinancialYear = $"FY {current.BooksFromDate.Year}-{(current.BooksFromDate.Year + 1) % 100:D2}";
-                TotalVouchersSynchronized = await _repository.GetVoucherCountAsync(current.Id);
-                LastSyncTime = current.LastSyncDate?.ToString("g") ?? "Never";
-
-                // Dynamic SQLite-based parameterized filters
-                var exceptions = await _repository.GetExceptionsFilteredAsync(
-                    current.Id,
-                    SelectedCategoryFilter,
-                    SelectedSeverityFilter,
-                    SelectedStatusFilter,
-                    SearchQuery,
-                    SelectedSortColumn,
-                    IsSortDescending
-                );
-
+                ActiveCompanyName = "No Company Selected";
+                FinancialYear = "—";
+                TotalVouchersSynchronized = 0;
+                LastSyncTime = "Never";
+                LastAuditRunTime = "Never";
                 RecentExceptions.Clear();
-                foreach (var ex in exceptions)
-                {
-                    RecentExceptions.Add(ex);
-                }
-
-                // Load reconciliation metrics
-                var allExceptions = await _repository.GetExceptionsAsync(current.Id, take: 1000);
-                var recExceptions = allExceptions.Where(x => x.RuleId != null && x.RuleId.StartsWith("REC-")).ToList();
-                ReconciliationTotalChecks = 12;
-                ReconciliationDifferences = recExceptions.Count;
-                ReconciliationWarnings = recExceptions.Count(x => x.Severity < SeverityLevel.High);
-                ReconciliationPassed = Math.Max(0, 12 - recExceptions.Select(x => x.RuleId).Distinct().Count());
-                ReconciliationUnableToCheck = 0;
-
-                // General counts
-                GstExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.GST);
-                TdsExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.TDS);
-                DuplicateExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.DuplicateDetection);
-                LedgerExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.GeneralAccounting);
-                VoucherSequencingCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.VoucherSequencing);
-                AnomalyDetectionCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.AnomalyDetection);
-                BankingCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.Banking);
-
-                TotalFindings = GstExceptionsCount + TdsExceptionsCount + DuplicateExceptionsCount + LedgerExceptionsCount + VoucherSequencingCount + AnomalyDetectionCount + BankingCount;
-                
-                AccountingExceptionsCount = LedgerExceptionsCount; // Alias compatibility
-                HighPriorityCount = await _repository.GetExceptionCountAsync(current.Id, minSeverity: SeverityLevel.High);
-                PendingAuditorReviews = await _repository.GetExceptionCountAsync(current.Id, status: ReviewStatus.Pending);
-
-                // Specific status counts
-                UnreviewedExceptionsCount = PendingAuditorReviews;
-                ReviewedExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, status: ReviewStatus.Reviewed);
-                AcceptedExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, status: ReviewStatus.Resolved);
-                NeedsFollowUpExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, status: ReviewStatus.RequiresClientClarification);
-
-                // Compute completion progress
-                var totalExceptions = TotalFindings;
-                if (totalExceptions > 0)
-                {
-                    var reviewed = totalExceptions - PendingAuditorReviews;
-                    AuditCompletionPercentage = Math.Clamp((int)Math.Round(((double)reviewed / totalExceptions) * 100), 0, 100);
-                }
-                else
-                {
-                    AuditCompletionPercentage = 100;
-                }
-
-                // Fetch previous runs history list
-                var runs = await _repository.GetAuditRunsAsync(current.Id);
                 AuditRuns.Clear();
-                foreach (var r in runs)
-                {
-                    AuditRuns.Add(r);
-                }
-
-                if (runs.Count > 0)
-                {
-                    LastAuditRunTime = runs[0].EndTime.ToLocalTime().ToString("g");
-                }
-                else
-                {
-                    LastAuditRunTime = "Never";
-                }
+                ReconciliationDifferences = 0;
+                ReconciliationWarnings = 0;
+                ReconciliationPassed = 0;
+                ReconciliationUnableToCheck = 0;
+                GstExceptionsCount = 0;
+                TdsExceptionsCount = 0;
+                DuplicateExceptionsCount = 0;
+                LedgerExceptionsCount = 0;
+                AccountingExceptionsCount = 0;
+                VoucherSequencingCount = 0;
+                AnomalyDetectionCount = 0;
+                BankingCount = 0;
+                TotalFindings = 0;
+                HighPriorityCount = 0;
+                PendingAuditorReviews = 0;
+                UnreviewedExceptionsCount = 0;
+                ReviewedExceptionsCount = 0;
+                AcceptedExceptionsCount = 0;
+                NeedsFollowUpExceptionsCount = 0;
+                AuditCompletionPercentage = 0;
+                AuditStatusText = "Ready to start audit";
+                return;
             }
 
-            var fy = await _settingsService.GetSettingAsync("FinancialYear", "FY 2025-26");
-            FinancialYear = fy;
+            var current = comp;
+            ActiveCompanyName = current.TallyCompanyName;
+            FinancialYear = $"FY {current.BooksFromDate.Year}-{(current.BooksFromDate.Year + 1) % 100:D2}";
+            TotalVouchersSynchronized = await _repository.GetVoucherCountAsync(current.Id);
+            LastSyncTime = current.LastSyncDate?.ToString("g") ?? "Never";
+
+            // Dynamic SQLite-based parameterized filters
+            var exceptions = await _repository.GetExceptionsFilteredAsync(
+                current.Id,
+                SelectedCategoryFilter,
+                SelectedSeverityFilter,
+                SelectedStatusFilter,
+                SearchQuery,
+                SelectedSortColumn,
+                IsSortDescending
+            );
+
+            RecentExceptions.Clear();
+            foreach (var ex in exceptions)
+            {
+                RecentExceptions.Add(ex);
+            }
+
+            // Load reconciliation metrics
+            var allExceptions = await _repository.GetExceptionsAsync(current.Id, take: 1000);
+            var recExceptions = allExceptions.Where(x => x.RuleId != null && x.RuleId.StartsWith("REC-")).ToList();
+            ReconciliationTotalChecks = 12;
+            ReconciliationDifferences = recExceptions.Count;
+            ReconciliationWarnings = recExceptions.Count(x => x.Severity < SeverityLevel.High);
+            ReconciliationPassed = Math.Max(0, 12 - recExceptions.Select(x => x.RuleId).Distinct().Count());
+            ReconciliationUnableToCheck = 0;
+
+            // General counts
+            GstExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.GST);
+            TdsExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.TDS);
+            DuplicateExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.DuplicateDetection);
+            LedgerExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.GeneralAccounting);
+            VoucherSequencingCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.VoucherSequencing);
+            AnomalyDetectionCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.AnomalyDetection);
+            BankingCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.Banking);
+
+            TotalFindings = GstExceptionsCount + TdsExceptionsCount + DuplicateExceptionsCount + LedgerExceptionsCount + VoucherSequencingCount + AnomalyDetectionCount + BankingCount;
+            
+            AccountingExceptionsCount = LedgerExceptionsCount; // Alias compatibility
+            HighPriorityCount = await _repository.GetExceptionCountAsync(current.Id, minSeverity: SeverityLevel.High);
+            PendingAuditorReviews = await _repository.GetExceptionCountAsync(current.Id, status: ReviewStatus.Pending);
+
+            // Specific status counts
+            UnreviewedExceptionsCount = PendingAuditorReviews;
+            ReviewedExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, status: ReviewStatus.Reviewed);
+            AcceptedExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, status: ReviewStatus.Resolved);
+            NeedsFollowUpExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, status: ReviewStatus.RequiresClientClarification);
+
+            // Compute completion progress
+            var totalExceptions = TotalFindings;
+            if (totalExceptions > 0)
+            {
+                var reviewed = totalExceptions - PendingAuditorReviews;
+                AuditCompletionPercentage = Math.Clamp((int)Math.Round(((double)reviewed / totalExceptions) * 100), 0, 100);
+            }
+            else
+            {
+                AuditCompletionPercentage = 100;
+            }
+
+            // Fetch previous runs history list
+            var runs = await _repository.GetAuditRunsAsync(current.Id);
+            AuditRuns.Clear();
+            foreach (var r in runs)
+            {
+                AuditRuns.Add(r);
+            }
+
+            if (runs.Count > 0)
+            {
+                LastAuditRunTime = runs[0].EndTime.ToLocalTime().ToString("g");
+            }
+            else
+            {
+                LastAuditRunTime = "Never";
+            }
         }
         catch (Exception ex)
         {

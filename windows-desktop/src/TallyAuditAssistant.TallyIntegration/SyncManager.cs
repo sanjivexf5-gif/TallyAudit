@@ -110,6 +110,7 @@ public class SyncManager : ISyncManager
             var existingCompany = await _auditRepository.GetCompanyByIdAsync(companyId, ct);
             long? fromAlterId = (mode == SyncMode.Incremental && existingCompany != null) ? existingCompany.LastAlterId : null;
 
+            var isMock = await _settingsService.IsMockModeEnabledAsync();
             var compEntity = new Company
             {
                 Id = companyId,
@@ -120,7 +121,8 @@ public class SyncManager : ISyncManager
                 StateName = profile.StateName,
                 StateCode = profile.StateCode,
                 BooksFromDate = profile.BooksBeginningFrom,
-                LastAlterId = profile.AlterId
+                LastAlterId = profile.AlterId,
+                IsMock = isMock
             };
 
             var fyEntity = new FinancialYear

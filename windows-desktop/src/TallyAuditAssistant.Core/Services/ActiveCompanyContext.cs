@@ -50,28 +50,51 @@ public class ActiveCompanyContext : IActiveCompanyContext
 
     public async Task<Company?> GetActiveCompanyAsync(CancellationToken cancellationToken = default)
     {
+        var isMock = await _settingsService.IsMockModeEnabledAsync();
+
         if (_currentCompany != null)
         {
-            if (_currentPeriod == null)
+            if (!isMock && _currentCompany.IsMock)
             {
-                _currentPeriod = CreatePeriodForCompany(_currentCompany);
+                _currentCompany = null;
+                _currentPeriod = null;
             }
-            return _currentCompany;
+            else
+            {
+                if (_currentPeriod == null)
+                {
+                    _currentPeriod = CreatePeriodForCompany(_currentCompany);
+                }
+                return _currentCompany;
+            }
         }
 
         var persistedName = await _settingsService.GetSettingAsync("ActiveCompany", string.Empty, cancellationToken);
         if (!string.IsNullOrEmpty(persistedName))
         {
-            _currentCompany = await _repository.GetCompanyByNameAsync(persistedName, cancellationToken)
-                              ?? await _repository.GetCompanyByIdAsync(persistedName, cancellationToken);
-            if (_currentCompany != null)
+            var comp = await _repository.GetCompanyByNameAsync(persistedName, cancellationToken)
+                       ?? await _repository.GetCompanyByIdAsync(persistedName, cancellationToken);
+            if (comp != null)
             {
-                _currentPeriod = CreatePeriodForCompany(_currentCompany);
-                return _currentCompany;
+                if (!isMock && comp.IsMock)
+                {
+                    await _settingsService.SetSettingAsync("ActiveCompany", string.Empty, cancellationToken);
+                }
+                else
+                {
+                    _currentCompany = comp;
+                    _currentPeriod = CreatePeriodForCompany(_currentCompany);
+                    return _currentCompany;
+                }
             }
         }
 
-        return await EnsureAndInitializeActiveCompanyAsync(cancellationToken);
+        if (isMock)
+        {
+            return await EnsureAndInitializeActiveCompanyAsync(cancellationToken);
+        }
+
+        return null;
     }
 
     public async Task<FinancialPeriod?> GetActivePeriodAsync(CancellationToken cancellationToken = default)
@@ -88,9 +111,27 @@ public class ActiveCompanyContext : IActiveCompanyContext
         return _currentPeriod;
     }
 
+    public async Task ClearActiveCompanyAsync(CancellationToken cancellationToken = default)
+    {
+        _currentCompany = null;
+        _currentPeriod = null;
+
+        await _settingsService.SetSettingAsync("ActiveCompany", string.Empty, cancellationToken);
+        await _settingsService.SetSettingAsync("FinancialYear", string.Empty, cancellationToken);
+        await _settingsService.SetSettingAsync("FinancialPeriodId", string.Empty, cancellationToken);
+        await _settingsService.SetSettingAsync("AuditPeriodFrom", string.Empty, cancellationToken);
+        await _settingsService.SetSettingAsync("AuditPeriodTo", string.Empty, cancellationToken);
+
+        ActiveCompanyChanged?.Invoke(this, null);
+    }
+
     public async Task SetActiveCompanyAsync(Company company, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(company);
+        if (company == null)
+        {
+            await ClearActiveCompanyAsync(cancellationToken);
+            return;
+        }
 
         _currentCompany = company;
         _currentPeriod = CreatePeriodForCompany(company);
@@ -108,7 +149,13 @@ public class ActiveCompanyContext : IActiveCompanyContext
 
     public async Task SetActiveCompanyNameAsync(string companyName, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(companyName)) return;
+        if (string.IsNullOrWhiteSpace(companyName))
+        {
+            await ClearActiveCompanyAsync(cancellationToken);
+            return;
+        }
+
+        var isMock = await _settingsService.IsMockModeEnabledAsync();
 
         var existing = await _repository.GetCompanyByNameAsync(companyName, cancellationToken)
                        ?? await _repository.GetCompanyByIdAsync(companyName, cancellationToken);
@@ -130,9 +177,10 @@ public class ActiveCompanyContext : IActiveCompanyContext
             StateName = profile?.StateName,
             StateCode = profile?.StateCode,
             BooksFromDate = profile?.BooksBeginningFrom ?? new DateTime(2025, 4, 1),
-            LastSyncDate = DateTime.UtcNow,
+            LastSyncDate = isMock ? DateTime.UtcNow : null,
             LastAlterId = profile?.AlterId ?? 0,
             IsActive = true,
+            IsMock = isMock,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -156,44 +204,69 @@ public class ActiveCompanyContext : IActiveCompanyContext
             }
             else if (!string.IsNullOrEmpty(persistedName))
             {
-                targetCompanyName = persistedName;
+                var existingPersisted = await _repository.GetCompanyByNameAsync(persistedName, cancellationToken)
+                                        ?? await _repository.GetCompanyByIdAsync(persistedName, cancellationToken);
+                if (existingPersisted != null && !existingPersisted.IsMock)
+                {
+                    targetCompanyName = existingPersisted.TallyCompanyName;
+                }
+                else
+                {
+                    await _settingsService.SetSettingAsync("ActiveCompany", string.Empty, cancellationToken);
+                }
             }
-            else
+
+            if (string.IsNullOrEmpty(targetCompanyName) && !isMock)
             {
                 targetCompanyName = await _companyService.GetActiveCompanyAsync(null, cancellationToken);
             }
 
             if (string.IsNullOrEmpty(targetCompanyName))
             {
-                // Check if repository has any existing companies
-                var all = await _repository.GetAllCompaniesAsync(cancellationToken);
-                if (all.Count > 0)
+                if (!isMock)
                 {
-                    _currentCompany = all[0];
-                    await SetActiveCompanyAsync(_currentCompany, cancellationToken);
-                    return _currentCompany;
+                    // Check if repository has any real companies
+                    var all = await _repository.GetAllCompaniesAsync(cancellationToken);
+                    var realCompanies = all.Where(c => !c.IsMock).ToList();
+                    if (realCompanies.Count > 0)
+                    {
+                        _currentCompany = realCompanies[0];
+                        await SetActiveCompanyAsync(_currentCompany, cancellationToken);
+                        return _currentCompany;
+                    }
+                    return null;
                 }
+            }
+
+            if (string.IsNullOrEmpty(targetCompanyName))
+            {
                 return null;
             }
 
             var dbCompany = await _repository.GetCompanyByNameAsync(targetCompanyName, cancellationToken)
                             ?? await _repository.GetCompanyByIdAsync(targetCompanyName, cancellationToken);
 
+            if (!isMock && dbCompany != null && dbCompany.IsMock)
+            {
+                return null;
+            }
+
             var profile = await _companyService.GetCompanyProfileTypedAsync(targetCompanyName, null, cancellationToken);
 
             var companyToEnsure = new Company
             {
-                Id = dbCompany?.Id ?? targetCompanyName,
-                TallyCompanyName = profile?.Name ?? targetCompanyName,
+                Id = dbCompany?.Id ?? profile?.Name ?? targetCompanyName,
+                TallyCompanyName = profile?.Name ?? dbCompany?.TallyCompanyName ?? targetCompanyName,
                 FormalName = profile?.FormalName ?? dbCompany?.FormalName ?? targetCompanyName,
                 GSTIN = profile?.GSTIN ?? dbCompany?.GSTIN,
                 PAN = profile?.PAN ?? dbCompany?.PAN,
                 StateName = profile?.StateName ?? dbCompany?.StateName,
                 StateCode = profile?.StateCode ?? dbCompany?.StateCode,
                 BooksFromDate = profile?.BooksBeginningFrom ?? dbCompany?.BooksFromDate ?? new DateTime(2025, 4, 1),
-                LastSyncDate = dbCompany?.LastSyncDate ?? DateTime.UtcNow,
-                LastAlterId = profile?.AlterId ?? dbCompany?.LastAlterId ?? 10042,
+                LastSyncDate = dbCompany?.LastSyncDate ?? (isMock ? DateTime.UtcNow : null),
+                LastAlterId = profile?.AlterId ?? dbCompany?.LastAlterId ?? (isMock ? 10042 : 0),
                 IsActive = true,
+                IsMock = isMock,
                 CreatedAt = dbCompany?.CreatedAt ?? DateTime.UtcNow
             };
 

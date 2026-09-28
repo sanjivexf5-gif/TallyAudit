@@ -92,39 +92,29 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             CompanyName = comp.TallyCompanyName;
             _ = LoadHistoryAsync();
         }
+        else
+        {
+            CompanyName = string.Empty;
+            SyncHistory.Clear();
+        }
     }
 
     private async Task LoadInitialDataAsync()
     {
         try
         {
-            var comp = await _companyContext.GetActiveCompanyAsync()
-                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            var comp = await _companyContext.GetActiveCompanyAsync();
 
             if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
             {
                 CompanyName = comp.TallyCompanyName;
+                await LoadHistoryAsync();
             }
             else
             {
-                var active = await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
-                if (string.IsNullOrEmpty(active))
-                {
-                    active = await _companyService.GetActiveCompanyAsync();
-                }
-
-                if (!string.IsNullOrEmpty(active))
-                {
-                    CompanyName = active;
-                    await _settingsService.SetSettingAsync("ActiveCompany", active);
-                }
-                else
-                {
-                    CompanyName = string.Empty;
-                }
+                CompanyName = string.Empty;
+                SyncHistory.Clear();
             }
-
-            await LoadHistoryAsync();
         }
         catch
         {

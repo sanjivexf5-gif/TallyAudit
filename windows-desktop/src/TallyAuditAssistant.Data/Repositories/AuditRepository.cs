@@ -40,8 +40,8 @@ public class AuditRepository : IAuditRepository
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
         const string sql = @"
-            INSERT INTO Companies (Id, TallyCompanyName, FormalName, GSTIN, PAN, StateName, StateCode, BooksFromDate, LastSyncDate, LastAlterId, IsActive, CreatedAt)
-            VALUES (@Id, @TallyCompanyName, @FormalName, @GSTIN, @PAN, @StateName, @StateCode, @BooksFromDate, @LastSyncDate, @LastAlterId, @IsActive, @CreatedAt)
+            INSERT INTO Companies (Id, TallyCompanyName, FormalName, GSTIN, PAN, StateName, StateCode, BooksFromDate, LastSyncDate, LastAlterId, IsActive, IsMock, CreatedAt)
+            VALUES (@Id, @TallyCompanyName, @FormalName, @GSTIN, @PAN, @StateName, @StateCode, @BooksFromDate, @LastSyncDate, @LastAlterId, @IsActive, @IsMock, @CreatedAt)
             ON CONFLICT(Id) DO UPDATE SET
                 TallyCompanyName = excluded.TallyCompanyName,
                 FormalName = excluded.FormalName,
@@ -52,7 +52,8 @@ public class AuditRepository : IAuditRepository
                 BooksFromDate = excluded.BooksFromDate,
                 LastSyncDate = excluded.LastSyncDate,
                 LastAlterId = excluded.LastAlterId,
-                IsActive = excluded.IsActive;
+                IsActive = excluded.IsActive,
+                IsMock = excluded.IsMock;
         ";
         await connection.ExecuteAsync(new CommandDefinition(sql, company, cancellationToken: cancellationToken));
     }
@@ -76,6 +77,7 @@ public class AuditRepository : IAuditRepository
             if (string.IsNullOrEmpty(company.StateCode)) company.StateCode = existing.StateCode;
             if (company.LastSyncDate == null) company.LastSyncDate = existing.LastSyncDate;
             if (company.LastAlterId == 0) company.LastAlterId = existing.LastAlterId;
+            if (!company.IsMock && existing.IsMock) company.IsMock = existing.IsMock;
 
             const string updateSql = @"
                 UPDATE Companies SET
@@ -88,7 +90,8 @@ public class AuditRepository : IAuditRepository
                     BooksFromDate = @BooksFromDate,
                     LastSyncDate = @LastSyncDate,
                     LastAlterId = @LastAlterId,
-                    IsActive = @IsActive
+                    IsActive = @IsActive,
+                    IsMock = @IsMock
                 WHERE Id = @Id;
             ";
             await connection.ExecuteAsync(new CommandDefinition(updateSql, company, cancellationToken: cancellationToken));
@@ -296,5 +299,87 @@ public class AuditRepository : IAuditRepository
         const string sql = "SELECT * FROM AuditRuns WHERE CompanyId = @CompanyId ORDER BY StartTime DESC";
         var result = await connection.QueryAsync<AuditRun>(new CommandDefinition(sql, new { CompanyId = companyId }, cancellationToken: cancellationToken));
         return result.ToList();
+    }
+
+    public async Task ClearMockDatasetAsync(CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        using var transaction = connection.BeginTransaction();
+
+        const string deleteExceptionsSql = @"
+            DELETE FROM Exceptions 
+            WHERE CompanyId IN (SELECT Id FROM Companies WHERE IsMock = 1)
+               OR CompanyId IN ('Demo Industrial Solutions Pvt Ltd (FY 2025-26)', 'Apex Industrial Solutions Pvt Ltd (FY 2025-26)', 'Delta Retail Ventures LLP (FY 2025-26)');
+        ";
+
+        const string deleteEntriesSql = @"
+            DELETE FROM VoucherEntries 
+            WHERE VoucherId IN (
+                SELECT Id FROM Vouchers 
+                WHERE CompanyId IN (SELECT Id FROM Companies WHERE IsMock = 1)
+                   OR CompanyId IN ('Demo Industrial Solutions Pvt Ltd (FY 2025-26)', 'Apex Industrial Solutions Pvt Ltd (FY 2025-26)', 'Delta Retail Ventures LLP (FY 2025-26)')
+            );
+        ";
+
+        const string deleteVouchersSql = @"
+            DELETE FROM Vouchers 
+            WHERE CompanyId IN (SELECT Id FROM Companies WHERE IsMock = 1)
+               OR CompanyId IN ('Demo Industrial Solutions Pvt Ltd (FY 2025-26)', 'Apex Industrial Solutions Pvt Ltd (FY 2025-26)', 'Delta Retail Ventures LLP (FY 2025-26)');
+        ";
+
+        const string deleteLedgersSql = @"
+            DELETE FROM Ledgers 
+            WHERE CompanyId IN (SELECT Id FROM Companies WHERE IsMock = 1)
+               OR CompanyId IN ('Demo Industrial Solutions Pvt Ltd (FY 2025-26)', 'Apex Industrial Solutions Pvt Ltd (FY 2025-26)', 'Delta Retail Ventures LLP (FY 2025-26)');
+        ";
+
+        const string deleteVoucherTypesSql = @"
+            DELETE FROM VoucherTypes 
+            WHERE CompanyId IN (SELECT Id FROM Companies WHERE IsMock = 1)
+               OR CompanyId IN ('Demo Industrial Solutions Pvt Ltd (FY 2025-26)', 'Apex Industrial Solutions Pvt Ltd (FY 2025-26)', 'Delta Retail Ventures LLP (FY 2025-26)');
+        ";
+
+        const string deleteGroupsSql = @"
+            DELETE FROM Groups 
+            WHERE CompanyId IN (SELECT Id FROM Companies WHERE IsMock = 1)
+               OR CompanyId IN ('Demo Industrial Solutions Pvt Ltd (FY 2025-26)', 'Apex Industrial Solutions Pvt Ltd (FY 2025-26)', 'Delta Retail Ventures LLP (FY 2025-26)');
+        ";
+
+        const string deleteFinancialYearsSql = @"
+            DELETE FROM FinancialYears 
+            WHERE CompanyId IN (SELECT Id FROM Companies WHERE IsMock = 1)
+               OR CompanyId IN ('Demo Industrial Solutions Pvt Ltd (FY 2025-26)', 'Apex Industrial Solutions Pvt Ltd (FY 2025-26)', 'Delta Retail Ventures LLP (FY 2025-26)');
+        ";
+
+        const string deleteAuditRunsSql = @"
+            DELETE FROM AuditRuns 
+            WHERE CompanyId IN (SELECT Id FROM Companies WHERE IsMock = 1)
+               OR CompanyId IN ('Demo Industrial Solutions Pvt Ltd (FY 2025-26)', 'Apex Industrial Solutions Pvt Ltd (FY 2025-26)', 'Delta Retail Ventures LLP (FY 2025-26)');
+        ";
+
+        const string deleteSyncHistorySql = @"
+            DELETE FROM SyncHistory 
+            WHERE CompanyId IN (SELECT Id FROM Companies WHERE IsMock = 1)
+               OR CompanyId IN ('Demo Industrial Solutions Pvt Ltd (FY 2025-26)', 'Apex Industrial Solutions Pvt Ltd (FY 2025-26)', 'Delta Retail Ventures LLP (FY 2025-26)');
+        ";
+
+        const string deleteCompaniesSql = @"
+            DELETE FROM Companies 
+            WHERE IsMock = 1 
+               OR Id IN ('Demo Industrial Solutions Pvt Ltd (FY 2025-26)', 'Apex Industrial Solutions Pvt Ltd (FY 2025-26)', 'Delta Retail Ventures LLP (FY 2025-26)');
+        ";
+
+        await connection.ExecuteAsync(new CommandDefinition(deleteExceptionsSql, transaction: transaction, cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(new CommandDefinition(deleteEntriesSql, transaction: transaction, cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(new CommandDefinition(deleteVouchersSql, transaction: transaction, cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(new CommandDefinition(deleteLedgersSql, transaction: transaction, cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(new CommandDefinition(deleteVoucherTypesSql, transaction: transaction, cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(new CommandDefinition(deleteGroupsSql, transaction: transaction, cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(new CommandDefinition(deleteFinancialYearsSql, transaction: transaction, cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(new CommandDefinition(deleteAuditRunsSql, transaction: transaction, cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(new CommandDefinition(deleteSyncHistorySql, transaction: transaction, cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(new CommandDefinition(deleteCompaniesSql, transaction: transaction, cancellationToken: cancellationToken));
+
+        transaction.Commit();
     }
 }

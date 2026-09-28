@@ -25,8 +25,8 @@ public class SyncRepository : ISyncRepository
         using var transaction = connection.BeginTransaction();
 
         const string compSql = @"
-            INSERT INTO Companies (Id, TallyCompanyName, FormalName, GSTIN, PAN, StateName, StateCode, BooksFromDate, LastSyncDate, LastAlterId, IsActive, CreatedAt)
-            VALUES (@Id, @TallyCompanyName, @FormalName, @GSTIN, @PAN, @StateName, @StateCode, @BooksFromDate, @LastSyncDate, @LastAlterId, @IsActive, @CreatedAt)
+            INSERT INTO Companies (Id, TallyCompanyName, FormalName, GSTIN, PAN, StateName, StateCode, BooksFromDate, LastSyncDate, LastAlterId, IsActive, IsMock, CreatedAt)
+            VALUES (@Id, @TallyCompanyName, @FormalName, @GSTIN, @PAN, @StateName, @StateCode, @BooksFromDate, @LastSyncDate, @LastAlterId, @IsActive, @IsMock, @CreatedAt)
             ON CONFLICT(Id) DO UPDATE SET
                 TallyCompanyName = excluded.TallyCompanyName,
                 FormalName = excluded.FormalName,
@@ -36,7 +36,8 @@ public class SyncRepository : ISyncRepository
                 StateCode = excluded.StateCode,
                 LastSyncDate = excluded.LastSyncDate,
                 LastAlterId = excluded.LastAlterId,
-                IsActive = excluded.IsActive;
+                IsActive = excluded.IsActive,
+                IsMock = excluded.IsMock;
         ";
 
         const string fySql = @"

@@ -97,9 +97,25 @@ public partial class MainWindowViewModel : ObservableObject
 
         _companyContext.ActiveCompanyChanged += (s, comp) =>
         {
-            if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
+            void Update()
             {
-                ActiveCompany = comp.TallyCompanyName;
+                if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
+                {
+                    ActiveCompany = comp.TallyCompanyName;
+                }
+                else
+                {
+                    ActiveCompany = "No Company Selected";
+                }
+            }
+
+            if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
+            {
+                App.Current.Dispatcher.Invoke(Update);
+            }
+            else
+            {
+                Update();
             }
         };
 
@@ -111,11 +127,14 @@ public partial class MainWindowViewModel : ObservableObject
 
     private async Task InitializeActiveCompanyAsync()
     {
-        var comp = await _companyContext.GetActiveCompanyAsync()
-                   ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+        var comp = await _companyContext.GetActiveCompanyAsync();
         if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
         {
             ActiveCompany = comp.TallyCompanyName;
+        }
+        else
+        {
+            ActiveCompany = "No Company Selected";
         }
     }
 
@@ -208,16 +227,25 @@ public partial class MainWindowViewModel : ObservableObject
             default:
                 ConnectionStatusText = "Tally Disconnected";
                 ConnectionBadgeColor = "#EF4444"; // Red
+                if (string.IsNullOrEmpty(_companyContext.ActiveCompanyName))
+                {
+                    ActiveCompany = "No Company Selected";
+                }
                 break;
         }
     }
 
     private async Task ResolveAndApplyActiveCompanyAsync()
     {
-        var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-        if (comp != null)
+        var isMock = await _settingsService.IsMockModeEnabledAsync();
+        if (isMock)
         {
-            ActiveCompany = comp.TallyCompanyName;
+            var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            if (comp != null)
+            {
+                ActiveCompany = comp.TallyCompanyName;
+                return;
+            }
         }
         else
         {
@@ -226,7 +254,13 @@ public partial class MainWindowViewModel : ObservableObject
             {
                 ActiveCompany = fallback;
                 await _companyContext.SetActiveCompanyNameAsync(fallback);
+                return;
             }
+        }
+
+        if (string.IsNullOrEmpty(_companyContext.ActiveCompanyName))
+        {
+            ActiveCompany = "No Company Selected";
         }
     }
 }

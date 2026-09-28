@@ -306,31 +306,33 @@ export interface GstCheckResultItem {
 
 export default function App() {
   const [currentNav, setCurrentNav] = useState<NavItem>('dashboard');
-  const [tallyConnected, setTallyConnected] = useState<boolean>(true);
+  const [isMockMode, setIsMockMode] = useState<boolean>(false);
+  const [mockSettingsStatusMessage, setMockSettingsStatusMessage] = useState<string>('');
+  const [tallyConnected, setTallyConnected] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [tallyHost, setTallyHost] = useState<string>('localhost');
   const [tallyPort, setTallyPort] = useState<number>(9000);
-  const [activeCompany, setActiveCompany] = useState<string>('Demo Industrial Solutions Pvt Ltd (FY 2025-26)');
-  const [connectionMessage, setConnectionMessage] = useState<string>('Connected to TallyPrime XML Server via Port 9000');
-  const [latency, setLatency] = useState<number>(15);
+  const [activeCompany, setActiveCompany] = useState<string>('No Company Selected');
+  const [connectionMessage, setConnectionMessage] = useState<string>('Tally Disconnected');
+  const [latency, setLatency] = useState<number>(0);
   const [copiedFile, setCopiedFile] = useState<string | null>(null);
   const [selectedCsFile, setSelectedCsFile] = useState<string>('AuditEngine.cs');
 
   // --- MULTI-COMPANY & MULTI-YEAR TENANT STATE ---
-  const [companies, setCompanies] = useState<CompanyWorkspace[]>(initialCompanies);
-  const [activeCompanyId, setActiveCompanyId] = useState<string>('COMP-001');
-  const [activeFinancialYearId, setActiveFinancialYearId] = useState<string>('FY-2025-26');
+  const [companies, setCompanies] = useState<CompanyWorkspace[]>(() => initialCompanies.filter(c => !c.isMock));
+  const [activeCompanyId, setActiveCompanyId] = useState<string>('');
+  const [activeFinancialYearId, setActiveFinancialYearId] = useState<string>('');
   const [isScanningTallyCompanies, setIsScanningTallyCompanies] = useState<boolean>(false);
 
   // --- OFFLINE-FIRST & SYNCHRONIZATION ENGINE STATE ---
   const [isSynchronizing, setIsSynchronizing] = useState<boolean>(false);
-  const [syncProgress, setSyncProgress] = useState<number>(100);
-  const [syncStepMessage, setSyncStepMessage] = useState<string>('Data Available Locally — Local SQLite Snapshot Active');
-  const [lastSyncDate, setLastSyncDate] = useState<string>('27-Sep-2026');
-  const [lastSyncTime, setLastSyncTime] = useState<string>('09:14:00 AM');
-  const [lastSyncCompany, setLastSyncCompany] = useState<string>('Demo Industrial Solutions Pvt Ltd');
-  const [lastSyncFinancialYear, setLastSyncFinancialYear] = useState<string>('FY 2025-26');
-  const [isDataStale, setIsDataStale] = useState<boolean>(true); // Local data freshness warning
+  const [syncProgress, setSyncProgress] = useState<number>(0);
+  const [syncStepMessage, setSyncStepMessage] = useState<string>('Tally Disconnected — No Active Company Selected');
+  const [lastSyncDate, setLastSyncDate] = useState<string>('');
+  const [lastSyncTime, setLastSyncTime] = useState<string>('');
+  const [lastSyncCompany, setLastSyncCompany] = useState<string>('No Company Selected');
+  const [lastSyncFinancialYear, setLastSyncFinancialYear] = useState<string>('');
+  const [isDataStale, setIsDataStale] = useState<boolean>(false); // Local data freshness warning
   const [staleWarningDismissed, setStaleWarningDismissed] = useState<boolean>(false);
   
   // --- SECURITY LAYER & AUDIT TRAIL STATE ---
@@ -2121,6 +2123,11 @@ export default function App() {
 
   // Execute All 19 Rules
   const executeAuditEngine = () => {
+    if (!activeCompanyId || !currentCompanyObj || currentCompanyObj.name === 'No Company Selected') {
+      alert('No synchronized accounting data is available for this company. Please synchronize Tally data first.');
+      return;
+    }
+
     setIsAuditing(true);
     setAuditProgress(0);
 
@@ -2443,10 +2450,98 @@ export default function App() {
   });
 
   // --- MULTI-COMPANY & MULTI-YEAR MANAGEMENT HANDLERS ---
-  const currentCompanyObj = companies.find(c => c.id === activeCompanyId) || companies[0];
+  const fallbackEmptyCompany: CompanyWorkspace = {
+    id: '',
+    name: 'No Company Selected',
+    legalName: 'No Company Selected',
+    tallyCompanyIdentifier: '',
+    tallyNumber: '',
+    pan: '',
+    gstin: '',
+    state: '',
+    stateCode: '',
+    industry: 'None',
+    natureOfBusiness: 'None',
+    registeredAddress: '—',
+    auditPartner: '—',
+    booksBeginningFrom: '—',
+    financialYears: [],
+    activeFinancialYearId: '',
+    currency: 'INR (₹)',
+    lastSyncAt: 'Never',
+    status: 'Active',
+    auditStatus: 'Planning',
+    isMock: false
+  };
+
+  const currentCompanyObj: CompanyWorkspace = (activeCompanyId ? companies.find(c => c.id === activeCompanyId) : undefined) || fallbackEmptyCompany;
   const currentYearDataStore = getCompanyYearData(activeCompanyId, activeFinancialYearId);
-  const activeFyObj = currentCompanyObj.financialYears.find(f => f.id === activeFinancialYearId) || currentCompanyObj.financialYears[0];
-  const priorFyObj = currentCompanyObj.financialYears.find(f => f.id !== activeFinancialYearId && f.isAuditFinalized) || currentCompanyObj.financialYears[0];
+  const activeFyObj = currentCompanyObj.financialYears?.find(f => f.id === activeFinancialYearId) || currentCompanyObj.financialYears?.[0] || {
+    id: '',
+    label: 'No Period',
+    startDate: '—',
+    endDate: '—',
+    assessmentYear: '—',
+    isCurrent: false,
+    isAuditFinalized: false,
+    vouchersCount: 0,
+    ledgersCount: 0
+  };
+  const priorFyObj = currentCompanyObj.financialYears?.find(f => f.id !== activeFinancialYearId && f.isAuditFinalized) || activeFyObj;
+
+  const handleToggleMockMode = (enable: boolean) => {
+    setIsMockMode(enable);
+    if (enable) {
+      const mockComp = initialCompanies.find(c => c.id === 'COMP-001') || initialCompanies[0];
+      setCompanies(prev => {
+        if (prev.some(c => c.id === mockComp.id)) return prev;
+        return [mockComp, ...prev];
+      });
+      setTallyConnected(true);
+      setLatency(15);
+      setActiveCompanyId(mockComp.id);
+      setActiveFinancialYearId('FY-2025-26');
+      setActiveCompany('Demo Industrial Solutions Pvt Ltd (FY 2025-26)');
+      setLastSyncCompany('Demo Industrial Solutions Pvt Ltd');
+      setLastSyncFinancialYear('FY 2025-26');
+      setLastSyncDate('25-Sep-2026');
+      setLastSyncTime('09:14:00 AM');
+      setConnectionMessage('Connected to TallyPrime XML Server via Port 9000 (Mock Mode)');
+      setSyncStepMessage('Data Available Locally — Local SQLite Snapshot Active');
+      setSyncProgress(100);
+      setWorkspaceExceptions(initialWorkspaceExceptions);
+      setAuditEvidence(initialAuditEvidence);
+      setWorkingPapers(initialWorkingPapers);
+      setAuditSamples(initialAuditProcedures.flatMap(p => p.samples || []));
+      setMockSettingsStatusMessage('Mock Tally Integration enabled. Demo dataset is available.');
+      recordSecurityLog('SYSTEM_CONFIG', 'Mock Tally Mode Enabled', 'Synthetic Demo Industrial Solutions Pvt Ltd company loaded.');
+    } else {
+      setTallyConnected(false);
+      setLatency(0);
+      setActiveCompanyId('');
+      setActiveFinancialYearId('');
+      setActiveCompany('No Company Selected');
+      setLastSyncCompany('No Company Selected');
+      setLastSyncFinancialYear('');
+      setLastSyncDate('');
+      setLastSyncTime('');
+      setCompanies(prev => prev.filter(c => !c.isMock && c.id !== 'COMP-001'));
+      setWorkspaceExceptions([]);
+      setAuditEvidence([]);
+      setWorkingPapers([]);
+      setAuditSamples([]);
+      setSelectedWorkspaceException(null);
+      setSelectedEvidenceItem(null);
+      setSelectedWorkingPaper(null);
+      setSelectedRecFinding(null);
+      setTestingSampleItem(null);
+      setConnectionMessage('Tally Disconnected');
+      setSyncStepMessage('Tally Disconnected — No Active Company Selected');
+      setSyncProgress(0);
+      setMockSettingsStatusMessage('Mock Tally Integration disabled. Demo data has been cleared and no company is currently selected.');
+      recordSecurityLog('SYSTEM_CONFIG', 'Mock Tally Mode Disabled', 'Synthetic demo dataset cleared and company context unselected.');
+    }
+  };
 
   const handleSwitchCompany = (newCompany: CompanyWorkspace) => {
     // 1. Safe stop any active audit or sync operations
@@ -7449,6 +7544,49 @@ export default function App() {
                       className="w-full bg-[#0b101e] border border-slate-700 rounded px-3 py-1.5 text-xs text-white"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Mock Tally Integration & Synthetic Data Lifecycle */}
+              <div className="bg-[#121c30] border border-slate-800 rounded-lg p-5 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Cpu className="w-4 h-4 text-amber-400" />
+                    <span>Mock Tally Integration &amp; Synthetic Dataset</span>
+                  </h3>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                    isMockMode ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-slate-900 text-slate-400 border-slate-700'
+                  }`}>
+                    {isMockMode ? 'MOCK MODE ENABLED' : 'MOCK MODE DISABLED'}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-[#070b14] rounded border border-slate-800">
+                    <div>
+                      <span className="font-bold text-white text-xs block">Enable Mock Tally Integration</span>
+                      <span className="text-[11px] text-slate-400">
+                        Provides offline synthetic demo company (Demo Industrial Solutions Pvt Ltd) with FY 2025-26 vouchers, ledgers, and audit exceptions for evaluation.
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={isMockMode}
+                      onChange={(e) => handleToggleMockMode(e.target.checked)}
+                      className="rounded text-amber-600 focus:ring-amber-500 bg-slate-900 border-slate-700 cursor-pointer w-4 h-4"
+                    />
+                  </div>
+
+                  {mockSettingsStatusMessage && (
+                    <div className={`p-3 rounded text-xs border flex items-center gap-2 ${
+                      isMockMode 
+                        ? 'bg-emerald-950/80 border-emerald-800 text-emerald-300' 
+                        : 'bg-amber-950/80 border-amber-800 text-amber-300'
+                    }`}>
+                      <Info className="w-4 h-4 shrink-0" />
+                      <span>{mockSettingsStatusMessage}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

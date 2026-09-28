@@ -62,6 +62,7 @@ export interface CompanyWorkspace {
   lastSyncAt: string;
   status: 'Active' | 'Archived' | 'Suspended';
   auditStatus: 'Planning' | 'In Progress' | 'Review Completed' | 'Audit Finalized & Locked';
+  isMock?: boolean;
 }
 
 export interface YoYFinancialMetric {
@@ -167,6 +168,7 @@ export const initialCompanies: CompanyWorkspace[] = [
     lastSyncAt: '25-Sep-2026 09:14:00 AM',
     status: 'Active',
     auditStatus: 'In Progress',
+    isMock: true,
     financialYears: [
       {
         id: 'FY-2024-25',

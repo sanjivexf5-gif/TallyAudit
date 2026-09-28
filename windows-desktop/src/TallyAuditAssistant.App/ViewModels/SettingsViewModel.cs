@@ -15,6 +15,8 @@ public partial class SettingsViewModel : ObservableObject, INavigationAware
     private readonly IDatabaseInitializer _dbInitializer;
     private readonly IActiveCompanyContext _companyContext;
     private readonly IUpdateService _updateService;
+    private readonly IAuditRepository _repository;
+    private readonly ITallyConnection _tallyConnection;
 
     [ObservableProperty]
     private string _databasePath = string.Empty;
@@ -83,12 +85,16 @@ public partial class SettingsViewModel : ObservableObject, INavigationAware
         ISettingsService settingsService, 
         IDatabaseInitializer dbInitializer, 
         IActiveCompanyContext companyContext,
-        IUpdateService updateService)
+        IUpdateService updateService,
+        IAuditRepository repository,
+        ITallyConnection tallyConnection)
     {
         _settingsService = settingsService;
         _dbInitializer = dbInitializer;
         _companyContext = companyContext;
         _updateService = updateService;
+        _repository = repository;
+        _tallyConnection = tallyConnection;
         _databasePath = _dbInitializer.DatabasePath;
 
         _ = LoadSettingsAsync();
@@ -132,23 +138,37 @@ public partial class SettingsViewModel : ObservableObject, INavigationAware
     [RelayCommand]
     private async Task SaveSettingsAsync()
     {
-        await _settingsService.SetTallyHostAsync(TallyHost);
-        await _settingsService.SetTallyPortAsync(TallyPort);
-        await _settingsService.SetMockModeEnabledAsync(IsMockMode);
-
-        await _settingsService.SetSettingAsync("LargeTransactionThreshold", LargeTransactionThreshold.ToString());
-        await _settingsService.SetSettingAsync("TdsSinglePaymentLimit", TdsSinglePaymentLimit.ToString());
-        await _settingsService.SetSettingAsync("RoundNumberMultiple", RoundNumberMultiple.ToString());
-        await _settingsService.SetSettingAsync("RoundNumberMinAmount", RoundNumberMinAmount.ToString());
-        await _settingsService.SetSettingAsync("PeriodEndReviewDays", PeriodEndReviewDays.ToString());
-        await _settingsService.SetSettingAsync("DuplicateSensitivity", DuplicateSensitivity);
-
-        if (IsMockMode)
+        try
         {
-            await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-        }
+            await _settingsService.SetTallyHostAsync(TallyHost);
+            await _settingsService.SetTallyPortAsync(TallyPort);
+            await _settingsService.SetMockModeEnabledAsync(IsMockMode);
 
-        StatusMessage = "Settings saved successfully to local SQLite storage.";
+            await _settingsService.SetSettingAsync("LargeTransactionThreshold", LargeTransactionThreshold.ToString());
+            await _settingsService.SetSettingAsync("TdsSinglePaymentLimit", TdsSinglePaymentLimit.ToString());
+            await _settingsService.SetSettingAsync("RoundNumberMultiple", RoundNumberMultiple.ToString());
+            await _settingsService.SetSettingAsync("RoundNumberMinAmount", RoundNumberMinAmount.ToString());
+            await _settingsService.SetSettingAsync("PeriodEndReviewDays", PeriodEndReviewDays.ToString());
+            await _settingsService.SetSettingAsync("DuplicateSensitivity", DuplicateSensitivity);
+
+            if (IsMockMode)
+            {
+                await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+                await _tallyConnection.ProbePortRangeAsync(TallyHost, TallyPort, TallyPort);
+                StatusMessage = "Mock Tally Integration enabled. Demo dataset is available.";
+            }
+            else
+            {
+                await _repository.ClearMockDatasetAsync();
+                await _companyContext.ClearActiveCompanyAsync();
+                await _tallyConnection.ProbePortRangeAsync(TallyHost, TallyPort, TallyPort);
+                StatusMessage = "Mock Tally Integration disabled. Demo data has been cleared and no company is currently selected.";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to save settings: {ex.Message}";
+        }
     }
 
     [RelayCommand]

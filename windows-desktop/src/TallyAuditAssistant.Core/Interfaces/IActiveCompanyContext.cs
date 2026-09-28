@@ -27,4 +27,5 @@ public interface IActiveCompanyContext
     Task SetActiveCompanyAsync(Company company, CancellationToken cancellationToken = default);
     Task SetActiveCompanyNameAsync(string companyName, CancellationToken cancellationToken = default);
     Task<Company?> EnsureAndInitializeActiveCompanyAsync(CancellationToken cancellationToken = default);
+    Task ClearActiveCompanyAsync(CancellationToken cancellationToken = default);
 }

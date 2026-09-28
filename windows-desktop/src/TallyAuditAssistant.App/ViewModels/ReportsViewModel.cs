@@ -87,23 +87,20 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
     {
         try
         {
-            var comp = await _companyContext.GetActiveCompanyAsync()
-                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
-            ActiveCompanyName = activeName;
-
-            var companies = await _repository.GetAllCompaniesAsync();
-            if (companies.Count == 0)
+            var comp = await _companyContext.GetActiveCompanyAsync();
+            if (comp == null)
             {
+                ActiveCompanyName = "No Company Selected";
                 HasData = false;
                 TotalVouchersCount = 0;
                 TotalExceptionsCount = 0;
+                GstExceptionsCount = 0;
+                TdsExceptionsCount = 0;
+                DuplicateExceptionsCount = 0;
                 return;
             }
 
-            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
-                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
-
+            var current = comp;
             ActiveCompanyName = current.TallyCompanyName;
 
             TotalVouchersCount = await _repository.GetVoucherCountAsync(current.Id);
@@ -172,19 +169,15 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
 
         try
         {
-            var comp = await _companyContext.GetActiveCompanyAsync()
-                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
-            var companies = await _repository.GetAllCompaniesAsync();
-            if (companies.Count == 0)
+            var comp = await _companyContext.GetActiveCompanyAsync();
+            if (comp == null)
             {
                 StatusMessage = "No synchronized company found. Synchronize data from TallyPrime first.";
                 IsError = true;
                 return;
             }
 
-            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
-                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
+            var current = comp;
 
             var allExceptions = await _repository.GetExceptionsAsync(current.Id, take: 5000);
             var totalVouchers = await _repository.GetVoucherCountAsync(current.Id);
@@ -308,19 +301,15 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
 
         try
         {
-            var comp = await _companyContext.GetActiveCompanyAsync()
-                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
-            var companies = await _repository.GetAllCompaniesAsync();
-            if (companies.Count == 0)
+            var comp = await _companyContext.GetActiveCompanyAsync();
+            if (comp == null)
             {
                 StatusMessage = "No synchronized company found. Synchronize data from TallyPrime first.";
                 IsError = true;
                 return;
             }
 
-            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
-                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
+            var current = comp;
 
             var allExceptions = await _repository.GetExceptionsAsync(current.Id, take: 5000);
             var totalVouchers = await _repository.GetVoucherCountAsync(current.Id);
@@ -419,19 +408,15 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
 
         try
         {
-            var comp = await _companyContext.GetActiveCompanyAsync()
-                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
-            var companies = await _repository.GetAllCompaniesAsync();
-            if (companies.Count == 0)
+            var comp = await _companyContext.GetActiveCompanyAsync();
+            if (comp == null)
             {
                 StatusMessage = "No synchronized company found. Synchronize data from TallyPrime first.";
                 IsError = true;
                 return;
             }
 
-            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
-                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
+            var current = comp;
 
             var allExceptions = await _repository.GetExceptionsAsync(current.Id, take: 5000);
 

@@ -55,7 +55,12 @@ public partial class CompaniesViewModel : ObservableObject, INavigationAware
 
     private void OnActiveCompanyChanged(object? sender, Company? comp)
     {
-        if (comp == null) return;
+        if (comp == null)
+        {
+            ActiveCompanyName = string.Empty;
+            SelectedCompany = null;
+            return;
+        }
         ActiveCompanyName = comp.TallyCompanyName;
         var match = Companies.FirstOrDefault(c => c.TallyCompanyName == comp.TallyCompanyName || c.Id == comp.Id);
         if (match != null)
@@ -70,8 +75,7 @@ public partial class CompaniesViewModel : ObservableObject, INavigationAware
         IsLoading = true;
         try
         {
-            var currentActive = await _companyContext.GetActiveCompanyAsync()
-                                ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            var currentActive = await _companyContext.GetActiveCompanyAsync();
 
             var list = await _repository.GetAllCompaniesAsync();
             Companies.Clear();
@@ -82,14 +86,16 @@ public partial class CompaniesViewModel : ObservableObject, INavigationAware
 
             HasCompanies = Companies.Count > 0;
 
-            var activeName = currentActive?.TallyCompanyName
-                             ?? _companyContext.ActiveCompanyName
-                             ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
-
-            ActiveCompanyName = !string.IsNullOrEmpty(activeName) ? activeName : (list.FirstOrDefault()?.TallyCompanyName ?? string.Empty);
-
-            SelectedCompany = list.FirstOrDefault(c => c.TallyCompanyName == ActiveCompanyName || c.Id == currentActive?.Id)
-                              ?? list.FirstOrDefault();
+            if (currentActive != null)
+            {
+                ActiveCompanyName = currentActive.TallyCompanyName;
+                SelectedCompany = list.FirstOrDefault(c => c.TallyCompanyName == currentActive.TallyCompanyName || c.Id == currentActive.Id);
+            }
+            else
+            {
+                ActiveCompanyName = string.Empty;
+                SelectedCompany = null;
+            }
         }
         finally
         {
