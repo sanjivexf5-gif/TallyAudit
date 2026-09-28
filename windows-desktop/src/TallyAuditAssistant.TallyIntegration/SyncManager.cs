@@ -28,6 +28,8 @@ public class SyncManager : ISyncManager
     public SyncStatus CurrentStatus { get; private set; } = SyncStatus.Idle;
     public SyncMetrics CurrentMetrics { get; } = new();
 
+    private DateTime _lastProgressEmit = DateTime.MinValue;
+
     public event EventHandler<SyncMetrics>? ProgressChanged;
     public event EventHandler<string>? SyncLogEmitted;
 
@@ -427,7 +429,13 @@ public class SyncManager : ISyncManager
                 CurrentMetrics.ProgressPercentage = Math.Min(99.0, Math.Round((double)CurrentMetrics.RecordsProcessed / CurrentMetrics.RecordsDiscovered * 100, 1));
             }
         }
-        ProgressChanged?.Invoke(this, CurrentMetrics);
+
+        var now = DateTime.UtcNow;
+        if (CurrentMetrics.CurrentStage == SyncStage.Complete || (now - _lastProgressEmit).TotalMilliseconds >= 100)
+        {
+            _lastProgressEmit = now;
+            ProgressChanged?.Invoke(this, CurrentMetrics);
+        }
     }
 
     private void ResetMetrics()
