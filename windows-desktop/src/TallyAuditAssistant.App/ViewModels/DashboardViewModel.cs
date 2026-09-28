@@ -22,6 +22,7 @@ public partial class DashboardViewModel : ObservableObject
     private readonly ISettingsService _settingsService;
     private readonly ITallyDrillDownService _drillDownService;
     private readonly IAuditAssistantService _aiService;
+    private readonly IActiveCompanyContext _companyContext;
     private readonly ILogger<DashboardViewModel> _logger;
 
     [ObservableProperty]
@@ -178,6 +179,7 @@ public partial class DashboardViewModel : ObservableObject
         ISettingsService settingsService,
         ITallyDrillDownService drillDownService,
         IAuditAssistantService aiService,
+        IActiveCompanyContext companyContext,
         ILogger<DashboardViewModel> logger)
     {
         _repository = repository;
@@ -186,7 +188,14 @@ public partial class DashboardViewModel : ObservableObject
         _settingsService = settingsService;
         _drillDownService = drillDownService;
         _aiService = aiService;
+        _companyContext = companyContext;
         _logger = logger;
+
+        _companyContext.ActiveCompanyChanged += async (s, c) =>
+        {
+            await LoadDashboardDataAsync();
+        };
+
         _ = LoadDashboardDataAsync();
     }
 
@@ -204,14 +213,17 @@ public partial class DashboardViewModel : ObservableObject
 
         try
         {
-            var activeName = await _settingsService.GetSettingAsync("ActiveCompany", "Apex Industrial Solutions Pvt Ltd");
+            var comp = await _companyContext.GetActiveCompanyAsync()
+                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
             var companies = await _repository.GetAllCompaniesAsync();
             if (companies == null || companies.Count == 0)
             {
                 AuditStatusText = "No company data synchronized yet. Please connect to Tally and synchronize first.";
                 return;
             }
-            var current = companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0];
+            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
+                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
 
             var fromDate = DateTime.Today.AddYears(-1);
             var toDate = DateTime.Today;
@@ -329,10 +341,13 @@ public partial class DashboardViewModel : ObservableObject
     {
         try
         {
-            var activeName = await _settingsService.GetSettingAsync("ActiveCompany", "Apex Industrial Solutions Pvt Ltd");
+            var comp = await _companyContext.GetActiveCompanyAsync()
+                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
             var companies = await _repository.GetAllCompaniesAsync();
             if (companies.Count == 0) return;
-            var current = companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0];
+            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
+                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
             
             var allExceptions = await _repository.GetExceptionsAsync(current.Id, take: 1000);
             
@@ -457,10 +472,13 @@ public partial class DashboardViewModel : ObservableObject
     {
         try
         {
-            var activeName = await _settingsService.GetSettingAsync("ActiveCompany", "Apex Industrial Solutions Pvt Ltd");
+            var comp = await _companyContext.GetActiveCompanyAsync()
+                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
             var companies = await _repository.GetAllCompaniesAsync();
             if (companies.Count == 0) return;
-            var current = companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0];
+            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
+                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
             
             var allExceptions = await _repository.GetExceptionsAsync(current.Id, take: 1000);
             
@@ -648,12 +666,16 @@ public partial class DashboardViewModel : ObservableObject
         IsLoading = true;
         try
         {
-            var activeName = await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
+            var comp = await _companyContext.GetActiveCompanyAsync()
+                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
             var companies = await _repository.GetAllCompaniesAsync();
             if (companies.Count > 0)
             {
-                var current = companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0];
+                var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
+                              ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
                 ActiveCompanyName = current.TallyCompanyName;
+                FinancialYear = $"FY {current.BooksFromDate.Year}-{(current.BooksFromDate.Year + 1) % 100:D2}";
                 TotalVouchersSynchronized = await _repository.GetVoucherCountAsync(current.Id);
                 LastSyncTime = current.LastSyncDate?.ToString("g") ?? "Never";
 

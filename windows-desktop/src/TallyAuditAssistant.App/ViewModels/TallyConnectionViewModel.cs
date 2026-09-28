@@ -17,6 +17,7 @@ public partial class TallyConnectionViewModel : ObservableObject
     private readonly ITallyCompanyService _companyService;
     private readonly ISettingsService _settingsService;
     private readonly TallyConnectionMonitor _connectionMonitor;
+    private readonly IActiveCompanyContext _companyContext;
 
     [ObservableProperty]
     private string _host = "localhost";
@@ -79,15 +80,28 @@ public partial class TallyConnectionViewModel : ObservableObject
         ITallyConnection tallyConnection,
         ITallyCompanyService companyService,
         ISettingsService settingsService,
-        TallyConnectionMonitor connectionMonitor)
+        TallyConnectionMonitor connectionMonitor,
+        IActiveCompanyContext companyContext)
     {
         _tallyConnection = tallyConnection;
         _companyService = companyService;
         _settingsService = settingsService;
         _connectionMonitor = connectionMonitor;
+        _companyContext = companyContext;
 
         _connectionMonitor.StatusChanged += OnMonitorStatusChanged;
         _connectionMonitor.EndpointChanged += OnMonitorEndpointChanged;
+        _companyContext.ActiveCompanyChanged += (s, comp) =>
+        {
+            if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
+            {
+                ActiveCompany = comp.TallyCompanyName;
+                if (SelectedCompany != comp.TallyCompanyName)
+                {
+                    SelectedCompany = comp.TallyCompanyName;
+                }
+            }
+        };
 
         _ = LoadSettingsAsync();
     }
@@ -251,7 +265,7 @@ public partial class TallyConnectionViewModel : ObservableObject
         if (string.IsNullOrEmpty(value)) return;
 
         ActiveCompany = value;
-        await _settingsService.SetSettingAsync("ActiveCompany", value);
+        await _companyContext.SetActiveCompanyNameAsync(value);
 
         try
         {

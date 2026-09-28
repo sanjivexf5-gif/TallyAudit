@@ -5,7 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using Microsoft.Extensions.Logging.Abstractions;
+using TallyAuditAssistant.App.ViewModels;
 using TallyAuditAssistant.Core.Domain.Audit;
+using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Domain.Gst;
 using TallyAuditAssistant.Core.Domain.Sync;
 using TallyAuditAssistant.Core.Domain.Tally;
@@ -36,6 +38,9 @@ public class MockTallyIntegrationTests : IAsyncLifetime
     private readonly TallyVoucherService _voucherService;
     private readonly TallyMasterService _masterService;
     private readonly SyncManager _syncManager;
+    private readonly MockSettingsService _settingsService;
+    private readonly MockTallyConnection _tallyConnection;
+    private readonly ActiveCompanyContext _companyContext;
 
     public MockTallyIntegrationTests()
     {
@@ -50,31 +55,37 @@ public class MockTallyIntegrationTests : IAsyncLifetime
         _client = new MockTallyClient(NullLogger<MockTallyClient>.Instance);
         _parser = new TallyResponseParser(NullLogger<TallyResponseParser>.Instance);
 
-        var mockSettings = new MockSettingsService();
-        var mockConn = new MockTallyConnection();
+        _settingsService = new MockSettingsService();
+        _tallyConnection = new MockTallyConnection();
+
+        _companyContext = new ActiveCompanyContext(
+            _auditRepo,
+            _settingsService,
+            _companyService,
+            NullLogger<ActiveCompanyContext>.Instance);
 
         _voucherService = new TallyVoucherService(
             _client,
             new TallyRequestBuilder(),
             _parser,
-            mockSettings,
+            _settingsService,
             NullLogger<TallyVoucherService>.Instance);
 
         _masterService = new TallyMasterService(
             _client,
             new TallyRequestBuilder(),
             _parser,
-            mockSettings,
+            _settingsService,
             NullLogger<TallyMasterService>.Instance);
 
         _syncManager = new SyncManager(
-            mockConn,
+            _tallyConnection,
             _companyService,
             _masterService,
             _voucherService,
             _syncRepo,
             _auditRepo,
-            mockSettings,
+            _settingsService,
             NullLogger<SyncManager>.Instance);
     }
 
@@ -97,6 +108,140 @@ public class MockTallyIntegrationTests : IAsyncLifetime
             // Suppress cleanup exceptions
         }
         await Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task MockActiveCompany_ResolvesCorrectly_AndPersistsToSettings()
+    {
+        var active = await _companyService.GetActiveCompanyAsync();
+        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", active);
+
+        var ensuredCompany = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+        Assert.NotNull(ensuredCompany);
+        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", ensuredCompany.TallyCompanyName);
+
+        var persisted = await _settingsService.GetSettingAsync("ActiveCompany");
+        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", persisted);
+    }
+
+    [Fact]
+    public async Task EmptyLocalRepository_MockMode_CreatesDemoCompany_Idempotently()
+    {
+        // 1. Initial empty repository check
+        var initialList = await _auditRepo.GetAllCompaniesAsync();
+        Assert.Empty(initialList);
+
+        // 2. Ensure mock company
+        var company1 = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+        Assert.NotNull(company1);
+        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", company1.TallyCompanyName);
+        Assert.Equal("Demo Industrial Solutions Pvt Ltd", company1.FormalName);
+        Assert.Equal("27DEMO1234F1Z9", company1.GSTIN);
+        Assert.Equal("DEMOP1234F", company1.PAN);
+        Assert.Equal("Maharashtra", company1.StateName);
+
+        var listAfterFirst = await _auditRepo.GetAllCompaniesAsync();
+        Assert.Single(listAfterFirst);
+
+        // 3. Run second time - must be idempotent (no duplicates)
+        var company2 = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+        Assert.NotNull(company2);
+        Assert.Equal(company1.Id, company2.Id);
+
+        var listAfterSecond = await _auditRepo.GetAllCompaniesAsync();
+        Assert.Single(listAfterSecond);
+    }
+
+    [Fact]
+    public async Task CompaniesViewModel_DisplaysSynchronizedMockCompany_AndSelectedProfile()
+    {
+        var vm = new CompaniesViewModel(_auditRepo, _settingsService, _companyContext, _companyService);
+        await vm.LoadCompaniesAsync();
+
+        Assert.True(vm.HasCompanies);
+        Assert.NotEmpty(vm.Companies);
+        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", vm.ActiveCompanyName);
+
+        var selected = vm.SelectedCompany;
+        Assert.NotNull(selected);
+        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", selected.TallyCompanyName);
+        Assert.Equal("Demo Industrial Solutions Pvt Ltd", selected.FormalName);
+        Assert.Equal("27DEMO1234F1Z9", selected.GSTIN);
+        Assert.Equal("DEMOP1234F", selected.PAN);
+        Assert.Equal("Maharashtra", selected.StateName);
+    }
+
+    [Fact]
+    public async Task SyncViewModel_UsesMatchingActiveCompany_FromContext()
+    {
+        await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+
+        var syncVm = new SyncViewModel(_syncManager, _companyService, _settingsService, _companyContext);
+        
+        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", syncVm.CompanyName);
+    }
+
+    [Fact]
+    public async Task SwitchingActiveCompany_UpdatesSharedContextAndListeners()
+    {
+        // Setup two companies
+        var comp1 = new Company
+        {
+            Id = "COMP-01",
+            TallyCompanyName = "Demo Industrial Solutions Pvt Ltd (FY 2025-26)",
+            FormalName = "Demo Industrial Solutions Pvt Ltd",
+            GSTIN = "27DEMO1234F1Z9",
+            PAN = "DEMOP1234F",
+            BooksFromDate = new DateTime(2025, 4, 1)
+        };
+        var comp2 = new Company
+        {
+            Id = "COMP-02",
+            TallyCompanyName = "Delta Retail Ventures LLP (FY 2025-26)",
+            FormalName = "Delta Retail Ventures LLP",
+            GSTIN = "27DELTA9988Z1Z2",
+            PAN = "DELTP9988Z",
+            BooksFromDate = new DateTime(2025, 4, 1)
+        };
+
+        await _auditRepo.EnsureCompanyAsync(comp1);
+        await _auditRepo.EnsureCompanyAsync(comp2);
+
+        string? notifiedCompany = null;
+        _companyContext.ActiveCompanyChanged += (s, c) => notifiedCompany = c?.TallyCompanyName;
+
+        await _companyContext.SetActiveCompanyAsync(comp2);
+
+        Assert.Equal("Delta Retail Ventures LLP (FY 2025-26)", _companyContext.ActiveCompanyName);
+        Assert.Equal("Delta Retail Ventures LLP (FY 2025-26)", notifiedCompany);
+
+        var persisted = await _settingsService.GetSettingAsync("ActiveCompany");
+        Assert.Equal("Delta Retail Ventures LLP (FY 2025-26)", persisted);
+    }
+
+    [Fact]
+    public async Task MultiCompanyAndFinancialPeriodIsolation_IsPreserved()
+    {
+        var comp1 = new Company
+        {
+            Id = "COMP-ALPHA",
+            TallyCompanyName = "Alpha Corp (FY 2024-25)",
+            BooksFromDate = new DateTime(2024, 4, 1)
+        };
+        var comp2 = new Company
+        {
+            Id = "COMP-BETA",
+            TallyCompanyName = "Beta Corp (FY 2025-26)",
+            BooksFromDate = new DateTime(2025, 4, 1)
+        };
+
+        await _auditRepo.EnsureCompanyAsync(comp1);
+        await _auditRepo.EnsureCompanyAsync(comp2);
+
+        var list = await _auditRepo.GetAllCompaniesAsync();
+        Assert.Equal(2, list.Count);
+        Assert.Contains(list, c => c.Id == "COMP-ALPHA" && c.BooksFromDate.Year == 2024);
+        Assert.Contains(list, c => c.Id == "COMP-BETA" && c.BooksFromDate.Year == 2025);
     }
 
     [Fact]
@@ -132,7 +277,7 @@ public class MockTallyIntegrationTests : IAsyncLifetime
         Assert.NotNull(dbCompany);
         Assert.Equal("27DEMO1234F1Z9", dbCompany.GSTIN);
 
-        var ledgersCount = result.TotalProcessed - result.Inserted; // Since ledgers process first
+        var ledgersCount = result.TotalProcessed - result.Inserted;
         Assert.True(result.Inserted > 100, $"Expected several hundred synced records but got {result.Inserted}");
 
         // 6. Existing GST rules evaluation on synthetic database
@@ -140,13 +285,11 @@ public class MockTallyIntegrationTests : IAsyncLifetime
         var missingGstinRule = new MissingGstinOnB2BRule(_factory);
         var missingGstinExceptions = await missingGstinRule.EvaluateAsync(gstContext);
         
-        // Assert B2B purchases from Unregistered Steel Supplier (amount 75,000 > 50,000) is flagged
         var unregisteredSupplyEx = missingGstinExceptions.FirstOrDefault(e => e.PartyLedgerName == "Unregistered Steel Supplier");
         Assert.NotNull(unregisteredSupplyEx);
         Assert.Equal(SeverityLevel.High, unregisteredSupplyEx.Severity);
         Assert.Contains("Unregistered Steel Supplier", unregisteredSupplyEx.Explanation);
 
-        // Assert GSTIN Structure format checker rule flags Invalid GSTIN Trader
         var gstinFormatRule = new GstinFormatCheckRule(_factory);
         var formatExceptions = await gstinFormatRule.EvaluateAsync(gstContext);
         var invalidGstinEx = formatExceptions.FirstOrDefault(e => e.PartyLedgerName == "Invalid GSTIN Trader");
@@ -154,7 +297,6 @@ public class MockTallyIntegrationTests : IAsyncLifetime
         Assert.Equal("27INVALID1234FX", invalidGstinEx.PartyGstin);
 
         // 7. Verify TDS threshold and incorrect rate rule detections
-        // TDS threshold Rule (TDS-CHK-01 or similar) - can be tested directly with SQLite data
         using var conn = await _factory.CreateConnectionAsync();
         int suspenseEntriesCount = 0;
         using (var cmd = conn.CreateCommand())
@@ -252,7 +394,7 @@ public class MockTallyIntegrationTests : IAsyncLifetime
     private class MockTallyConnection : ITallyConnection
     {
         public ConnectionStatus CurrentStatus { get; set; } = ConnectionStatus.Connected;
-        public TallyEndpointInfo? ActiveEndpoint { get; set; } = new TallyEndpointInfo("localhost", 9000, true, "Mock/Demo", "Demo Company", 5);
+        public TallyEndpointInfo? ActiveEndpoint { get; set; } = new TallyEndpointInfo("localhost", 9000, true, "Mock/Demo", "Demo Industrial Solutions Pvt Ltd (FY 2025-26)", 5);
         public string? LastErrorMessage { get; set; } = null;
 
         public event EventHandler<ConnectionStatus>? StatusChanged
@@ -268,7 +410,7 @@ public class MockTallyIntegrationTests : IAsyncLifetime
 
         public Task<TallyEndpointInfo?> ProbePortRangeAsync(string host = "localhost", int startPort = 9000, int endPort = 9005, CancellationToken cancellationToken = default)
         {
-            var info = new TallyEndpointInfo(host, startPort, true, "Mock/Demo", "Demo Company", 5);
+            var info = new TallyEndpointInfo(host, startPort, true, "Mock/Demo", "Demo Industrial Solutions Pvt Ltd (FY 2025-26)", 5);
             return Task.FromResult<TallyEndpointInfo?>(info);
         }
 

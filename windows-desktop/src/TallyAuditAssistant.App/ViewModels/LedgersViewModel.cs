@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Dapper;
+using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Domain.Ledgers;
 using TallyAuditAssistant.Core.Interfaces;
 using TallyAuditAssistant.Data;
@@ -15,6 +16,7 @@ public partial class LedgersViewModel : ObservableObject
     private readonly SqliteConnectionFactory _connectionFactory;
     private readonly ISettingsService _settingsService;
     private readonly IAuditRepository _repository;
+    private readonly IActiveCompanyContext _companyContext;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -27,11 +29,23 @@ public partial class LedgersViewModel : ObservableObject
 
     public ObservableCollection<Ledger> Ledgers { get; } = new();
 
-    public LedgersViewModel(SqliteConnectionFactory connectionFactory, ISettingsService settingsService, IAuditRepository repository)
+    public LedgersViewModel(
+        SqliteConnectionFactory connectionFactory,
+        ISettingsService settingsService,
+        IAuditRepository repository,
+        IActiveCompanyContext companyContext)
     {
         _connectionFactory = connectionFactory;
         _settingsService = settingsService;
         _repository = repository;
+        _companyContext = companyContext;
+
+        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
+        _ = LoadLedgersAsync();
+    }
+
+    private void OnActiveCompanyChanged(object? sender, Company? comp)
+    {
         _ = LoadLedgersAsync();
     }
 
@@ -40,12 +54,22 @@ public partial class LedgersViewModel : ObservableObject
         IsLoading = true;
         try
         {
-            var activeName = await _settingsService.GetSettingAsync("ActiveCompany", "Apex Industrial Solutions Pvt Ltd");
+            var comp = await _companyContext.GetActiveCompanyAsync()
+                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
             ActiveCompanyName = activeName;
 
             var companies = await _repository.GetAllCompaniesAsync();
-            if (companies.Count == 0) return;
-            var current = companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0];
+            if (companies.Count == 0)
+            {
+                Ledgers.Clear();
+                return;
+            }
+
+            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
+                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
+
+            ActiveCompanyName = current.TallyCompanyName;
 
             using var connection = await _connectionFactory.CreateConnectionAsync();
             var sql = "SELECT * FROM Ledgers WHERE CompanyId = @CompanyId";

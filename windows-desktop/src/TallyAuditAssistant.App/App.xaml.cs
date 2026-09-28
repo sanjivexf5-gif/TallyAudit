@@ -74,6 +74,10 @@ public partial class App : Application
             var dbInitializer = _host.Services.GetRequiredService<IDatabaseInitializer>();
             await dbInitializer.InitializeAsync();
 
+            // Initialize active company context
+            var companyContext = _host.Services.GetRequiredService<IActiveCompanyContext>();
+            await companyContext.EnsureAndInitializeActiveCompanyAsync();
+
             // Start lightweight background Tally connection monitor
             var monitor = _host.Services.GetRequiredService<TallyConnectionMonitor>();
             monitor.StartMonitoring(normalIntervalSeconds: 15, backoffIntervalSeconds: 30);
@@ -119,6 +123,7 @@ public partial class App : Application
 
         services.AddSingleton<ITallyClient, DynamicTallyClient>();
         services.AddSingleton<ITallyCompanyService, DynamicTallyCompanyService>();
+        services.AddSingleton<IActiveCompanyContext, ActiveCompanyContext>();
 
         services.AddSingleton<ITallyMasterService, TallyMasterService>();
         services.AddSingleton<ITallyVoucherService, TallyVoucherService>();

@@ -25,8 +25,15 @@ public class AuditRepository : IAuditRepository
     public async Task<Company?> GetCompanyByIdAsync(string companyId, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
-        const string sql = "SELECT * FROM Companies WHERE Id = @Id LIMIT 1";
+        const string sql = "SELECT * FROM Companies WHERE Id = @Id OR TallyCompanyName = @Id LIMIT 1";
         return await connection.QuerySingleOrDefaultAsync<Company>(new CommandDefinition(sql, new { Id = companyId }, cancellationToken: cancellationToken));
+    }
+
+    public async Task<Company?> GetCompanyByNameAsync(string companyName, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = "SELECT * FROM Companies WHERE TallyCompanyName = @TallyCompanyName OR FormalName = @TallyCompanyName LIMIT 1";
+        return await connection.QuerySingleOrDefaultAsync<Company>(new CommandDefinition(sql, new { TallyCompanyName = companyName }, cancellationToken: cancellationToken));
     }
 
     public async Task SaveCompanyAsync(Company company, CancellationToken cancellationToken = default)
@@ -42,11 +49,60 @@ public class AuditRepository : IAuditRepository
                 PAN = excluded.PAN,
                 StateName = excluded.StateName,
                 StateCode = excluded.StateCode,
+                BooksFromDate = excluded.BooksFromDate,
                 LastSyncDate = excluded.LastSyncDate,
                 LastAlterId = excluded.LastAlterId,
                 IsActive = excluded.IsActive;
         ";
         await connection.ExecuteAsync(new CommandDefinition(sql, company, cancellationToken: cancellationToken));
+    }
+
+    public async Task<Company> EnsureCompanyAsync(Company company, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        var existing = await connection.QuerySingleOrDefaultAsync<Company>(
+            new CommandDefinition("SELECT * FROM Companies WHERE Id = @Id OR TallyCompanyName = @TallyCompanyName LIMIT 1",
+            new { company.Id, company.TallyCompanyName },
+            cancellationToken: cancellationToken));
+
+        if (existing != null)
+        {
+            company.Id = existing.Id;
+            company.CreatedAt = existing.CreatedAt;
+            if (string.IsNullOrEmpty(company.FormalName)) company.FormalName = existing.FormalName;
+            if (string.IsNullOrEmpty(company.GSTIN)) company.GSTIN = existing.GSTIN;
+            if (string.IsNullOrEmpty(company.PAN)) company.PAN = existing.PAN;
+            if (string.IsNullOrEmpty(company.StateName)) company.StateName = existing.StateName;
+            if (string.IsNullOrEmpty(company.StateCode)) company.StateCode = existing.StateCode;
+            if (company.LastSyncDate == null) company.LastSyncDate = existing.LastSyncDate;
+            if (company.LastAlterId == 0) company.LastAlterId = existing.LastAlterId;
+
+            const string updateSql = @"
+                UPDATE Companies SET
+                    TallyCompanyName = @TallyCompanyName,
+                    FormalName = @FormalName,
+                    GSTIN = @GSTIN,
+                    PAN = @PAN,
+                    StateName = @StateName,
+                    StateCode = @StateCode,
+                    BooksFromDate = @BooksFromDate,
+                    LastSyncDate = @LastSyncDate,
+                    LastAlterId = @LastAlterId,
+                    IsActive = @IsActive
+                WHERE Id = @Id;
+            ";
+            await connection.ExecuteAsync(new CommandDefinition(updateSql, company, cancellationToken: cancellationToken));
+            return (await GetCompanyByIdAsync(company.Id, cancellationToken)) ?? company;
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(company.Id))
+            {
+                company.Id = company.TallyCompanyName;
+            }
+            await SaveCompanyAsync(company, cancellationToken);
+            return (await GetCompanyByIdAsync(company.Id, cancellationToken)) ?? company;
+        }
     }
 
     public async Task<int> GetVoucherCountAsync(string companyId, CancellationToken cancellationToken = default)

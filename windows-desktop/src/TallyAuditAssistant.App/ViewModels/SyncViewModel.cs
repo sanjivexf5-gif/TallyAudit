@@ -1,8 +1,10 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Domain.Sync;
 using TallyAuditAssistant.Core.Interfaces;
 
@@ -13,9 +15,10 @@ public partial class SyncViewModel : ObservableObject
     private readonly ISyncManager _syncManager;
     private readonly ITallyCompanyService _companyService;
     private readonly ISettingsService _settingsService;
+    private readonly IActiveCompanyContext _companyContext;
 
     [ObservableProperty]
-    private string _companyName = "Apex Industrial Solutions Pvt Ltd";
+    private string _companyName = string.Empty;
 
     [ObservableProperty]
     private bool _isSyncing = false;
@@ -59,33 +62,76 @@ public partial class SyncViewModel : ObservableObject
     public ObservableCollection<string> LiveLogs { get; } = new();
     public ObservableCollection<SyncHistoryRecord> SyncHistory { get; } = new();
 
-    public SyncViewModel(ISyncManager syncManager, ITallyCompanyService companyService, ISettingsService settingsService)
+    public SyncViewModel(
+        ISyncManager syncManager,
+        ITallyCompanyService companyService,
+        ISettingsService settingsService,
+        IActiveCompanyContext companyContext)
     {
         _syncManager = syncManager;
         _companyService = companyService;
         _settingsService = settingsService;
+        _companyContext = companyContext;
 
         _syncManager.ProgressChanged += OnProgressChanged;
         _syncManager.SyncLogEmitted += OnLogEmitted;
+        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
 
         _ = LoadInitialDataAsync();
+    }
+
+    private void OnActiveCompanyChanged(object? sender, Company? comp)
+    {
+        if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
+        {
+            CompanyName = comp.TallyCompanyName;
+            _ = LoadHistoryAsync();
+        }
     }
 
     private async Task LoadInitialDataAsync()
     {
         try
         {
-            var active = await _settingsService.GetSettingAsync("ActiveCompany", "");
-            if (string.IsNullOrEmpty(active))
+            var comp = await _companyContext.GetActiveCompanyAsync()
+                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+
+            if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
             {
-                active = await _companyService.GetActiveCompanyAsync();
+                CompanyName = comp.TallyCompanyName;
+            }
+            else
+            {
+                var active = await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
+                if (string.IsNullOrEmpty(active))
+                {
+                    active = await _companyService.GetActiveCompanyAsync();
+                }
+
+                if (!string.IsNullOrEmpty(active))
+                {
+                    CompanyName = active;
+                    await _settingsService.SetSettingAsync("ActiveCompany", active);
+                }
+                else
+                {
+                    CompanyName = "Demo Industrial Solutions Pvt Ltd (FY 2025-26)";
+                }
             }
 
-            if (!string.IsNullOrEmpty(active))
-            {
-                CompanyName = active;
-            }
+            await LoadHistoryAsync();
+        }
+        catch
+        {
+            // Non-critical startup load
+        }
+    }
 
+    private async Task LoadHistoryAsync()
+    {
+        if (string.IsNullOrEmpty(CompanyName)) return;
+        try
+        {
             var history = await _syncManager.GetSyncHistoryAsync(CompanyName);
             SyncHistory.Clear();
             foreach (var h in history)
@@ -95,13 +141,19 @@ public partial class SyncViewModel : ObservableObject
         }
         catch
         {
-            // Non-critical startup load
+            // Ignore history load errors during rapid switching
         }
     }
 
     [RelayCommand]
     private async Task StartFullSyncAsync()
     {
+        if (string.IsNullOrEmpty(CompanyName))
+        {
+            var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            CompanyName = comp?.TallyCompanyName ?? "Demo Industrial Solutions Pvt Ltd (FY 2025-26)";
+        }
+
         IsSyncing = true;
         IsPaused = false;
         LiveLogs.Clear();
@@ -113,6 +165,12 @@ public partial class SyncViewModel : ObservableObject
     [RelayCommand]
     private async Task StartIncrementalSyncAsync()
     {
+        if (string.IsNullOrEmpty(CompanyName))
+        {
+            var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            CompanyName = comp?.TallyCompanyName ?? "Demo Industrial Solutions Pvt Ltd (FY 2025-26)";
+        }
+
         IsSyncing = true;
         IsPaused = false;
         LiveLogs.Clear();
@@ -138,45 +196,38 @@ public partial class SyncViewModel : ObservableObject
     [RelayCommand]
     private async Task CancelSyncAsync()
     {
-        await _syncManager.CancelAsync();
+        await _syncManager.CancelSyncAsync();
         IsSyncing = false;
         IsPaused = false;
-    }
-
-    [RelayCommand]
-    private async Task RetrySyncAsync()
-    {
-        IsSyncing = true;
-        IsPaused = false;
-        await _syncManager.RetryAsync();
-        IsSyncing = false;
-        await LoadInitialDataAsync();
     }
 
     private void OnProgressChanged(object? sender, SyncMetrics metrics)
     {
-        App.Current.Dispatcher.Invoke(() =>
+        App.Current?.Dispatcher.Invoke(() =>
         {
-            CurrentStageText = metrics.CurrentStage.ToString();
-            CurrentTaskDescription = metrics.CurrentTaskDescription;
-            RecordsDiscovered = metrics.RecordsDiscovered;
-            RecordsProcessed = metrics.RecordsProcessed;
-            RecordsInserted = metrics.RecordsInserted;
-            RecordsUpdated = metrics.RecordsUpdated;
-            RecordsSkipped = metrics.RecordsSkipped;
+            CurrentStageText = metrics.Stage.ToString();
+            CurrentTaskDescription = metrics.StageDescription;
+            RecordsDiscovered = metrics.TotalDiscovered;
+            RecordsProcessed = metrics.TotalProcessed;
+            RecordsInserted = metrics.Inserted;
+            RecordsUpdated = metrics.Updated;
+            RecordsSkipped = metrics.Skipped;
             Errors = metrics.Errors;
-            ElapsedTimeText = metrics.ElapsedTime.ToString(@"mm\:ss");
-            ItemsPerSecond = metrics.ItemsPerSecond;
-            ProgressPercentage = metrics.ProgressPercentage;
+            ElapsedTimeText = $"{metrics.Elapsed.Minutes:D2}:{metrics.Elapsed.Seconds:D2}";
+            ItemsPerSecond = Math.Round(metrics.ItemsPerSecond, 1);
+            ProgressPercentage = metrics.TotalDiscovered > 0 ? (double)metrics.TotalProcessed / metrics.TotalDiscovered * 100 : 0;
         });
     }
 
     private void OnLogEmitted(object? sender, string log)
     {
-        App.Current.Dispatcher.Invoke(() =>
+        App.Current?.Dispatcher.Invoke(() =>
         {
-            LiveLogs.Insert(0, log);
-            if (LiveLogs.Count > 200) LiveLogs.RemoveAt(LiveLogs.Count - 1);
+            LiveLogs.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {log}");
+            if (LiveLogs.Count > 200)
+            {
+                LiveLogs.RemoveAt(LiveLogs.Count - 1);
+            }
         });
     }
 }

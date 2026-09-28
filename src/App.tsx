@@ -310,7 +310,7 @@ export default function App() {
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [tallyHost, setTallyHost] = useState<string>('localhost');
   const [tallyPort, setTallyPort] = useState<number>(9000);
-  const [activeCompany, setActiveCompany] = useState<string>('Apex Industrial Solutions Pvt Ltd (FY 2025-26)');
+  const [activeCompany, setActiveCompany] = useState<string>('Demo Industrial Solutions Pvt Ltd (FY 2025-26)');
   const [connectionMessage, setConnectionMessage] = useState<string>('Connected to TallyPrime XML Server via Port 9000');
   const [latency, setLatency] = useState<number>(15);
   const [copiedFile, setCopiedFile] = useState<string | null>(null);
@@ -326,9 +326,9 @@ export default function App() {
   const [isSynchronizing, setIsSynchronizing] = useState<boolean>(false);
   const [syncProgress, setSyncProgress] = useState<number>(100);
   const [syncStepMessage, setSyncStepMessage] = useState<string>('Data Available Locally — Local SQLite Snapshot Active');
-  const [lastSyncDate, setLastSyncDate] = useState<string>('25-Sep-2026');
+  const [lastSyncDate, setLastSyncDate] = useState<string>('27-Sep-2026');
   const [lastSyncTime, setLastSyncTime] = useState<string>('09:14:00 AM');
-  const [lastSyncCompany, setLastSyncCompany] = useState<string>('Apex Industrial Solutions Pvt Ltd');
+  const [lastSyncCompany, setLastSyncCompany] = useState<string>('Demo Industrial Solutions Pvt Ltd');
   const [lastSyncFinancialYear, setLastSyncFinancialYear] = useState<string>('FY 2025-26');
   const [isDataStale, setIsDataStale] = useState<boolean>(true); // Local data freshness warning
   const [staleWarningDismissed, setStaleWarningDismissed] = useState<boolean>(false);
@@ -3591,10 +3591,10 @@ export default function App() {
                 {/* 2. Company */}
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Company</span>
-                  <div className="font-bold text-white mt-1 truncate" title="Apex Industrial Solutions Pvt Ltd">
-                    Apex Industrial Solutions
+                  <div className="font-bold text-white mt-1 truncate" title={activeCompany}>
+                    {activeCompany.split('(')[0].trim() || 'Demo Industrial Solutions Pvt Ltd'}
                   </div>
-                  <span className="text-[11px] text-slate-400">Pvt Ltd (Tally Master Active)</span>
+                  <span className="text-[11px] text-slate-400">Tally Master Active</span>
                 </div>
 
                 {/* 3. Financial Year */}

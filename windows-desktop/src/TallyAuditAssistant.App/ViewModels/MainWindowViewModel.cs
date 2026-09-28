@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -10,6 +11,9 @@ namespace TallyAuditAssistant.App.ViewModels;
 public partial class MainWindowViewModel : ObservableObject
 {
     private readonly ITallyConnection _tallyConnection;
+    private readonly IActiveCompanyContext _companyContext;
+    private readonly ITallyCompanyService _companyService;
+    private readonly ISettingsService _settingsService;
 
     [ObservableProperty]
     private string _title = "Tally Audit Assistant — Auditor Edition";
@@ -44,6 +48,9 @@ public partial class MainWindowViewModel : ObservableObject
 
     public MainWindowViewModel(
         ITallyConnection tallyConnection,
+        IActiveCompanyContext companyContext,
+        ITallyCompanyService companyService,
+        ISettingsService settingsService,
         DashboardViewModel dashboardVM,
         TallyConnectionViewModel connectionVM,
         SyncViewModel syncVM,
@@ -58,6 +65,10 @@ public partial class MainWindowViewModel : ObservableObject
         ReportsViewModel reportsVM)
     {
         _tallyConnection = tallyConnection;
+        _companyContext = companyContext;
+        _companyService = companyService;
+        _settingsService = settingsService;
+
         DashboardVM = dashboardVM;
         ConnectionVM = connectionVM;
         SyncVM = syncVM;
@@ -73,8 +84,28 @@ public partial class MainWindowViewModel : ObservableObject
 
         _currentViewModel = dashboardVM;
 
+        _companyContext.ActiveCompanyChanged += (s, comp) =>
+        {
+            if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
+            {
+                ActiveCompany = comp.TallyCompanyName;
+            }
+        };
+
         _tallyConnection.StatusChanged += OnTallyStatusChanged;
         UpdateStatusDisplay(_tallyConnection.CurrentStatus);
+
+        _ = InitializeActiveCompanyAsync();
+    }
+
+    private async Task InitializeActiveCompanyAsync()
+    {
+        var comp = await _companyContext.GetActiveCompanyAsync()
+                   ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+        if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
+        {
+            ActiveCompany = comp.TallyCompanyName;
+        }
     }
 
     [RelayCommand]
@@ -104,7 +135,6 @@ public partial class MainWindowViewModel : ObservableObject
         }
         else
         {
-            // Log the navigation error and keep current valid section
             System.Diagnostics.Debug.WriteLine($"Navigation error: Unknown section '{section}' requested.");
         }
     }
@@ -121,7 +151,21 @@ public partial class MainWindowViewModel : ObservableObject
             case ConnectionStatus.Connected:
                 ConnectionStatusText = $"Connected (Port {_tallyConnection.ActiveEndpoint?.Port ?? 9000})";
                 ConnectionBadgeColor = "#10B981"; // Green
-                ActiveCompany = _tallyConnection.ActiveEndpoint?.ActiveCompany ?? "Active Tally Session";
+                
+                if (!string.IsNullOrEmpty(_companyContext.ActiveCompanyName))
+                {
+                    ActiveCompany = _companyContext.ActiveCompanyName;
+                }
+                else if (!string.IsNullOrEmpty(_tallyConnection.ActiveEndpoint?.ActiveCompany) &&
+                         _tallyConnection.ActiveEndpoint.ActiveCompany != "Active Tally Session")
+                {
+                    ActiveCompany = _tallyConnection.ActiveEndpoint.ActiveCompany;
+                    _ = _companyContext.SetActiveCompanyNameAsync(ActiveCompany);
+                }
+                else
+                {
+                    _ = ResolveAndApplyActiveCompanyAsync();
+                }
                 break;
             case ConnectionStatus.Scanning:
                 ConnectionStatusText = "Scanning Ports (9000-9005)...";
@@ -135,6 +179,24 @@ public partial class MainWindowViewModel : ObservableObject
                 ConnectionStatusText = "Tally Disconnected";
                 ConnectionBadgeColor = "#EF4444"; // Red
                 break;
+        }
+    }
+
+    private async Task ResolveAndApplyActiveCompanyAsync()
+    {
+        var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+        if (comp != null)
+        {
+            ActiveCompany = comp.TallyCompanyName;
+        }
+        else
+        {
+            var fallback = await _companyService.GetActiveCompanyAsync();
+            if (!string.IsNullOrEmpty(fallback))
+            {
+                ActiveCompany = fallback;
+                await _companyContext.SetActiveCompanyNameAsync(fallback);
+            }
         }
     }
 }

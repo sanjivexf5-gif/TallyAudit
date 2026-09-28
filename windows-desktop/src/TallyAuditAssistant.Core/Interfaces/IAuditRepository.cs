@@ -16,7 +16,9 @@ public interface IAuditRepository
 {
     Task<IReadOnlyList<Company>> GetAllCompaniesAsync(CancellationToken cancellationToken = default);
     Task<Company?> GetCompanyByIdAsync(string companyId, CancellationToken cancellationToken = default);
+    Task<Company?> GetCompanyByNameAsync(string companyName, CancellationToken cancellationToken = default);
     Task SaveCompanyAsync(Company company, CancellationToken cancellationToken = default);
+    Task<Company> EnsureCompanyAsync(Company company, CancellationToken cancellationToken = default);
 
     Task<int> GetVoucherCountAsync(string companyId, CancellationToken cancellationToken = default);
     Task<int> GetLedgerCountAsync(string companyId, CancellationToken cancellationToken = default);

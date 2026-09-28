@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TallyAuditAssistant.Core.Domain.Audit;
+using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.App.ViewModels;
@@ -13,6 +14,7 @@ public partial class ExceptionsViewModel : ObservableObject
 {
     private readonly IAuditRepository _repository;
     private readonly ISettingsService _settingsService;
+    private readonly IActiveCompanyContext _companyContext;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -49,10 +51,21 @@ public partial class ExceptionsViewModel : ObservableObject
 
     public ObservableCollection<AuditException> Exceptions { get; } = new();
 
-    public ExceptionsViewModel(IAuditRepository repository, ISettingsService settingsService)
+    public ExceptionsViewModel(
+        IAuditRepository repository,
+        ISettingsService settingsService,
+        IActiveCompanyContext companyContext)
     {
         _repository = repository;
         _settingsService = settingsService;
+        _companyContext = companyContext;
+
+        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
+        _ = LoadExceptionsAsync();
+    }
+
+    private void OnActiveCompanyChanged(object? sender, Company? comp)
+    {
         _ = LoadExceptionsAsync();
     }
 
@@ -62,12 +75,22 @@ public partial class ExceptionsViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            var activeName = await _settingsService.GetSettingAsync("ActiveCompany", "Apex Industrial Solutions Pvt Ltd");
+            var comp = await _companyContext.GetActiveCompanyAsync()
+                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
             ActiveCompanyName = activeName;
 
             var companies = await _repository.GetAllCompaniesAsync();
-            if (companies.Count == 0) return;
-            var current = companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0];
+            if (companies.Count == 0)
+            {
+                Exceptions.Clear();
+                return;
+            }
+
+            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
+                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
+
+            ActiveCompanyName = current.TallyCompanyName;
 
             var list = await _repository.GetExceptionsFilteredAsync(
                 current.Id,
@@ -124,13 +147,6 @@ public partial class ExceptionsViewModel : ObservableObject
         await SaveExceptionStatusAsync();
     }
 
-    async partial void OnSearchQueryChanged(string value) => await LoadExceptionsAsync();
-    async partial void OnSelectedCategoryFilterChanged(string value) => await LoadExceptionsAsync();
-    async partial void OnSelectedSeverityFilterChanged(string value) => await LoadExceptionsAsync();
-    async partial void OnSelectedStatusFilterChanged(string value) => await LoadExceptionsAsync();
-    async partial void OnSelectedSortColumnChanged(string value) => await LoadExceptionsAsync();
-    async partial void OnIsSortDescendingChanged(bool value) => await LoadExceptionsAsync();
-
     partial void OnSelectedExceptionChanged(AuditException? value)
     {
         if (value != null)
@@ -138,4 +154,9 @@ public partial class ExceptionsViewModel : ObservableObject
             AuditorNoteInput = value.AuditorNote ?? string.Empty;
         }
     }
+
+    async partial void OnSearchQueryChanged(string value) => await LoadExceptionsAsync();
+    async partial void OnSelectedCategoryFilterChanged(string value) => await LoadExceptionsAsync();
+    async partial void OnSelectedSeverityFilterChanged(string value) => await LoadExceptionsAsync();
+    async partial void OnSelectedStatusFilterChanged(string value) => await LoadExceptionsAsync();
 }

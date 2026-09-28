@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TallyAuditAssistant.Core.Domain.Audit;
+using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.App.ViewModels;
@@ -14,6 +15,7 @@ public partial class ReportsViewModel : ObservableObject
 {
     private readonly IAuditRepository _repository;
     private readonly ISettingsService _settingsService;
+    private readonly IActiveCompanyContext _companyContext;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -24,16 +26,29 @@ public partial class ReportsViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
-    public ReportsViewModel(IAuditRepository repository, ISettingsService settingsService)
+    public ReportsViewModel(
+        IAuditRepository repository,
+        ISettingsService settingsService,
+        IActiveCompanyContext companyContext)
     {
         _repository = repository;
         _settingsService = settingsService;
+        _companyContext = companyContext;
+
+        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
+        _ = LoadReportsInfoAsync();
+    }
+
+    private void OnActiveCompanyChanged(object? sender, Company? comp)
+    {
         _ = LoadReportsInfoAsync();
     }
 
     public async Task LoadReportsInfoAsync()
     {
-        var activeName = await _settingsService.GetSettingAsync("ActiveCompany", "Apex Industrial Solutions Pvt Ltd");
+        var comp = await _companyContext.GetActiveCompanyAsync()
+                   ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+        var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
         ActiveCompanyName = activeName;
     }
 
@@ -42,10 +57,13 @@ public partial class ReportsViewModel : ObservableObject
     {
         try
         {
-            var activeName = await _settingsService.GetSettingAsync("ActiveCompany", "Apex Industrial Solutions Pvt Ltd");
+            var comp = await _companyContext.GetActiveCompanyAsync()
+                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
             var companies = await _repository.GetAllCompaniesAsync();
             if (companies.Count == 0) return;
-            var current = companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0];
+            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
+                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
             
             var allExceptions = await _repository.GetExceptionsAsync(current.Id, take: 1000);
             var TotalVouchersSynchronized = await _repository.GetVoucherCountAsync(current.Id);
@@ -105,8 +123,9 @@ public partial class ReportsViewModel : ObservableObject
                     sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{vNo}</Data></Cell>");
                     sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{lName}</Data></Cell>");
                     sb.AppendLine($"    <Cell><Data ss:Type=\"Number\">{amt}</Data></Cell>");
+                    sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{ex.Description.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")}</Data></Cell>");
                     sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{ex.Status}</Data></Cell>");
-                    sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{note}</Data></Cell>");
+                    sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{note.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")}</Data></Cell>");
                     sb.AppendLine("   </Row>");
                 }
                 
@@ -114,36 +133,32 @@ public partial class ReportsViewModel : ObservableObject
                 sb.AppendLine(" </Worksheet>");
             }
 
-            var gstinStr = !string.IsNullOrEmpty(current.GSTIN) ? current.GSTIN : "—";
-            var panStr = !string.IsNullOrEmpty(current.PAN) ? current.PAN : "—";
-
-            sb.AppendLine(" <Worksheet ss:Name=\"Audit Summary\">");
-            sb.AppendLine("  <Table ss:ExpandedColumnCount=\"2\">");
-            sb.AppendLine("   <Column ss:Width=\"180\"/>");
-            sb.AppendLine("   <Column ss:Width=\"240\"/>");
-            sb.AppendLine("   <Row ss:Height=\"30\" ss:StyleID=\"Title\"><Cell ss:MergeAcross=\"1\"><Data ss:Type=\"String\">Tally Audit Assistant - Summary</Data></Cell></Row>");
-            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">Company Name</Data></Cell><Cell><Data ss:Type=\"String\">{current.TallyCompanyName}</Data></Cell></Row>");
-            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">GSTIN</Data></Cell><Cell><Data ss:Type=\"String\">{gstinStr}</Data></Cell></Row>");
-            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">PAN</Data></Cell><Cell><Data ss:Type=\"String\">{panStr}</Data></Cell></Row>");
-            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">Total Trans. Analysed</Data></Cell><Cell><Data ss:Type=\"Number\">{TotalVouchersSynchronized}</Data></Cell></Row>");
-            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">Total Exceptions</Data></Cell><Cell><Data ss:Type=\"Number\">{allExceptions.Count}</Data></Cell></Row>");
+            // Overview Sheet
+            sb.AppendLine(" <Worksheet ss:Name=\"Executive Summary\">");
+            sb.AppendLine("  <Table>");
+            sb.AppendLine("   <Row ss:Height=\"30\" ss:StyleID=\"Title\"><Cell><Data ss:Type=\"String\">TALLY AUDIT ASSISTANT — STATUTORY AUDIT SUMMARY</Data></Cell></Row>");
+            sb.AppendLine("   <Row><Cell><Data ss:Type=\"String\"></Data></Cell></Row>");
+            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">Company Name:</Data></Cell><Cell><Data ss:Type=\"String\">{current.TallyCompanyName}</Data></Cell></Row>");
+            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">GSTIN / PAN:</Data></Cell><Cell><Data ss:Type=\"String\">{current.GSTIN} / {current.PAN}</Data></Cell></Row>");
+            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">Report Generated At:</Data></Cell><Cell><Data ss:Type=\"String\">{DateTime.Now:dd-MMM-yyyy HH:mm:ss}</Data></Cell></Row>");
+            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">Total Vouchers Analysed:</Data></Cell><Cell><Data ss:Type=\"Number\">{TotalVouchersSynchronized}</Data></Cell></Row>");
+            sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">Total Audit Exceptions:</Data></Cell><Cell><Data ss:Type=\"Number\">{allExceptions.Count}</Data></Cell></Row>");
             sb.AppendLine("  </Table>");
             sb.AppendLine(" </Worksheet>");
 
-            var colHeaders = new[] { "Rule Name", "Category", "Severity", "Date", "Voucher No", "Ledger/Party", "Amount", "Status", "Remarks" };
-            
-            AppendWorksheet("All Findings", colHeaders, allExceptions.ToList());
-            AppendWorksheet("GST Findings", colHeaders, allExceptions.Where(x => x.Category == RuleCategory.GST).ToList());
-            AppendWorksheet("TDS Findings", colHeaders, allExceptions.Where(x => x.Category == RuleCategory.TDS).ToList());
-            AppendWorksheet("Duplicate Findings", colHeaders, allExceptions.Where(x => x.Category == RuleCategory.DuplicateDetection).ToList());
-            AppendWorksheet("Ledger Findings", colHeaders, allExceptions.Where(x => x.Category == RuleCategory.GeneralAccounting).ToList());
+            // Exception Categorized Worksheets
+            var headers = new[] { "Rule Name", "Category", "Severity", "Voucher Date", "Voucher No", "Ledger Name", "Amount (₹)", "Description / Finding", "Review Status", "Auditor Note" };
+            AppendWorksheet("All Exceptions", headers, allExceptions.ToList());
+            AppendWorksheet("GST Exceptions", headers, allExceptions.Where(x => x.Category == RuleCategory.GST).ToList());
+            AppendWorksheet("TDS Exceptions", headers, allExceptions.Where(x => x.Category == RuleCategory.TDS).ToList());
+            AppendWorksheet("Accounting Hygiene", headers, allExceptions.Where(x => x.Category == RuleCategory.AccountingHygiene || x.Category == RuleCategory.DuplicateTransactions).ToList());
 
             sb.AppendLine("</Workbook>");
-            
-            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"Audit_Working_Papers_{current.TallyCompanyName.Replace(" ", "_")}.xls");
+
+            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"Audit_Working_Papers_{current.TallyCompanyName.Replace(" ", "_")}.xml");
             await File.WriteAllTextAsync(path, sb.ToString(), Encoding.UTF8);
-            
-            StatusMessage = $"Excel working papers exported successfully to {path}";
+
+            StatusMessage = $"Full working papers exported successfully to {path}";
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
             {
                 FileName = path,
@@ -161,10 +176,13 @@ public partial class ReportsViewModel : ObservableObject
     {
         try
         {
-            var activeName = await _settingsService.GetSettingAsync("ActiveCompany", "Apex Industrial Solutions Pvt Ltd");
+            var comp = await _companyContext.GetActiveCompanyAsync()
+                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
             var companies = await _repository.GetAllCompaniesAsync();
             if (companies.Count == 0) return;
-            var current = companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0];
+            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
+                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
             
             var allExceptions = await _repository.GetExceptionsAsync(current.Id, take: 1000);
             var TotalVouchersSynchronized = await _repository.GetVoucherCountAsync(current.Id);

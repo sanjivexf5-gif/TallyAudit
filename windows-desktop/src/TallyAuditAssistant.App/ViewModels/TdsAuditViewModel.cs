@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TallyAuditAssistant.Core.Domain.Audit;
+using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.App.ViewModels;
@@ -13,6 +14,7 @@ public partial class TdsAuditViewModel : ObservableObject
 {
     private readonly IAuditRepository _repository;
     private readonly ISettingsService _settingsService;
+    private readonly IActiveCompanyContext _companyContext;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -31,10 +33,21 @@ public partial class TdsAuditViewModel : ObservableObject
 
     public ObservableCollection<AuditException> Exceptions { get; } = new();
 
-    public TdsAuditViewModel(IAuditRepository repository, ISettingsService settingsService)
+    public TdsAuditViewModel(
+        IAuditRepository repository,
+        ISettingsService settingsService,
+        IActiveCompanyContext companyContext)
     {
         _repository = repository;
         _settingsService = settingsService;
+        _companyContext = companyContext;
+
+        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
+        _ = LoadTdsExceptionsAsync();
+    }
+
+    private void OnActiveCompanyChanged(object? sender, Company? comp)
+    {
         _ = LoadTdsExceptionsAsync();
     }
 
@@ -44,12 +57,22 @@ public partial class TdsAuditViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            var activeName = await _settingsService.GetSettingAsync("ActiveCompany", "Apex Industrial Solutions Pvt Ltd");
+            var comp = await _companyContext.GetActiveCompanyAsync()
+                       ?? await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+            var activeName = comp?.TallyCompanyName ?? await _settingsService.GetSettingAsync("ActiveCompany", string.Empty);
             ActiveCompanyName = activeName;
 
             var companies = await _repository.GetAllCompaniesAsync();
-            if (companies.Count == 0) return;
-            var current = companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0];
+            if (companies.Count == 0)
+            {
+                Exceptions.Clear();
+                return;
+            }
+
+            var current = (comp != null ? companies.FirstOrDefault(c => c.Id == comp.Id || c.TallyCompanyName == comp.TallyCompanyName) : null)
+                          ?? (string.IsNullOrEmpty(activeName) ? companies[0] : (companies.FirstOrDefault(c => c.TallyCompanyName == activeName) ?? companies[0]));
+
+            ActiveCompanyName = current.TallyCompanyName;
 
             var list = await _repository.GetExceptionsFilteredAsync(
                 current.Id,

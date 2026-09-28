@@ -10,6 +10,7 @@ public partial class SettingsViewModel : ObservableObject
 {
     private readonly ISettingsService _settingsService;
     private readonly IDatabaseInitializer _dbInitializer;
+    private readonly IActiveCompanyContext _companyContext;
 
     [ObservableProperty]
     private string _databasePath = string.Empty;
@@ -44,10 +45,14 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _statusMessage = string.Empty;
 
-    public SettingsViewModel(ISettingsService settingsService, IDatabaseInitializer dbInitializer)
+    public SettingsViewModel(
+        ISettingsService settingsService,
+        IDatabaseInitializer dbInitializer,
+        IActiveCompanyContext companyContext)
     {
         _settingsService = settingsService;
         _dbInitializer = dbInitializer;
+        _companyContext = companyContext;
         _databasePath = _dbInitializer.DatabasePath;
 
         _ = LoadSettingsAsync();
@@ -83,6 +88,7 @@ public partial class SettingsViewModel : ObservableObject
         await _settingsService.SetTallyHostAsync(TallyHost);
         await _settingsService.SetTallyPortAsync(TallyPort);
         await _settingsService.SetMockModeEnabledAsync(IsMockMode);
+        await _companyContext.InitializeCompanyContextAsync();
 
         await _settingsService.SetSettingAsync("LargeTransactionThreshold", LargeTransactionThreshold.ToString());
         await _settingsService.SetSettingAsync("TdsSinglePaymentLimit", TdsSinglePaymentLimit.ToString());
