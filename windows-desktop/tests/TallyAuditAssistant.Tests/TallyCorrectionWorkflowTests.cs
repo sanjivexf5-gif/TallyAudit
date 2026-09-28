@@ -226,25 +226,26 @@ public class TallyCorrectionWorkflowTests : IAsyncLifetime
         var companyId = "COMP-CORR-10";
         await SaveCompanyAsync(companyId);
 
-        var auditRepo = new AuditRepository(_factory);
-        var ex = new AuditException
+        var auditRepo = new AuditResultRepository(_factory, NullLogger<AuditResultRepository>.Instance);
+        var auditResult = new AuditResult
         {
-            Id = "EXC-TEST-10",
+            ResultId = "EXC-TEST-10",
             CompanyId = companyId,
             RuleId = "ACC-SEQ-01",
             RuleName = "Test Rule",
-            Category = AuditCategory.Accounting,
-            Severity = AuditSeverity.Medium,
-            EvidenceJson = "{}",
-            Status = AuditExceptionStatus.Open
+            Category = RuleCategory.GeneralAccounting,
+            Severity = SeverityLevel.Medium,
+            Evidence = "{}",
+            Status = ReviewStatus.Pending
         };
-        await auditRepo.SaveExceptionsAsync(new[] { ex });
+        await auditRepo.SaveResultsBatchAsync(new[] { auditResult });
 
-        await auditRepo.UpdateExceptionStatusAsync(ex.Id, AuditExceptionStatus.Resolved, "Resolved in audit DB only");
+        var exceptionRepo = new ExceptionRepository(_factory);
+        await exceptionRepo.UpdateStatusAsync(auditResult.ResultId, ReviewStatus.Resolved, "Auditor", "Resolved in audit DB only");
 
-        var updated = await auditRepo.GetExceptionByIdAsync(ex.Id);
-        Assert.NotNull(updated);
-        Assert.Equal(AuditExceptionStatus.Resolved, updated.Status);
+        var results = await exceptionRepo.GetExceptionsAsync(companyId);
+        var updated = Assert.Single(results);
+        Assert.Equal(ReviewStatus.Resolved, updated.Status);
     }
 
     [Fact]
