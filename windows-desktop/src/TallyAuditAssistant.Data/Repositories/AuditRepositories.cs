@@ -84,6 +84,32 @@ public class AuditResultRepository : IAuditResultRepository
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
         using var tx = connection.BeginTransaction();
 
+        // 1. Ensure all RuleIds exist in AuditRules catalog
+        const string ensureRuleSql = @"
+            INSERT OR IGNORE INTO AuditRules (RuleId, Category, Name, Description, Severity, SuggestedReview, Version, IsEnabled)
+            VALUES (@RuleId, @Category, @RuleName, @Explanation, @Severity, 'Review transaction details and supporting audit evidence.', '1.0.0', 1);
+        ";
+
+        var uniqueRules = results.Select(r => new
+        {
+            r.RuleId,
+            Category = (int)r.Category,
+            r.RuleName,
+            Explanation = !string.IsNullOrEmpty(r.Explanation) ? r.Explanation : r.RuleName,
+            Severity = (int)r.Severity
+        }).GroupBy(x => x.RuleId).Select(g => g.First());
+
+        await connection.ExecuteAsync(new CommandDefinition(ensureRuleSql, uniqueRules, tx, cancellationToken: cancellationToken));
+
+        // 2. Ensure all CompanyIds exist in Companies table
+        const string ensureCompanySql = @"
+            INSERT OR IGNORE INTO Companies (Id, TallyCompanyName, FormalName, BooksFromDate, LastSyncDate, IsActive, CreatedAt)
+            VALUES (@CompanyId, @CompanyId, @CompanyId, '2025-04-01', CURRENT_TIMESTAMP, 1, CURRENT_TIMESTAMP);
+        ";
+
+        var uniqueCompanies = results.Select(r => new { r.CompanyId }).GroupBy(x => x.CompanyId).Select(g => g.First());
+        await connection.ExecuteAsync(new CommandDefinition(ensureCompanySql, uniqueCompanies, tx, cancellationToken: cancellationToken));
+
         const string sql = @"
             INSERT INTO Exceptions (
                 Id, CompanyId, RuleId, RuleName, Category, Severity, 

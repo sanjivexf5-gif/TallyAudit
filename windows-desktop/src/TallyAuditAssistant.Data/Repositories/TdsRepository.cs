@@ -124,6 +124,11 @@ public class TdsRepository : ITdsRepository, ITdsExceptionService
             VALUES (@RuleId, 2, @RuleName, 'TDS Statutory Audit Rule', 3, 'Review TDS deduction', '1.0.0', 1);
         ";
 
+        const string ensureCompanySql = @"
+            INSERT OR IGNORE INTO Companies (Id, TallyCompanyName, FormalName, BooksFromDate, LastSyncDate, IsActive, CreatedAt)
+            VALUES (@CompanyId, @CompanyId, @CompanyId, '2025-04-01', CURRENT_TIMESTAMP, 1, CURRENT_TIMESTAMP);
+        ";
+
         const string sql = @"
             INSERT INTO Exceptions (
                 Id, CompanyId, RuleId, RuleName, Category, Severity, VoucherId, LedgerId,
@@ -142,6 +147,7 @@ public class TdsRepository : ITdsRepository, ITdsExceptionService
         foreach (var r in results)
         {
             await connection.ExecuteAsync(new CommandDefinition(ensureRuleSql, new { RuleId = r.RuleId, RuleName = r.RuleName }, tx, cancellationToken: cancellationToken));
+            await connection.ExecuteAsync(new CommandDefinition(ensureCompanySql, new { CompanyId = r.CompanyId }, tx, cancellationToken: cancellationToken));
 
             await connection.ExecuteAsync(new CommandDefinition(sql, new
             {

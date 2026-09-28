@@ -135,6 +135,26 @@ public class AuditEngine : IAuditEngine
     {
         try
         {
+            // First, ensure all registered memory rules are cataloged in the database
+            foreach (var memoryRule in _rules)
+            {
+                var auditRule = new AuditRule
+                {
+                    RuleId = memoryRule.RuleId,
+                    Category = memoryRule.Category,
+                    Name = memoryRule.Name,
+                    Description = !string.IsNullOrEmpty(memoryRule.Description) ? memoryRule.Description : memoryRule.Name,
+                    Severity = memoryRule.Severity,
+                    SuggestedReview = "Review transaction details and supporting audit evidence.",
+                    Version = !string.IsNullOrEmpty(memoryRule.Version) ? memoryRule.Version : "1.0.0",
+                    IsEnabled = memoryRule.Enabled,
+                    EffectiveFrom = memoryRule.EffectiveFrom,
+                    EffectiveTo = memoryRule.EffectiveTo
+                };
+                await _ruleRepository.SaveRuleAsync(auditRule, cancellationToken);
+            }
+
+            // Next, load existing stored rule settings (IsEnabled, Severity, ParametersJson) to respect user overrides
             var dbRules = await _ruleRepository.GetAllRulesAsync(cancellationToken);
             foreach (var dbRule in dbRules)
             {
@@ -164,7 +184,7 @@ public class AuditEngine : IAuditEngine
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to load stored rule configurations from database. Using memory defaults.");
+            _logger.LogWarning(ex, "Failed to synchronize stored rule configurations from database. Using memory defaults.");
         }
     }
 }

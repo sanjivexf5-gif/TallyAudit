@@ -28,6 +28,11 @@ public class DuplicateRepository : IDuplicateRepository
             VALUES (@RuleId, 6, @RuleName, 'Duplicate transaction detection', 3, 'Review duplicate transaction', '1.0.0', 1);
         ";
 
+        const string ensureCompanySql = @"
+            INSERT OR IGNORE INTO Companies (Id, TallyCompanyName, FormalName, BooksFromDate, LastSyncDate, IsActive, CreatedAt)
+            VALUES (@CompanyId, @CompanyId, @CompanyId, '2025-04-01', CURRENT_TIMESTAMP, 1, CURRENT_TIMESTAMP);
+        ";
+
         const string sql = @"
             INSERT INTO Exceptions (
                 Id, CompanyId, RuleId, RuleName, Category, Severity, VoucherId, LedgerId,
@@ -49,6 +54,7 @@ public class DuplicateRepository : IDuplicateRepository
             string ruleName = $"{pair.TierLabel} ({pair.ConfidenceScore:F0}%)";
 
             await connection.ExecuteAsync(new CommandDefinition(ensureRuleSql, new { RuleId = ruleId, RuleName = ruleName }, tx, cancellationToken: cancellationToken));
+            await connection.ExecuteAsync(new CommandDefinition(ensureCompanySql, new { CompanyId = pair.CompanyId }, tx, cancellationToken: cancellationToken));
 
             string severity = pair.Tier switch
             {
