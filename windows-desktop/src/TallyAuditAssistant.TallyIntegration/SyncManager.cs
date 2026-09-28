@@ -296,9 +296,9 @@ public class SyncManager : ISyncManager
 
             // PIPELINE STAGE 8: COMPLETE
             stopwatch.Stop();
-            SetStage(SyncStage.Complete, "Synchronization completed successfully!");
             CurrentStatus = SyncStatus.Completed;
             CurrentMetrics.ProgressPercentage = 100.0;
+            SetStage(SyncStage.Complete, "Synchronization completed successfully!");
             EmitLog($"Sync finished in {stopwatch.Elapsed:mm\\:ss}. {CurrentMetrics.RecordsProcessed} records stored.");
 
             return new SyncResult(
@@ -402,6 +402,10 @@ public class SyncManager : ISyncManager
     {
         CurrentMetrics.CurrentStage = stage;
         CurrentMetrics.CurrentTaskDescription = taskDesc;
+        if (stage == SyncStage.Complete)
+        {
+            CurrentMetrics.ProgressPercentage = 100.0;
+        }
         ProgressChanged?.Invoke(this, CurrentMetrics);
     }
 
@@ -414,7 +418,14 @@ public class SyncManager : ISyncManager
         }
         if (CurrentMetrics.RecordsDiscovered > 0)
         {
-            CurrentMetrics.ProgressPercentage = Math.Min(99.0, Math.Round((double)CurrentMetrics.RecordsProcessed / CurrentMetrics.RecordsDiscovered * 100, 1));
+            if (CurrentMetrics.CurrentStage == SyncStage.Complete)
+            {
+                CurrentMetrics.ProgressPercentage = 100.0;
+            }
+            else
+            {
+                CurrentMetrics.ProgressPercentage = Math.Min(99.0, Math.Round((double)CurrentMetrics.RecordsProcessed / CurrentMetrics.RecordsDiscovered * 100, 1));
+            }
         }
         ProgressChanged?.Invoke(this, CurrentMetrics);
     }

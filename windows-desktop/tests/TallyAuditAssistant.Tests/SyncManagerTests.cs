@@ -89,6 +89,8 @@ public class SyncManagerTests
         // Assert
         Assert.True(result.IsSuccess);
         Assert.Equal(SyncStatus.Completed, syncManager.CurrentStatus);
+        Assert.Equal(SyncStage.Complete, syncManager.CurrentMetrics.CurrentStage);
+        Assert.Equal(100.0, syncManager.CurrentMetrics.ProgressPercentage);
         Assert.Equal(3, result.TotalProcessed); // 2 ledgers + 1 voucher
         Assert.Equal(3, result.Inserted);
         Assert.Equal(0, result.Errors);
@@ -96,6 +98,100 @@ public class SyncManagerTests
         mockSyncRepo.Verify(r => r.UpsertCompanyAsync(It.IsAny<Company>(), It.IsAny<FinancialYear>(), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
         mockSyncRepo.Verify(r => r.OptimizeIndexesAsync(It.IsAny<CancellationToken>()), Times.Once);
         mockSyncRepo.Verify(r => r.RecordSyncHistoryAsync(It.IsAny<SyncHistoryRecord>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task IncrementalSync_Reaches_100Percent_On_Completion()
+    {
+        var mockConn = new Mock<ITallyConnection>();
+        mockConn.Setup(c => c.TestConnectionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+
+        var mockCompany = new Mock<ITallyCompanyService>();
+        mockCompany.Setup(c => c.GetCompanyProfileTypedAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                   .ReturnsAsync(new TallyCompanyProfile { Name = "Inc Co" });
+
+        var mockMaster = new Mock<ITallyMasterService>();
+        mockMaster.Setup(m => m.GetGroupsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<string>());
+        mockMaster.Setup(m => m.GetLedgersAsync(It.IsAny<string>(), It.IsAny<long?>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<TallyLedgerDto>());
+
+        var mockVoucher = new Mock<ITallyVoucherService>();
+        async IAsyncEnumerable<TallyVoucherDto> EmptyStream() { await Task.Yield(); }
+        mockVoucher.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                   .Returns(EmptyStream());
+
+        var syncManager = new SyncManager(
+            mockConn.Object, mockCompany.Object, mockMaster.Object, mockVoucher.Object,
+            new Mock<ISyncRepository>().Object, new Mock<IAuditRepository>().Object, new Mock<ISettingsService>().Object, _logger);
+
+        SyncMetrics? lastEmittedMetrics = null;
+        syncManager.ProgressChanged += (s, m) => lastEmittedMetrics = new SyncMetrics
+        {
+            CurrentStage = m.CurrentStage,
+            ProgressPercentage = m.ProgressPercentage
+        };
+
+        var result = await syncManager.StartSyncAsync("Inc Co", SyncMode.Incremental);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(SyncStatus.Completed, syncManager.CurrentStatus);
+        Assert.Equal(100.0, syncManager.CurrentMetrics.ProgressPercentage);
+        Assert.NotNull(lastEmittedMetrics);
+        Assert.Equal(SyncStage.Complete, lastEmittedMetrics.CurrentStage);
+        Assert.Equal(100.0, lastEmittedMetrics.ProgressPercentage);
+    }
+
+    [Fact]
+    public async Task RetrySync_Reaches_100Percent_On_Completion()
+    {
+        var mockConn = new Mock<ITallyConnection>();
+        mockConn.Setup(c => c.TestConnectionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+
+        var mockCompany = new Mock<ITallyCompanyService>();
+        mockCompany.Setup(c => c.GetCompanyProfileTypedAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                   .ReturnsAsync(new TallyCompanyProfile { Name = "Retry Co" });
+
+        var mockMaster = new Mock<ITallyMasterService>();
+        mockMaster.Setup(m => m.GetGroupsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<string>());
+        mockMaster.Setup(m => m.GetLedgersAsync(It.IsAny<string>(), It.IsAny<long?>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<TallyLedgerDto>());
+
+        var mockVoucher = new Mock<ITallyVoucherService>();
+        async IAsyncEnumerable<TallyVoucherDto> EmptyStream() { await Task.Yield(); }
+        mockVoucher.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                   .Returns(EmptyStream());
+
+        var syncManager = new SyncManager(
+            mockConn.Object, mockCompany.Object, mockMaster.Object, mockVoucher.Object,
+            new Mock<ISyncRepository>().Object, new Mock<IAuditRepository>().Object, new Mock<ISettingsService>().Object, _logger);
+
+        await syncManager.StartSyncAsync("Retry Co", SyncMode.Full);
+        var result = await syncManager.RetryAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(SyncStatus.Completed, syncManager.CurrentStatus);
+        Assert.Equal(100.0, syncManager.CurrentMetrics.ProgressPercentage);
+    }
+
+    [Fact]
+    public async Task FailedSync_Does_Not_Report_100Percent()
+    {
+        var mockConn = new Mock<ITallyConnection>();
+        mockConn.Setup(c => c.TestConnectionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(false);
+        mockConn.Setup(c => c.ProbePortRangeAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((string?)null);
+
+        var syncManager = new SyncManager(
+            mockConn.Object, new Mock<ITallyCompanyService>().Object, new Mock<ITallyMasterService>().Object, new Mock<ITallyVoucherService>().Object,
+            new Mock<ISyncRepository>().Object, new Mock<IAuditRepository>().Object, new Mock<ISettingsService>().Object, _logger);
+
+        var result = await syncManager.StartSyncAsync("Failed Co", SyncMode.Full);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(SyncStatus.Failed, syncManager.CurrentStatus);
+        Assert.NotEqual(100.0, syncManager.CurrentMetrics.ProgressPercentage);
+        Assert.Equal(SyncStage.Failed, syncManager.CurrentMetrics.CurrentStage);
     }
 
     [Fact]
@@ -145,5 +241,6 @@ public class SyncManagerTests
         // Assert
         Assert.False(result.IsSuccess);
         Assert.Equal(SyncStatus.Cancelled, syncManager.CurrentStatus);
+        Assert.NotEqual(100.0, syncManager.CurrentMetrics.ProgressPercentage);
     }
 }

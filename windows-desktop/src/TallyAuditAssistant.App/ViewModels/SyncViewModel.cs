@@ -311,7 +311,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
 
     private void OnProgressChanged(object? sender, SyncMetrics metrics)
     {
-        App.Current?.Dispatcher.Invoke(() =>
+        void Update()
         {
             CurrentStageText = metrics.CurrentStage.ToString();
             CurrentTaskDescription = metrics.CurrentTaskDescription;
@@ -323,8 +323,24 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             Errors = metrics.Errors;
             ElapsedTimeText = $"{metrics.ElapsedTime.Minutes:D2}:{metrics.ElapsedTime.Seconds:D2}";
             ItemsPerSecond = Math.Round(metrics.ItemsPerSecond, 1);
-            ProgressPercentage = metrics.ProgressPercentage;
-        });
+            if (metrics.CurrentStage == SyncStage.Complete)
+            {
+                ProgressPercentage = 100.0;
+            }
+            else
+            {
+                ProgressPercentage = metrics.ProgressPercentage;
+            }
+        }
+
+        if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
+        {
+            App.Current.Dispatcher.Invoke(Update);
+        }
+        else
+        {
+            Update();
+        }
     }
 
     private void OnLogEmitted(object? sender, string log)
