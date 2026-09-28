@@ -123,7 +123,7 @@ public partial class ReportsViewModel : ObservableObject
                     sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{vNo}</Data></Cell>");
                     sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{lName}</Data></Cell>");
                     sb.AppendLine($"    <Cell><Data ss:Type=\"Number\">{amt}</Data></Cell>");
-                    sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{ex.Description.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")}</Data></Cell>");
+                    sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{(ex.SuggestedCorrection ?? "—").Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")}</Data></Cell>");
                     sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{ex.Status}</Data></Cell>");
                     sb.AppendLine($"    <Cell><Data ss:Type=\"String\">{note.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;")}</Data></Cell>");
                     sb.AppendLine("   </Row>");
@@ -151,7 +151,7 @@ public partial class ReportsViewModel : ObservableObject
             AppendWorksheet("All Exceptions", headers, allExceptions.ToList());
             AppendWorksheet("GST Exceptions", headers, allExceptions.Where(x => x.Category == RuleCategory.GST).ToList());
             AppendWorksheet("TDS Exceptions", headers, allExceptions.Where(x => x.Category == RuleCategory.TDS).ToList());
-            AppendWorksheet("Accounting Hygiene", headers, allExceptions.Where(x => x.Category == RuleCategory.AccountingHygiene || x.Category == RuleCategory.DuplicateTransactions).ToList());
+            AppendWorksheet("Accounting Hygiene", headers, allExceptions.Where(x => x.Category == RuleCategory.GeneralAccounting || x.Category == RuleCategory.DuplicateDetection).ToList());
 
             sb.AppendLine("</Workbook>");
 

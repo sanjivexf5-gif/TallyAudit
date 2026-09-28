@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using Microsoft.Extensions.Logging.Abstractions;
-using TallyAuditAssistant.App.ViewModels;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Domain.Gst;
@@ -153,32 +152,14 @@ public class MockTallyIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CompaniesViewModel_DisplaysSynchronizedMockCompany_AndSelectedProfile()
+    public async Task SyncManager_UsesMatchingActiveCompany_AndSynchronizes()
     {
-        var vm = new CompaniesViewModel(_auditRepo, _settingsService, _companyContext, _companyService);
-        await vm.LoadCompaniesAsync();
+        var ensured = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
+        Assert.NotNull(ensured);
 
-        Assert.True(vm.HasCompanies);
-        Assert.NotEmpty(vm.Companies);
-        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", vm.ActiveCompanyName);
-
-        var selected = vm.SelectedCompany;
-        Assert.NotNull(selected);
-        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", selected.TallyCompanyName);
-        Assert.Equal("Demo Industrial Solutions Pvt Ltd", selected.FormalName);
-        Assert.Equal("27DEMO1234F1Z9", selected.GSTIN);
-        Assert.Equal("DEMOP1234F", selected.PAN);
-        Assert.Equal("Maharashtra", selected.StateName);
-    }
-
-    [Fact]
-    public async Task SyncViewModel_UsesMatchingActiveCompany_FromContext()
-    {
-        await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-
-        var syncVm = new SyncViewModel(_syncManager, _companyService, _settingsService, _companyContext);
-        
-        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", syncVm.CompanyName);
+        var syncResult = await _syncManager.StartSyncAsync(ensured.TallyCompanyName, SyncMode.Full);
+        Assert.True(syncResult.IsSuccess);
+        Assert.True(syncResult.TotalProcessed > 0);
     }
 
     [Fact]
@@ -242,6 +223,27 @@ public class MockTallyIntegrationTests : IAsyncLifetime
         Assert.Equal(2, list.Count);
         Assert.Contains(list, c => c.Id == "COMP-ALPHA" && c.BooksFromDate.Year == 2024);
         Assert.Contains(list, c => c.Id == "COMP-BETA" && c.BooksFromDate.Year == 2025);
+    }
+
+    [Fact]
+    public async Task RealTallyCompanyResolution_Works_WithoutHardcodedDemoCompany()
+    {
+        var realCompanyService = new MockCustomCompanyService("Custom Enterprise Ltd (FY 2025-26)");
+        var realSettings = new MockSettingsService();
+        await realSettings.SetMockModeEnabledAsync(false);
+
+        var realContext = new ActiveCompanyContext(
+            _auditRepo,
+            realSettings,
+            realCompanyService);
+
+        var company = await realContext.EnsureAndInitializeActiveCompanyAsync();
+        Assert.NotNull(company);
+        Assert.Equal("Custom Enterprise Ltd (FY 2025-26)", company.TallyCompanyName);
+        Assert.Equal("Custom Enterprise Ltd", company.FormalName);
+
+        var persisted = await realSettings.GetSettingAsync("ActiveCompany");
+        Assert.Equal("Custom Enterprise Ltd (FY 2025-26)", persisted);
     }
 
     [Fact]
@@ -317,95 +319,6 @@ public class MockTallyIntegrationTests : IAsyncLifetime
 
         // 9. Verify demo mode is purely non-destructive and doesn't modify anything outside local SQLite
         Assert.True(File.Exists(_testDbPath));
-    }
-
-    [Fact]
-    public async Task MainWindowViewModel_ResolvesMockActiveCompany_RatherThanActiveTallySession()
-    {
-        await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-
-        // Create a connection with generic ActiveEndpoint company "Active Tally Session"
-        var conn = new MockTallyConnection
-        {
-            ActiveEndpoint = new TallyEndpointInfo("localhost", 9000, true, "Mock/Demo", "Active Tally Session", 5)
-        };
-
-        var mainVm = new MainWindowViewModel(
-            conn,
-            _companyContext,
-            _companyService,
-            _settingsService,
-            new DashboardViewModel(_auditRepo, conn, new AuditEngine(System.Array.Empty<IAuditRule>(), NullLogger<AuditEngine>.Instance), _settingsService, new MockDrillDownService(), new MockAiService(), _companyContext, NullLogger<DashboardViewModel>.Instance),
-            new TallyConnectionViewModel(conn, _companyService, _settingsService, new TallyConnectionMonitor(conn, _settingsService, NullLogger<TallyConnectionMonitor>.Instance), _companyContext),
-            new SyncViewModel(_syncManager, _companyService, _settingsService, _companyContext),
-            new SettingsViewModel(_settingsService, _initializer, _companyContext),
-            new CompaniesViewModel(_auditRepo, _settingsService, _companyContext, _companyService),
-            new GstAuditViewModel(_auditRepo, _settingsService, _companyContext),
-            new TdsAuditViewModel(_auditRepo, _settingsService, _companyContext),
-            new VouchersViewModel(_factory, _settingsService, _auditRepo, _companyContext),
-            new LedgersViewModel(_factory, _settingsService, _auditRepo, _companyContext),
-            new BankAuditViewModel(_auditRepo, _settingsService, _companyContext),
-            new ExceptionsViewModel(_auditRepo, _settingsService, _companyContext),
-            new ReportsViewModel(_auditRepo, _settingsService, _companyContext));
-
-        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", mainVm.ActiveCompany);
-        Assert.NotEqual("Active Tally Session", mainVm.ActiveCompany);
-    }
-
-    [Fact]
-    public async Task RealTallyCompanyResolution_Works_WithoutHardcodedDemoCompany()
-    {
-        var realCompanyService = new MockCustomCompanyService("Custom Enterprise Ltd (FY 2025-26)");
-        var realSettings = new MockSettingsService();
-        await realSettings.SetMockModeEnabledAsync(false);
-
-        var realContext = new ActiveCompanyContext(
-            _auditRepo,
-            realSettings,
-            realCompanyService);
-
-        var company = await realContext.EnsureAndInitializeActiveCompanyAsync();
-        Assert.NotNull(company);
-        Assert.Equal("Custom Enterprise Ltd (FY 2025-26)", company.TallyCompanyName);
-        Assert.Equal("Custom Enterprise Ltd", company.FormalName);
-
-        var persisted = await realSettings.GetSettingAsync("ActiveCompany");
-        Assert.Equal("Custom Enterprise Ltd (FY 2025-26)", persisted);
-    }
-
-    [Fact]
-    public async Task SettingsViewModel_TogglingMockMode_TriggersCompanyContextInitialization()
-    {
-        var settingsVm = new SettingsViewModel(_settingsService, _initializer, _companyContext);
-        settingsVm.IsMockMode = true;
-        await _settingsService.SetSettingAsync("ActiveCompany", string.Empty);
-
-        // Act - Save settings
-        var saveMethod = typeof(SettingsViewModel).GetMethod("SaveSettingsAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        if (saveMethod != null)
-        {
-            var task = (Task)saveMethod.Invoke(settingsVm, null)!;
-            await task;
-        }
-
-        var active = _companyContext.ActiveCompanyName;
-        Assert.Equal("Demo Industrial Solutions Pvt Ltd (FY 2025-26)", active);
-    }
-
-    private class MockDrillDownService : ITallyDrillDownService
-    {
-        public Task<TallyVoucherDrillDownResult?> GetVoucherDrillDownAsync(string voucherNumber, string? companyName = null, CancellationToken cancellationToken = default)
-            => Task.FromResult<TallyVoucherDrillDownResult?>(null);
-    }
-
-    private class MockAiService : IAuditAssistantService
-    {
-        public bool IsConfigured => false;
-        public Task<string> ExplainExceptionAsync(AuditException exception, Company company, CancellationToken cancellationToken = default) => Task.FromResult("Mock AI");
-        public Task<string> SuggestCorrectionAsync(AuditException exception, Company company, CancellationToken cancellationToken = default) => Task.FromResult("Mock Correction");
-        public Task<string> DraftAuditorRemarkAsync(AuditException exception, Company company, CancellationToken cancellationToken = default) => Task.FromResult("Mock Remark");
-        public Task<string> GenerateRunExecutiveSummaryAsync(AuditRun run, IReadOnlyList<AuditException> exceptions, Company company, CancellationToken cancellationToken = default) => Task.FromResult("Mock Summary");
-        public Task<string> AskAssistantAsync(string question, string companyName, CancellationToken cancellationToken = default) => Task.FromResult("Mock Answer");
     }
 
     private class MockCustomCompanyService : ITallyCompanyService

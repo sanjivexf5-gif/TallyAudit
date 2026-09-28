@@ -200,7 +200,7 @@ public partial class SyncViewModel : ObservableObject
     [RelayCommand]
     private async Task CancelSyncAsync()
     {
-        await _syncManager.CancelSyncAsync();
+        await _syncManager.CancelAsync();
         IsSyncing = false;
         IsPaused = false;
     }
@@ -209,17 +209,17 @@ public partial class SyncViewModel : ObservableObject
     {
         App.Current?.Dispatcher.Invoke(() =>
         {
-            CurrentStageText = metrics.Stage.ToString();
-            CurrentTaskDescription = metrics.StageDescription;
-            RecordsDiscovered = metrics.TotalDiscovered;
-            RecordsProcessed = metrics.TotalProcessed;
-            RecordsInserted = metrics.Inserted;
-            RecordsUpdated = metrics.Updated;
-            RecordsSkipped = metrics.Skipped;
+            CurrentStageText = metrics.CurrentStage.ToString();
+            CurrentTaskDescription = metrics.CurrentTaskDescription;
+            RecordsDiscovered = metrics.RecordsDiscovered;
+            RecordsProcessed = metrics.RecordsProcessed;
+            RecordsInserted = metrics.RecordsInserted;
+            RecordsUpdated = metrics.RecordsUpdated;
+            RecordsSkipped = metrics.RecordsSkipped;
             Errors = metrics.Errors;
-            ElapsedTimeText = $"{metrics.Elapsed.Minutes:D2}:{metrics.Elapsed.Seconds:D2}";
+            ElapsedTimeText = $"{metrics.ElapsedTime.Minutes:D2}:{metrics.ElapsedTime.Seconds:D2}";
             ItemsPerSecond = Math.Round(metrics.ItemsPerSecond, 1);
-            ProgressPercentage = metrics.TotalDiscovered > 0 ? (double)metrics.TotalProcessed / metrics.TotalDiscovered * 100 : 0;
+            ProgressPercentage = metrics.ProgressPercentage;
         });
     }
 
