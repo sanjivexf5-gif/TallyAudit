@@ -5,8 +5,8 @@ namespace TallyAuditAssistant.Core.Common;
 /// </summary>
 public static class AppVersion
 {
-    public const string Version = "1.0.11";
-    public const string BuildNumber = "2026.09.29.111";
+    public const string Version = "1.0.12";
+    public const string BuildNumber = "2026.09.29.112";
     public const string ReleaseDate = "2026-09-29";
     public const string Channel = "Stable";
     public const string TargetRuntime = ".NET 8.0 (win-x64 Self-Contained)";

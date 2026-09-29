@@ -114,8 +114,6 @@ public partial class App : Application
         services.AddSingleton<IAuditRepository, AuditRepository>();
         services.AddSingleton<ISyncRepository, SyncRepository>();
         services.AddSingleton<ISettingsService, SettingsRepository>();
-        services.AddSingleton<ITallyCorrectionRepository, TallyCorrectionRepository>();
-        services.AddSingleton<ITallyWriteService, TallyWriteService>();
         services.AddSingleton<IAuditFinalizationRepository, AuditFinalizationRepository>();
         services.AddSingleton<IAuditFinalizationService, AuditFinalizationService>();
         services.AddSingleton<IAuditQualityControlService, AuditQualityControlService>();
@@ -124,7 +122,8 @@ public partial class App : Application
         services.AddSingleton<IInvestigationRepository, InvestigationRepository>();
         services.AddSingleton<IInvestigationService, InvestigationService>();
 
-        // Tally Integration registrations
+        // Tally Integration registrations (strictly read-only policy)
+        services.AddSingleton<ITallyReadOnlyPolicy, TallyReadOnlyPolicy>();
         services.AddSingleton<ITallyRequestBuilder, TallyRequestBuilder>();
         services.AddSingleton<ITallyResponseParser, TallyResponseParser>();
         services.AddHttpClient<TallyClient>();

@@ -197,8 +197,11 @@ public class WpfStartupAndThemeTests
         Assert.Contains("services.AddSingleton<IAuditRepository, AuditRepository>()", content);
         Assert.Contains("services.AddSingleton<ISyncRepository, SyncRepository>()", content);
         Assert.Contains("services.AddSingleton<ISettingsService, SettingsRepository>()", content);
-        Assert.Contains("services.AddSingleton<ITallyCorrectionRepository, TallyCorrectionRepository>()", content);
-        Assert.Contains("services.AddSingleton<ITallyWriteService, TallyWriteService>()", content);
+
+        // Strictly Read-Only policy registration
+        Assert.Contains("services.AddSingleton<ITallyReadOnlyPolicy, TallyReadOnlyPolicy>()", content);
+        Assert.DoesNotContain("ITallyWriteService", content);
+        Assert.DoesNotContain("ITallyCorrectionRepository", content);
     }
 
     [Fact]

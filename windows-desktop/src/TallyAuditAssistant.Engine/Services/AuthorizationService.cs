@@ -73,13 +73,8 @@ public class AuthorizationService : IAuthorizationService
         {
             UserRole.Administrator => true,
             UserRole.Auditor => true,
-            UserRole.Reviewer => action switch
-            {
-                PermissionAction.CreateTallyCorrection => true,
-                PermissionAction.ApproveTallyCorrection => true,
-                _ => false
-            },
-            UserRole.ReadOnly => false,
+            UserRole.Reviewer => true,
+            UserRole.ReadOnly => action == PermissionAction.ExportReports,
             _ => false
         };
     }

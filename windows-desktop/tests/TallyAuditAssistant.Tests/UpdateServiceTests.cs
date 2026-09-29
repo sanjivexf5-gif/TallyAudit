@@ -31,18 +31,18 @@ public class UpdateServiceTests
     }
 
     [Fact]
-    public void AppVersion_Properties_Match_Authoritative_111_Values()
+    public void AppVersion_Properties_Match_Authoritative_112_Values()
     {
-        Assert.Equal("1.0.11", AppVersion.Version);
-        Assert.Equal("2026.09.29.111", AppVersion.BuildNumber);
-        Assert.Contains("v1.0.11", AppVersion.DisplayString);
+        Assert.Equal("1.0.12", AppVersion.Version);
+        Assert.Equal("2026.09.29.112", AppVersion.BuildNumber);
+        Assert.Contains("v1.0.12", AppVersion.DisplayString);
     }
 
     [Fact]
     public void GetCurrentVersion_ReturnsVersionString()
     {
         var service = new UpdateService(NullLogger<UpdateService>.Instance);
-        Assert.Equal("1.0.11", service.GetCurrentVersion());
+        Assert.Equal("1.0.12", service.GetCurrentVersion());
     }
 
     [Fact]
@@ -446,20 +446,20 @@ public class UpdateServiceTests
     }
 
     [Fact]
-    public async Task CheckForUpdates_SemanticVersion1011_IsNewerThan109()
+    public async Task CheckForUpdates_SemanticVersion1012_IsNewerThan109()
     {
         var jsonResponse = @"[
             {
-                ""tag_name"": ""v1.0.11"",
-                ""name"": ""Tally Audit Assistant v1.0.11"",
+                ""tag_name"": ""v1.0.12"",
+                ""name"": ""Tally Audit Assistant v1.0.12"",
                 ""draft"": false,
                 ""prerelease"": false,
-                ""body"": ""Build 11"",
-                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/tag/v1.0.11"",
+                ""body"": ""Build 12"",
+                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/tag/v1.0.12"",
                 ""assets"": [
                     {
-                        ""name"": ""TallyAuditAssistant-Setup-1.0.11.exe"",
-                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.11/TallyAuditAssistant-Setup-1.0.11.exe"",
+                        ""name"": ""TallyAuditAssistant-Setup-1.0.12.exe"",
+                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.12/TallyAuditAssistant-Setup-1.0.12.exe"",
                         ""size"": 15420000
                     }
                 ]
@@ -478,7 +478,7 @@ public class UpdateServiceTests
 
         Assert.NotNull(update);
         Assert.True(update.IsUpdateAvailable);
-        Assert.Equal("1.0.11", update.LatestVersion);
+        Assert.Equal("1.0.12", update.LatestVersion);
     }
 
     [Fact]

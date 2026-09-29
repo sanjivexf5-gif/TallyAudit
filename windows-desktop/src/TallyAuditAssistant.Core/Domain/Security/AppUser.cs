@@ -10,9 +10,9 @@ public enum UserRole
 
 public enum PermissionAction
 {
-    ApplyTallyCorrection = 0,
-    ApproveTallyCorrection = 1,
-    CreateTallyCorrection = 2
+    ExportReports = 0,
+    ManageUsers = 1,
+    ConfigureSettings = 2
 }
 
 public enum AuditPermission
@@ -32,8 +32,7 @@ public enum AuditPermission
     UserManagement,
     BackupRestore,
     AuditFinalization,
-    ReopenFinalizedAudit,
-    ApplyTallyCorrection
+    ReopenFinalizedAudit
 }
 
 public class AppUser
