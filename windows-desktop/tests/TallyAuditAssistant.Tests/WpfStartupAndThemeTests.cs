@@ -228,6 +228,25 @@ public class WpfStartupAndThemeTests
         Assert.IsType<AuditTrailService>(auditTrailService);
     }
 
+    [Fact]
+    public void VerifyGstAuditViewModel_CanBeActivatedByServiceContainer()
+    {
+        var services = new ServiceCollection();
+        var tempDb = Path.Combine(Path.GetTempPath(), $"di_gst_test_{Guid.NewGuid():N}.db");
+        services.AddSingleton(new SqliteConnectionFactory(tempDb));
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddSingleton<IAuditRepository, AuditRepository>();
+        services.AddSingleton<ISettingsService, SettingsRepository>();
+        services.AddSingleton<IActiveCompanyContext, ActiveCompanyContext>();
+        services.AddSingleton<INavigationService, NavigationService>();
+        services.AddSingleton<GstAuditViewModel>();
+
+        using var provider = services.BuildServiceProvider();
+        var gstViewModel = provider.GetRequiredService<GstAuditViewModel>();
+        Assert.NotNull(gstViewModel);
+        Assert.IsType<GstAuditViewModel>(gstViewModel);
+    }
+
     private static string FindAppDirectory()
     {
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;

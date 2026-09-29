@@ -1,21 +1,32 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
-public partial class GstAuditViewModel : ObservableObject, INavigationAware
+public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDisposable
 {
     private readonly IAuditRepository _repository;
     private readonly ISettingsService _settingsService;
     private readonly IActiveCompanyContext _companyContext;
     private readonly INavigationService _navigationService;
+    private readonly ILogger<GstAuditViewModel> _logger;
+
+    private readonly SemaphoreSlim _loadGate = new(1, 1);
+    private readonly object _ctsLock = new();
+    private CancellationTokenSource? _loadCts;
+    private long _loadGeneration;
+    private bool _isDisposed;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -41,70 +52,164 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware
         IAuditRepository repository,
         ISettingsService settingsService,
         IActiveCompanyContext companyContext,
-        INavigationService navigationService)
+        INavigationService navigationService,
+        ILogger<GstAuditViewModel>? logger = null)
     {
         _repository = repository;
         _settingsService = settingsService;
         _companyContext = companyContext;
         _navigationService = navigationService;
+        _logger = logger ?? NullLogger<GstAuditViewModel>.Instance;
 
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
-        _ = LoadGstExceptionsAsync();
+        _ = SafeLoadGstExceptionsAsync();
     }
 
     public async Task OnNavigatedToAsync()
     {
-        await LoadGstExceptionsAsync();
+        await SafeLoadGstExceptionsAsync();
     }
 
     private void OnActiveCompanyChanged(object? sender, Company? comp)
     {
-        _ = LoadGstExceptionsAsync();
+        _ = SafeLoadGstExceptionsAsync();
+    }
+
+    private async Task SafeLoadGstExceptionsAsync()
+    {
+        try
+        {
+            await LoadGstExceptionsAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected on quick succession loads / navigation
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error in SafeLoadGstExceptionsAsync background trigger.");
+        }
     }
 
     [RelayCommand]
     public async Task LoadGstExceptionsAsync()
     {
-        IsLoading = true;
-        StatusMessage = string.Empty;
+        if (_isDisposed) return;
+
+        long currentGen = Interlocked.Increment(ref _loadGeneration);
+        CancellationToken token;
+
+        lock (_ctsLock)
+        {
+            _loadCts?.Cancel();
+            _loadCts?.Dispose();
+            _loadCts = new CancellationTokenSource();
+            token = _loadCts.Token;
+        }
+
+        _logger.LogInformation("GST findings load started. Generation: {Generation}", currentGen);
+
         try
         {
-            var comp = await _companyContext.GetActiveCompanyAsync();
+            await _loadGate.WaitAsync(token);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogDebug("GST findings load gate wait cancelled. Generation: {Generation}", currentGen);
+            return;
+        }
+
+        try
+        {
+            if (token.IsCancellationRequested || currentGen != Interlocked.Read(ref _loadGeneration))
+            {
+                _logger.LogInformation("GST findings load superseded before execution. Generation: {Generation} (Current: {CurrentGen})", currentGen, Interlocked.Read(ref _loadGeneration));
+                return;
+            }
+
+            IsLoading = true;
+            StatusMessage = string.Empty;
+
+            var comp = await _companyContext.GetActiveCompanyAsync(token);
+            if (token.IsCancellationRequested || currentGen != Interlocked.Read(ref _loadGeneration))
+            {
+                _logger.LogInformation("GST findings load superseded after company fetch. Generation: {Generation}", currentGen);
+                return;
+            }
+
             if (comp == null)
             {
+                _logger.LogInformation("No active company found for GST findings. Generation: {Generation}", currentGen);
                 ActiveCompanyName = "No Company Selected";
+                SelectedException = null;
                 Exceptions.Clear();
                 HasExceptions = false;
                 return;
             }
 
-            var current = comp;
-            ActiveCompanyName = current.TallyCompanyName;
+            string compId = comp.Id;
+            string compName = comp.TallyCompanyName;
 
-            var list = await _repository.GetExceptionsFilteredAsync(
-                current.Id,
+            _logger.LogInformation("Fetching GST exceptions from repository. Generation: {Generation}, CompanyId: {CompanyId}", currentGen, compId);
+
+            IReadOnlyList<AuditException> list = await _repository.GetExceptionsFilteredAsync(
+                compId,
                 category: "GST",
                 severity: "All",
                 status: "All",
                 searchQuery: null,
                 sortBy: "Priority",
-                isDescending: true
+                isDescending: true,
+                cancellationToken: token
             );
 
+            if (token.IsCancellationRequested || currentGen != Interlocked.Read(ref _loadGeneration))
+            {
+                _logger.LogInformation("GST findings load superseded after repository query. Generation: {Generation} (Current: {CurrentGen})", currentGen, Interlocked.Read(ref _loadGeneration));
+                return;
+            }
+
+            _logger.LogInformation("GST findings fetched. Generation: {Generation}, Count: {Count}", currentGen, list.Count);
+
+            // Mutate UI ObservableCollection safely on current generation
+            ActiveCompanyName = compName;
+            SelectedException = null;
             Exceptions.Clear();
+
             foreach (var ex in list)
             {
                 Exceptions.Add(ex);
             }
+
             HasExceptions = Exceptions.Count > 0;
-            if (SelectedException == null && Exceptions.Count > 0)
+            if (Exceptions.Count > 0)
             {
                 SelectedException = Exceptions[0];
             }
+            else
+            {
+                SelectedException = null;
+                HasExceptions = false;
+            }
+
+            _logger.LogDebug("GST findings load completed. Generation: {Generation}", currentGen);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogDebug("GST findings load cancelled during execution. Generation: {Generation}", currentGen);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error loading GST findings for generation {Generation}", currentGen);
+            StatusMessage = $"Failed to load findings: {ex.Message}";
         }
         finally
         {
-            IsLoading = false;
+            if (currentGen == Interlocked.Read(ref _loadGeneration))
+            {
+                IsLoading = false;
+            }
+            _loadGate.Release();
         }
     }
 
@@ -129,7 +234,7 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware
         {
             await _repository.UpdateExceptionStatusAsync(SelectedException.Id, SelectedException.Status, AuditorNoteInput);
             StatusMessage = "Review status saved successfully.";
-            await LoadGstExceptionsAsync();
+            await SafeLoadGstExceptionsAsync();
         }
         catch (Exception ex)
         {
@@ -159,5 +264,26 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware
         {
             AuditorNoteInput = value.AuditorNote ?? string.Empty;
         }
+        else
+        {
+            AuditorNoteInput = string.Empty;
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_isDisposed) return;
+        _isDisposed = true;
+
+        _companyContext.ActiveCompanyChanged -= OnActiveCompanyChanged;
+        
+        lock (_ctsLock)
+        {
+            _loadCts?.Cancel();
+            _loadCts?.Dispose();
+            _loadCts = null;
+        }
+
+        _loadGate.Dispose();
     }
 }
