@@ -31,6 +31,25 @@ public interface IInvestigationService
 
     Task UpdateInvestigationAsync(ExceptionInvestigation investigation, string username, CancellationToken ct = default);
 
+    Task SaveConclusionAsync(
+        string investigationId, 
+        InvestigationConclusion conclusion, 
+        string? notes, 
+        string username, 
+        CancellationToken ct = default);
+
+    Task LinkEvidenceAsync(
+        string investigationId, 
+        string evidenceId, 
+        string username, 
+        CancellationToken ct = default);
+
+    Task LinkWorkingPaperAsync(
+        string investigationId, 
+        string workingPaperId, 
+        string username, 
+        CancellationToken ct = default);
+
     Task ToggleChecklistItemAsync(
         string itemId, 
         bool isCompleted, 

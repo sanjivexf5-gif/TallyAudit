@@ -231,6 +231,112 @@ public class InvestigationService : IInvestigationService
         );
     }
 
+    public async Task SaveConclusionAsync(
+        string investigationId, 
+        InvestigationConclusion conclusion, 
+        string? notes, 
+        string username, 
+        CancellationToken ct = default)
+    {
+        var investigation = await _investigationRepository.GetByIdAsync(investigationId, ct);
+        if (investigation == null)
+        {
+            throw new KeyNotFoundException($"Investigation {investigationId} was not found.");
+        }
+
+        var oldConclusion = investigation.Conclusion;
+        investigation.Conclusion = conclusion;
+        investigation.ConclusionNotes = notes;
+        investigation.UpdatedBy = username;
+        investigation.UpdatedAt = DateTime.UtcNow;
+
+        await _investigationRepository.UpdateInvestigationAsync(investigation, ct);
+
+        await _auditTrailService.RecordActivityAsync(
+            action: "ConclusionChanged",
+            category: "INVESTIGATION",
+            description: $"Investigation {investigationId} conclusion changed from {oldConclusion} to {conclusion}. Notes: {notes ?? "None"}",
+            companyId: investigation.CompanyId,
+            financialPeriodId: investigation.FinancialPeriodId,
+            entityType: "ExceptionInvestigation",
+            entityId: investigation.Id,
+            metadataJson: $"{{\"from\":\"{oldConclusion}\",\"to\":\"{conclusion}\",\"notes\":\"{notes}\"}}",
+            ct: ct
+        );
+    }
+
+    public async Task LinkEvidenceAsync(
+        string investigationId, 
+        string evidenceId, 
+        string username, 
+        CancellationToken ct = default)
+    {
+        var investigation = await _investigationRepository.GetByIdAsync(investigationId, ct);
+        if (investigation == null)
+        {
+            throw new KeyNotFoundException($"Investigation {investigationId} was not found.");
+        }
+
+        var currentIds = (investigation.LinkedEvidenceIds ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        if (!currentIds.Contains(evidenceId))
+        {
+            currentIds.Add(evidenceId);
+            investigation.LinkedEvidenceIds = string.Join(",", currentIds);
+            investigation.UpdatedBy = username;
+            investigation.UpdatedAt = DateTime.UtcNow;
+
+            await _investigationRepository.UpdateInvestigationAsync(investigation, ct);
+
+            await _auditTrailService.RecordActivityAsync(
+                action: "EvidenceLinked",
+                category: "INVESTIGATION",
+                description: $"Audit evidence {evidenceId} linked to investigation {investigationId} by {username}",
+                companyId: investigation.CompanyId,
+                financialPeriodId: investigation.FinancialPeriodId,
+                entityType: "ExceptionInvestigation",
+                entityId: investigation.Id,
+                metadataJson: $"{{\"evidenceId\":\"{evidenceId}\"}}",
+                ct: ct
+            );
+        }
+    }
+
+    public async Task LinkWorkingPaperAsync(
+        string investigationId, 
+        string workingPaperId, 
+        string username, 
+        CancellationToken ct = default)
+    {
+        var investigation = await _investigationRepository.GetByIdAsync(investigationId, ct);
+        if (investigation == null)
+        {
+            throw new KeyNotFoundException($"Investigation {investigationId} was not found.");
+        }
+
+        var currentIds = (investigation.LinkedWorkingPaperIds ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        if (!currentIds.Contains(workingPaperId))
+        {
+            currentIds.Add(workingPaperId);
+            investigation.LinkedWorkingPaperIds = string.Join(",", currentIds);
+            investigation.UpdatedBy = username;
+            investigation.UpdatedAt = DateTime.UtcNow;
+
+            await _investigationRepository.UpdateInvestigationAsync(investigation, ct);
+
+            await _auditTrailService.RecordActivityAsync(
+                action: "WorkingPaperLinked",
+                category: "INVESTIGATION",
+                description: $"Working paper {workingPaperId} linked to investigation {investigationId} by {username}",
+                companyId: investigation.CompanyId,
+                financialPeriodId: investigation.FinancialPeriodId,
+                entityType: "ExceptionInvestigation",
+                entityId: investigation.Id,
+                metadataJson: $"{{\"workingPaperId\":\"{workingPaperId}\"}}",
+                ct: ct
+            );
+        }
+    }
+
     public async Task ToggleChecklistItemAsync(
         string itemId,
         bool isCompleted,
@@ -250,7 +356,7 @@ public class InvestigationService : IInvestigationService
         await _investigationRepository.UpdateChecklistItemAsync(item, ct);
 
         await _auditTrailService.RecordActivityAsync(
-            action: "ChecklistItemUpdated",
+            action: "InvestigationChecklistUpdated",
             category: "INVESTIGATION",
             description: $"Checklist item {itemId} set to {(isCompleted ? "Completed" : "Incomplete")} by {username}",
             entityType: "InvestigationChecklistItem",
@@ -271,10 +377,22 @@ public class InvestigationService : IInvestigationService
         var auditTrail = await _auditTrailService.GetAuditTrailAsync(companyId, limit: 100, ct: ct);
         if (auditTrail != null)
         {
-            relatedData.InvestigationAuditTrail = auditTrail
+            var filteredTrail = auditTrail
                 .Where(a => a != null && (a.EntityId == exceptionId || (a.Description != null && a.Description.Contains(exceptionId))))
                 .OrderByDescending(a => a.Timestamp)
                 .ToList();
+
+            relatedData.InvestigationAuditTrail = filteredTrail;
+
+            relatedData.TimelineEvents = filteredTrail.Select(a => new InvestigationTimelineEvent
+            {
+                Timestamp = a.Timestamp,
+                EventType = a.Action,
+                Title = a.Action,
+                Description = a.Description,
+                Actor = a.Username ?? "Auditor",
+                MetadataJson = a.MetadataJson
+            }).ToList();
         }
 
         // 3. Fetch Working Papers & Evidence from finalization/evidence repository
@@ -312,9 +430,114 @@ public class InvestigationService : IInvestigationService
             _logger.LogWarning(ex, "Failed to load working papers / evidence for company {CompanyId}", companyId);
         }
 
-        // 4. If we have a target exception, gather contextual details
-        if (targetException != null)
+        // 4. If target exception exists, compute related exceptions, grouping, impact, and recurrence
+        if (targetException != null && exceptions != null)
         {
+            // Potentially related exceptions (same voucher, ledger, category, or rule)
+            var relatedList = exceptions
+                .Where(e => e.Id != targetException.Id && (
+                    (!string.IsNullOrEmpty(e.VoucherNumber) && e.VoucherNumber == targetException.VoucherNumber) ||
+                    (!string.IsNullOrEmpty(e.LedgerName) && e.LedgerName == targetException.LedgerName) ||
+                    e.Category == targetException.Category ||
+                    e.RuleId == targetException.RuleId
+                ))
+                .Select(e => new RelatedExceptionSummary
+                {
+                    FindingId = e.Id,
+                    Category = e.Category,
+                    RuleId = e.RuleId,
+                    RuleName = e.RuleName,
+                    GrossAmount = e.FlaggedAmount ?? 0m,
+                    TaxAmount = (e.FlaggedAmount ?? 0m) * 0.18m, // Estimated tax component where applicable
+                    Status = e.Status,
+                    Priority = e.Severity,
+                    RelationshipType = (!string.IsNullOrEmpty(e.VoucherNumber) && e.VoucherNumber == targetException.VoucherNumber) ? "Same Voucher" :
+                                       (!string.IsNullOrEmpty(e.LedgerName) && e.LedgerName == targetException.LedgerName) ? "Same Ledger" :
+                                       (e.RuleId == targetException.RuleId) ? "Same Rule" : "Same Category",
+                    VoucherNumber = e.VoucherNumber,
+                    VoucherDate = e.VoucherDate,
+                    LedgerName = e.LedgerName
+                })
+                .Take(50)
+                .ToList();
+
+            relatedData.RelatedExceptions = relatedList;
+
+            // Deterministic Root-Cause Grouping
+            var groups = exceptions
+                .GroupBy(e => string.IsNullOrEmpty(e.LedgerName) ? e.Category.ToString() : e.LedgerName)
+                .Select(g => new RootCauseGroupSummary
+                {
+                    GroupKey = g.Key,
+                    GroupingType = "Ledger / Category",
+                    Title = $"Pattern: {g.Key}",
+                    FindingCount = g.Count(),
+                    TotalGrossAmount = g.Sum(x => x.FlaggedAmount ?? 0m),
+                    TotalTaxAmount = g.Sum(x => (x.FlaggedAmount ?? 0m) * 0.18m),
+                    AffectedVouchersCount = g.Where(x => !string.IsNullOrEmpty(x.VoucherNumber)).Select(x => x.VoucherNumber).Distinct().Count(),
+                    AffectedPartiesLedgersCount = g.Where(x => !string.IsNullOrEmpty(x.LedgerName)).Select(x => x.LedgerName).Distinct().Count(),
+                    Headline = "Pattern requiring auditor review"
+                })
+                .OrderByDescending(g => g.FindingCount)
+                .Take(10)
+                .ToList();
+
+            relatedData.RootCauseGroups = groups;
+
+            // Impact Analysis
+            decimal gross = targetException.FlaggedAmount ?? 0m;
+            decimal tax = gross * 0.18m;
+            int affectedVouchers = string.IsNullOrEmpty(targetException.VoucherNumber) ? 1 : exceptions.Count(e => e.VoucherNumber == targetException.VoucherNumber);
+            int affectedParties = string.IsNullOrEmpty(targetException.LedgerName) ? 1 : exceptions.Count(e => e.LedgerName == targetException.LedgerName);
+
+            int totalVoucherCount = await _auditRepository.GetVoucherCountAsync(companyId, ct);
+            
+            relatedData.Impact = new InvestigationImpactAnalysis
+            {
+                GrossAmount = gross,
+                TaxAmount = tax,
+                AffectedVouchersCount = affectedVouchers,
+                AffectedPartiesCount = affectedParties,
+                AffectedLedgersCount = string.IsNullOrEmpty(targetException.LedgerName) ? 1 : 1,
+                PopulationTotalAmount = null,
+                PopulationVoucherCount = totalVoucherCount > 0 ? totalVoucherCount : null,
+                PopulationPercentageByAmount = null,
+                PopulationPercentageByCount = (totalVoucherCount > 0) ? Math.Round(((decimal)affectedVouchers / totalVoucherCount) * 100m, 2) : null,
+                MaterialityThreshold = 100000m,
+                IsMaterial = gross >= 100000m,
+                PopulationDataAvailable = totalVoucherCount > 0,
+                BasisDescription = totalVoucherCount > 0 ? $"Evaluated against {totalVoucherCount} synchronized vouchers." : "Not available"
+            };
+
+            // Recurrence Analysis
+            var priorMatching = exceptions.Where(e => e.Id != targetException.Id && e.RuleId == targetException.RuleId && e.LedgerName == targetException.LedgerName).ToList();
+            if (priorMatching.Any(p => p.Status == ReviewStatus.Resolved))
+            {
+                relatedData.Recurrence = new RecurrenceAnalysisResult
+                {
+                    Classification = RecurrenceClassification.ResolvedAndReappeared,
+                    PriorFindingId = priorMatching.First(p => p.Status == ReviewStatus.Resolved).Id,
+                    Explanation = "Identified previously resolved exception for identical rule and ledger."
+                };
+            }
+            else if (priorMatching.Any())
+            {
+                relatedData.Recurrence = new RecurrenceAnalysisResult
+                {
+                    Classification = RecurrenceClassification.Recurring,
+                    PriorFindingId = priorMatching.First().Id,
+                    Explanation = "Recurring exception detected in current audit population."
+                };
+            }
+            else
+            {
+                relatedData.Recurrence = new RecurrenceAnalysisResult
+                {
+                    Classification = RecurrenceClassification.New,
+                    Explanation = "New finding. No prior occurrence detected for rule and ledger."
+                };
+            }
+
             if (!string.IsNullOrEmpty(targetException.LedgerName))
             {
                 relatedData.Ledger = new Ledger
@@ -370,21 +593,16 @@ public class InvestigationService : IInvestigationService
     {
         return new List<InvestigationChecklistItem>
         {
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-01", Description = "Review source transaction" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-02", Description = "Review related ledger" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-03", Description = "Review related party/customer/vendor" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-01", Description = "Review source voucher" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-02", Description = "Review ledger" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-03", Description = "Review party details" },
             new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-04", Description = "Review supporting evidence" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-05", Description = "Check related vouchers" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-06", Description = "Check related GST information" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-07", Description = "Check related TDS information" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-08", Description = "Check reconciliation results" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-09", Description = "Check duplicate candidates" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-10", Description = "Check period/cut-off" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-11", Description = "Check master data" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-12", Description = "Obtain additional evidence" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-13", Description = "Obtain management response" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-14", Description = "Perform re-check" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-15", Description = "Record conclusion" }
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-05", Description = "Review related transactions" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-06", Description = "Check tax treatment" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-07", Description = "Check reconciliation impact" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-08", Description = "Record investigation remarks" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-09", Description = "Attach supporting evidence" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-10", Description = "Record conclusion" }
         };
     }
 }

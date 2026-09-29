@@ -41,6 +41,12 @@ public partial class InvestigationViewModel : ObservableObject, INavigationAware
     private RootCauseClassification _currentRootCause;
 
     [ObservableProperty]
+    private InvestigationConclusion _currentConclusion;
+
+    [ObservableProperty]
+    private string _conclusionNotes = string.Empty;
+
+    [ObservableProperty]
     private string _auditorNotes = string.Empty;
 
     [ObservableProperty]
@@ -109,6 +115,8 @@ public partial class InvestigationViewModel : ObservableObject, INavigationAware
             Investigation = inv;
             CurrentStatus = inv.Status;
             CurrentRootCause = inv.RootCause;
+            CurrentConclusion = inv.Conclusion;
+            ConclusionNotes = inv.ConclusionNotes ?? string.Empty;
             AuditorNotes = inv.AuditorNotes ?? string.Empty;
             ManagementResponse = inv.ManagementResponse ?? string.Empty;
             ProposedCorrectiveAction = inv.ProposedCorrectiveAction ?? string.Empty;
@@ -144,6 +152,8 @@ public partial class InvestigationViewModel : ObservableObject, INavigationAware
         try
         {
             Investigation.RootCause = CurrentRootCause;
+            Investigation.Conclusion = CurrentConclusion;
+            Investigation.ConclusionNotes = ConclusionNotes;
             Investigation.AuditorNotes = AuditorNotes;
             Investigation.ManagementResponse = ManagementResponse;
             Investigation.ProposedCorrectiveAction = ProposedCorrectiveAction;
@@ -155,6 +165,35 @@ public partial class InvestigationViewModel : ObservableObject, INavigationAware
         catch (Exception ex)
         {
             StatusMessage = $"Failed to save: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    [RelayCommand]
+    public async Task SaveConclusionAsync()
+    {
+        if (Investigation == null) return;
+
+        IsLoading = true;
+        StatusMessage = string.Empty;
+        try
+        {
+            await _investigationService.SaveConclusionAsync(
+                Investigation.Id,
+                CurrentConclusion,
+                ConclusionNotes,
+                "Auditor"
+            );
+            Investigation.Conclusion = CurrentConclusion;
+            Investigation.ConclusionNotes = ConclusionNotes;
+            StatusMessage = $"Auditor conclusion set to '{CurrentConclusion}'. Saved successfully.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to save conclusion: {ex.Message}";
         }
         finally
         {

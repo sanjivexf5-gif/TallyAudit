@@ -75,14 +75,18 @@ public class InvestigationRepository : IInvestigationRepository
         const string sql = @"
             INSERT INTO ExceptionInvestigations (
                 Id, ExceptionId, CompanyId, FinancialPeriodId, AuditRunId,
-                Status, RootCause, AuditorNotes, ManagementResponse,
-                ProposedCorrectiveAction, ReviewerNotes, CreatedAt, UpdatedAt,
-                CreatedBy, UpdatedBy, ClosedAt
+                Status, RootCause, Conclusion, ConclusionNotes, RecurrenceStatus,
+                RecurrenceSource, AuditorNotes, ManagementResponse,
+                ProposedCorrectiveAction, ReviewerNotes, LinkedEvidenceIds,
+                LinkedWorkingPaperIds, CreatedAt, UpdatedAt, CreatedBy,
+                UpdatedBy, ClosedAt
             ) VALUES (
                 @Id, @ExceptionId, @CompanyId, @FinancialPeriodId, @AuditRunId,
-                @Status, @RootCause, @AuditorNotes, @ManagementResponse,
-                @ProposedCorrectiveAction, @ReviewerNotes, @CreatedAt, @UpdatedAt,
-                @CreatedBy, @UpdatedBy, @ClosedAt
+                @Status, @RootCause, @Conclusion, @ConclusionNotes, @RecurrenceStatus,
+                @RecurrenceSource, @AuditorNotes, @ManagementResponse,
+                @ProposedCorrectiveAction, @ReviewerNotes, @LinkedEvidenceIds,
+                @LinkedWorkingPaperIds, @CreatedAt, @UpdatedAt, @CreatedBy,
+                @UpdatedBy, @ClosedAt
             );";
 
         await conn.ExecuteAsync(new CommandDefinition(sql, investigation, cancellationToken: ct));
@@ -100,10 +104,16 @@ public class InvestigationRepository : IInvestigationRepository
             UPDATE ExceptionInvestigations SET
                 Status = @Status,
                 RootCause = @RootCause,
+                Conclusion = @Conclusion,
+                ConclusionNotes = @ConclusionNotes,
+                RecurrenceStatus = @RecurrenceStatus,
+                RecurrenceSource = @RecurrenceSource,
                 AuditorNotes = @AuditorNotes,
                 ManagementResponse = @ManagementResponse,
                 ProposedCorrectiveAction = @ProposedCorrectiveAction,
                 ReviewerNotes = @ReviewerNotes,
+                LinkedEvidenceIds = @LinkedEvidenceIds,
+                LinkedWorkingPaperIds = @LinkedWorkingPaperIds,
                 UpdatedAt = @UpdatedAt,
                 UpdatedBy = @UpdatedBy,
                 ClosedAt = @ClosedAt

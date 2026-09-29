@@ -336,10 +336,16 @@ public class DatabaseInitializer : IDatabaseInitializer
                 AuditRunId TEXT,
                 Status INTEGER NOT NULL DEFAULT 0,
                 RootCause INTEGER NOT NULL DEFAULT 9,
+                Conclusion INTEGER NOT NULL DEFAULT 0,
+                ConclusionNotes TEXT,
+                RecurrenceStatus INTEGER NOT NULL DEFAULT 0,
+                RecurrenceSource TEXT,
                 AuditorNotes TEXT,
                 ManagementResponse TEXT,
                 ProposedCorrectiveAction TEXT,
                 ReviewerNotes TEXT,
+                LinkedEvidenceIds TEXT,
+                LinkedWorkingPaperIds TEXT,
                 CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
                 CreatedBy TEXT NOT NULL,
@@ -384,6 +390,13 @@ public class DatabaseInitializer : IDatabaseInitializer
         {
             // Column already present
         }
+
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN Conclusion INTEGER NOT NULL DEFAULT 0;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN ConclusionNotes TEXT;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN RecurrenceStatus INTEGER NOT NULL DEFAULT 0;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN RecurrenceSource TEXT;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN LinkedEvidenceIds TEXT;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN LinkedWorkingPaperIds TEXT;", cancellationToken: cancellationToken)); } catch {}
 
         try
         {

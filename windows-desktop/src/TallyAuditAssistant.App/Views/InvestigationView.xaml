@@ -1,0 +1,253 @@
+<UserControl x:Class="TallyAuditAssistant.App.Views.InvestigationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             mc:Ignorable="d" 
+             d:DesignHeight="700" d:DesignWidth="1000">
+    <Grid Margin="0,0,10,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Header & Target Exception Summary -->
+        <Border Grid.Row="0" Background="#1E293B" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="16" Margin="0,0,0,16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="← Back to Findings" Command="{Binding ReturnToExceptionsCommand}" Background="#334155" Padding="10,4" Margin="0,0,12,0"/>
+                        <TextBlock Text="Audit Exception Investigation Workspace 2.0" FontSize="18" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Company: " Foreground="{StaticResource TextMutedBrush}" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding ActiveCompanyName}" Foreground="#38BDF8" FontWeight="Bold" Margin="4,0,0,0"/>
+                    </StackPanel>
+                </Grid>
+
+                <Border Grid.Row="1" Background="#0F172A" CornerRadius="6" Padding="12" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                    <UniformGrid Columns="6">
+                        <StackPanel Margin="4">
+                            <TextBlock Text="RULE / FINDING" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding TargetException.RuleName, TargetNullValue='—'}" FontWeight="Bold" Foreground="White" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <StackPanel Margin="4">
+                            <TextBlock Text="SEVERITY" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding TargetException.Severity, TargetNullValue='—'}" FontWeight="SemiBold" Foreground="#F59E0B"/>
+                        </StackPanel>
+                        <StackPanel Margin="4">
+                            <TextBlock Text="VOUCHER NO" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding TargetException.VoucherNumber, TargetNullValue='—'}" FontWeight="SemiBold" Foreground="White"/>
+                        </StackPanel>
+                        <StackPanel Margin="4">
+                            <TextBlock Text="LEDGER / PARTY" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding TargetException.LedgerName, TargetNullValue='—'}" FontWeight="SemiBold" Foreground="White" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                        <StackPanel Margin="4">
+                            <TextBlock Text="FLAGGED AMOUNT" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding TargetException.FlaggedAmount, StringFormat={}{0:C}, TargetNullValue='—'}" FontWeight="Bold" Foreground="#10B981"/>
+                        </StackPanel>
+                        <StackPanel Margin="4">
+                            <TextBlock Text="REVIEW STATUS" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding CurrentStatus, TargetNullValue='—'}" FontWeight="Bold" Foreground="#38BDF8"/>
+                        </StackPanel>
+                    </UniformGrid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Workspace Grid: Tabbed Analysis + Conclusions -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="2*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Panel: Investigation Tab Control -->
+            <Border Grid.Column="0" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14" Margin="0,0,12,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Section Header -->
+                    <TextBlock Grid.Row="0" Text="Investigation Analysis &amp; Working Papers" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/>
+
+                    <!-- Main Tab Control -->
+                    <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0">
+                        <!-- Tab 1: Checklist -->
+                        <TabItem Header="📋 Checklist" Foreground="White" Padding="10,6">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                                <ItemsControl ItemsSource="{Binding ChecklistItems}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#0F172A" CornerRadius="6" Padding="10,8" Margin="0,0,0,8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <CheckBox Grid.Column="0" IsChecked="{Binding IsCompleted, Mode=TwoWay}" 
+                                                              Command="{Binding DataContext.ToggleChecklistItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" 
+                                                              CommandParameter="{Binding}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                    <StackPanel Grid.Column="1">
+                                                        <TextBlock Text="{Binding Description}" FontWeight="SemiBold" Foreground="White" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding Notes, TargetNullValue='No notes'}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- Tab 2: Timeline -->
+                        <TabItem Header="⏱ Timeline" Foreground="White" Padding="10,6">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                                <ItemsControl ItemsSource="{Binding RelatedData.TimelineEvents}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#0F172A" CornerRadius="6" Padding="10,8" Margin="0,0,0,8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <TextBlock Text="{Binding Title}" FontWeight="Bold" Foreground="#38BDF8"/>
+                                                        <TextBlock Text="{Binding Timestamp, StringFormat={}{0:dd-MMM-yyyy HH:mm}}" HorizontalAlignment="Right" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding Description}" Foreground="White" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- Tab 3: Potentially Related Exceptions -->
+                        <TabItem Header="🔍 Related Exceptions" Foreground="White" Padding="10,6">
+                            <Grid Margin="0,10,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="Potentially Related Exceptions in Current Company Context" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"/>
+                                <DataGrid Grid.Row="1" ItemsSource="{Binding RelatedData.RelatedExceptions}" AutoGenerateColumns="False" GridLinesVisibility="None" HeadersVisibility="Column">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Rule" Binding="{Binding RuleName}" Width="*"/>
+                                        <DataGridTextColumn Header="Relationship" Binding="{Binding RelationshipType}" Width="110"/>
+                                        <DataGridTextColumn Header="Amount" Binding="{Binding GrossAmount, StringFormat={}{0:C}}" Width="100"/>
+                                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </TabItem>
+
+                        <!-- Tab 4: Impact Analysis -->
+                        <TabItem Header="📊 Impact Analysis" Foreground="White" Padding="10,6">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                                <StackPanel>
+                                    <Border Background="#0F172A" CornerRadius="6" Padding="12" Margin="0,0,0,10" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                        <StackPanel>
+                                            <TextBlock Text="QUANTITATIVE IMPACT BREAKDOWN" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" Margin="0,0,0,8"/>
+                                            <UniformGrid Columns="2" Margin="0,0,0,8">
+                                                <StackPanel Margin="4">
+                                                    <TextBlock Text="Gross Amount" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                                    <TextBlock Text="{Binding RelatedData.Impact.GrossAmount, StringFormat={}{0:C}}" FontWeight="Bold" Foreground="White"/>
+                                                </StackPanel>
+                                                <StackPanel Margin="4">
+                                                    <TextBlock Text="Tax Amount" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                                    <TextBlock Text="{Binding RelatedData.Impact.TaxAmount, StringFormat={}{0:C}}" FontWeight="Bold" Foreground="#10B981"/>
+                                                </StackPanel>
+                                                <StackPanel Margin="4">
+                                                    <TextBlock Text="Affected Vouchers" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                                    <TextBlock Text="{Binding RelatedData.Impact.AffectedVouchersCount}" FontWeight="Bold" Foreground="White"/>
+                                                </StackPanel>
+                                                <StackPanel Margin="4">
+                                                    <TextBlock Text="Affected Parties/Ledgers" FontSize="10" Foreground="{StaticResource TextMutedBrush}"/>
+                                                    <TextBlock Text="{Binding RelatedData.Impact.AffectedPartiesCount}" FontWeight="Bold" Foreground="White"/>
+                                                </StackPanel>
+                                            </UniformGrid>
+                                            <Separator Background="{StaticResource BorderBrush}" Margin="0,4,0,8"/>
+                                            <TextBlock Text="POPULATION CONTEXT &amp; MATERIALITY" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" Margin="0,0,0,6"/>
+                                            <TextBlock Text="{Binding RelatedData.Impact.BasisDescription}" Foreground="White" FontSize="12" Margin="0,0,0,4"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <!-- Tab 5: Pattern Grouping -->
+                        <TabItem Header="🧩 Root-Cause Patterns" Foreground="White" Padding="10,6">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,10,0,0">
+                                <ItemsControl ItemsSource="{Binding RelatedData.RootCauseGroups}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#0F172A" CornerRadius="6" Padding="10,8" Margin="0,0,0,8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Headline}" FontSize="10" FontWeight="Bold" Foreground="#F59E0B"/>
+                                                    <TextBlock Text="{Binding Title}" FontWeight="Bold" Foreground="White" Margin="0,2,0,4"/>
+                                                    <TextBlock Text="{Binding FindingCount, StringFormat='Findings in pattern: {0}'}" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Border>
+
+            <!-- Right Panel: Auditor Remarks & Conclusion -->
+            <Border Grid.Column="1" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="16">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <TextBlock Text="Auditor Remarks &amp; Final Conclusion" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/>
+
+                        <!-- Auditor Notes Editor -->
+                        <TextBlock Text="AUDITOR WORKING REMARKS" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding AuditorNotes, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Height="90" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AcceptsReturn="True" Padding="6" Margin="0,0,0,12"/>
+
+                        <!-- Management Response -->
+                        <TextBlock Text="MANAGEMENT RESPONSE / EXPLANATION" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding ManagementResponse, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Height="70" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AcceptsReturn="True" Padding="6" Margin="0,0,0,12"/>
+
+                        <!-- Auditor Final Conclusion Choice -->
+                        <Separator Background="{StaticResource BorderBrush}" Margin="0,0,0,12"/>
+                        <TextBlock Text="AUDITOR CONCLUSION" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" Margin="0,0,0,4"/>
+                        <ComboBox SelectedItem="{Binding CurrentConclusion}" Background="#0F172A" Foreground="White" Padding="6" Margin="0,0,0,12">
+                            <ComboBox.ItemsSource>
+                                <x:Array Type="{x:Type vm:InvestigationConclusion}" 
+                                         xmlns:vm="clr-namespace:TallyAuditAssistant.Core.Domain.Audit">
+                                    <vm:InvestigationConclusion>Pending</vm:InvestigationConclusion>
+                                    <vm:InvestigationConclusion>NoExceptionNoted</vm:InvestigationConclusion>
+                                    <vm:InvestigationConclusion>ExceptionConfirmed</vm:InvestigationConclusion>
+                                    <vm:InvestigationConclusion>FurtherReviewRequired</vm:InvestigationConclusion>
+                                    <vm:InvestigationConclusion>UnableToComplete</vm:InvestigationConclusion>
+                                    <vm:InvestigationConclusion>NotApplicable</vm:InvestigationConclusion>
+                                </x:Array>
+                            </ComboBox.ItemsSource>
+                        </ComboBox>
+
+                        <TextBlock Text="CONCLUSION NOTES &amp; BASIS" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                        <TextBox Text="{Binding ConclusionNotes, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Height="70" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AcceptsReturn="True" Padding="6" Margin="0,0,0,14"/>
+
+                        <!-- Action Buttons -->
+                        <Button Content="💾 Save Investigation &amp; Conclusion" Command="{Binding SaveConclusionCommand}" Padding="14,8" HorizontalAlignment="Right" Margin="0,0,0,10"/>
+                        <TextBlock Text="{Binding StatusMessage}" Foreground="#10B981" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>
