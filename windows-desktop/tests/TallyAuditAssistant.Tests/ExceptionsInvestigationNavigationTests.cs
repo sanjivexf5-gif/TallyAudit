@@ -68,7 +68,7 @@ public class ExceptionsInvestigationNavigationTests
             CompanyId = "COMP-01",
             RuleName = "Duplicate Voucher Number",
             Category = RuleCategory.DuplicateDetection,
-            Severity = ExceptionSeverity.High,
+            Severity = SeverityLevel.High,
             VoucherNumber = "V-9999",
             FlaggedAmount = 150000m,
             Status = ReviewStatus.Pending

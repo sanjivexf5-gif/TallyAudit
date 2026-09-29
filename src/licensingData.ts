@@ -190,6 +190,34 @@ export const defaultTrialLicense: LicenseInfo = {
 
 export const releaseNotesHistory: UpdateReleaseNote[] = [
   {
+    version: '1.0.15',
+    releaseDate: '29-Sep-2026',
+    title: 'Audit Exception Investigation UI & Workspace Integration (v1.0.15)',
+    highlights: [
+      'Seamless UI navigation from Central Exceptions Register to Investigation Workspace 2.0',
+      'Actionable [🔎 Investigate] button on selected audit findings',
+      'Full context preservation across Exception ID, company, financial period, rule, severity, and voucher details',
+      'Bidirectional navigation back to Exceptions register preserving auditor selection'
+    ],
+    newFeatures: [
+      'Direct [🔎 Investigate] action button on selected findings in ExceptionsView',
+      'Integrated OpenInvestigation command passing complete AuditException context to InvestigationViewModel',
+      'Smooth workspace transition with [← Back to Findings] return action'
+    ],
+    improvements: [
+      'Preserves selected exception state upon returning to the Central Exceptions Register',
+      '100% strictly read-only against TallyPrime — all investigation records remain local'
+    ],
+    bugFixes: [
+      'Resolved navigation test type reference CS0103 for SeverityLevel',
+      'Aligned release metadata and installer configuration for v1.0.15'
+    ],
+    schemaMigrationRequired: false,
+    downloadUrl: 'https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.15/TallyAuditAssistant-Setup-1.0.15.exe',
+    sha256Checksum: 'c9e20f5a213948375b0482910394857201938475610293847561029384756101',
+    fileSizeBytes: 49250000
+  },
+  {
     version: '1.0.14',
     releaseDate: '29-Sep-2026',
     title: 'Audit Exception Investigation & Root-Cause Analysis 2.0 (v1.0.14)',
