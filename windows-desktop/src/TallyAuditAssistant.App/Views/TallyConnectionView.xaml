@@ -19,13 +19,31 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="Automatic Endpoint Discovery (Ports 9000-9005)" FontWeight="Bold" FontSize="15" Foreground="White"/>
-                        <TextBlock Text="Continuous background monitor checks connectivity periodically with minimal CPU usage." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                        <TextBlock Text="Automatic Endpoint Discovery" FontWeight="Bold" FontSize="15" Foreground="White"/>
+                        <Grid Margin="0,4,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="60"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Scan Port Range: 9000 to " VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBox Grid.Column="1" Text="{Binding ScanRangeMax, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Padding="4,2" Margin="5,0"/>
+                            <TextBlock Grid.Column="2" Text="(Default: 9005, Max: 9100)" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
+                        </Grid>
                         <TextBlock Text="{Binding StatusMessage}" Foreground="#38BDF8" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
                     <Button Grid.Column="1" Content="⚡ Auto-Detect TallyPrime" Command="{Binding ScanForTallyCommand}" 
                             IsEnabled="{Binding IsScanning, Converter={StaticResource InverseBooleanConverter}}" Padding="18,10" VerticalAlignment="Center"/>
                 </Grid>
+            </Border>
+
+            <Border Padding="16" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock Text="Tally Connection Diagnostic Report" FontWeight="Bold" FontSize="15" Foreground="White" Margin="0,0,0,10"/>
+                    <TextBox Text="{Binding DiagnosticReport, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" 
+                             Background="#070B14" Foreground="#38BDF8" FontFamily="Consolas, Courier New" FontSize="12" 
+                             Padding="12" BorderBrush="{StaticResource BorderBrush}" MinHeight="60" MaxHeight="120" VerticalScrollBarVisibility="Auto"/>
+                </StackPanel>
             </Border>
 
             <!-- Diagnostics Metrics Cards -->

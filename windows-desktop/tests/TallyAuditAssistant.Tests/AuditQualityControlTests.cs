@@ -158,6 +158,15 @@ public class AuditQualityControlTests : IAsyncLifetime
         Assert.NotEqual(summaryA.PassedChecksCount, summaryB.PassedChecksCount);
     }
 
+    private async Task EnsureRuleExistsAsync(string ruleId)
+    {
+        using var conn = await _factory.CreateConnectionAsync();
+        await conn.ExecuteAsync(@"
+            INSERT OR IGNORE INTO AuditRules (RuleId, Category, Name, Description, Severity, SuggestedReview, Version, IsEnabled)
+            VALUES (@RuleId, 6, 'Test Rule', 'Description', 3, 'Review', '1.0.0', 1);
+        ", new { RuleId = ruleId });
+    }
+
     [Fact]
     public async Task GetQualityControlSummary_WithPendingFinding_ReturnsAttentionRequired()
     {
@@ -165,6 +174,7 @@ public class AuditQualityControlTests : IAsyncLifetime
         string periodId = "FY-2025-26";
         await SaveCompanyAsync(companyId);
         await SaveVoucherAsync(companyId);
+        await EnsureRuleExistsAsync("ACC-DUP-01");
 
         var state = await _finalizationService.GetOrCreateStateAsync(companyId, periodId);
 
@@ -191,6 +201,7 @@ public class AuditQualityControlTests : IAsyncLifetime
         string periodId = "FY-2025-26";
         await SaveCompanyAsync(companyId);
         await SaveVoucherAsync(companyId);
+        await EnsureRuleExistsAsync("ACC-DUP-01");
 
         var state = await _finalizationService.GetOrCreateStateAsync(companyId, periodId);
         

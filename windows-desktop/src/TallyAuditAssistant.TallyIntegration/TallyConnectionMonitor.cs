@@ -57,28 +57,28 @@ public class TallyConnectionMonitor : IDisposable
                 var host = await _settingsService.GetTallyHostAsync();
                 var port = await _settingsService.GetTallyPortAsync();
 
-                // 1. Lightweight quick check on known configured port first to save CPU
-                var isQuickReachable = await _connection.TestConnectionAsync(host, port, cancellationToken);
+                // 1. Lightweight quick check on known configured port first
+                var primaryResult = await _connection.TestConnectionDetailedAsync(host, port, cancellationToken);
                 
-                if (isQuickReachable)
+                if (primaryResult.IsResponsive)
                 {
-                    UpdateState(ConnectionStatus.Connected, _connection.ActiveEndpoint);
+                    UpdateState(ConnectionStatus.Connected, primaryResult);
                     await Task.Delay(TimeSpan.FromSeconds(normalIntervalSeconds), cancellationToken);
                     continue;
                 }
 
-                // 2. Check if process is even running
+                // 2. Not reachable on primary. Is the process even there?
                 var isProcessRunning = await _connection.CheckIfProcessRunningAsync(cancellationToken);
                 if (!isProcessRunning)
                 {
                     UpdateState(ConnectionStatus.Disconnected, null);
-                    // Process not running; sleep longer with backoff to minimize CPU
                     await Task.Delay(TimeSpan.FromSeconds(backoffIntervalSeconds), cancellationToken);
                     continue;
                 }
 
-                // 3. Process is running, scan ports 9000-9005
-                var endpoint = await _connection.ProbePortRangeAsync(host, 9000, 9005, cancellationToken);
+                // 3. Process exists but primary port failed. Try discovery.
+                // We don't want to scan too often.
+                var endpoint = await _connection.DiscoverTallyAsync(host, port, 9005, cancellationToken);
                 if (endpoint != null && endpoint.IsResponsive)
                 {
                     UpdateState(ConnectionStatus.Connected, endpoint);

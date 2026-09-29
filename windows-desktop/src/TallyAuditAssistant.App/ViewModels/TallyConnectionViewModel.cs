@@ -26,10 +26,16 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
     private int _port = 9000;
 
     [ObservableProperty]
+    private int _scanRangeMax = 9005;
+
+    [ObservableProperty]
     private bool _isScanning = false;
 
     [ObservableProperty]
     private string _statusMessage = "Ready to detect TallyPrime";
+
+    [ObservableProperty]
+    private string _diagnosticReport = string.Empty;
 
     [ObservableProperty]
     private string _detectedVersion = "—";
@@ -165,19 +171,25 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
     private async Task ScanForTallyAsync()
     {
         IsScanning = true;
-        StatusMessage = "Scanning for TallyPrime process and open ports (9000-9005)...";
+        StatusMessage = $"Scanning for TallyPrime (Port 9000 to {ScanRangeMax})...";
+        DiagnosticReport = "Starting discovery...";
 
         try
         {
+            var (normalizedHost, normalizedPort, _) = TallyEndpointNormalization.Normalize(Host, Port);
+            Host = normalizedHost;
+            Port = normalizedPort;
+
             IsProcessRunning = await _tallyConnection.CheckIfProcessRunningAsync();
-            var endpoint = await _tallyConnection.ProbePortRangeAsync(Host, 9000, 9005);
+            var endpoint = await _tallyConnection.DiscoverTallyAsync(Host, Port, ScanRangeMax);
 
             if (endpoint != null && endpoint.IsResponsive)
             {
                 IsConnected = true;
                 Port = endpoint.Port;
                 Latency = $"{endpoint.LatencyMs} ms";
-                DetectedVersion = endpoint.ServerVersion ?? "TallyPrime XML Server";
+                DetectedVersion = endpoint.ServerVersion ?? "TallyPrime";
+                DiagnosticReport = "✓ TallyPrime detected and responsive.";
 
                 var companies = await _companyService.GetOpenCompaniesAsync($"http://{Host}:{Port}");
                 AvailableCompanies.Clear();
@@ -189,41 +201,35 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 if (companies.Count > 0)
                 {
                     StatusMessage = "Tally Connected";
-                    if (companies.Count == 1)
-                    {
-                        SelectedCompany = companies[0];
-                    }
-                    else
-                    {
-                        SelectedCompany = companies[0];
-                    }
+                    SelectedCompany = companies[0];
+                    DiagnosticReport += $"\n✓ {companies.Count} company/companies detected.";
                 }
                 else
                 {
                     ActiveCompany = "—";
                     SelectedCompany = null;
-                    StatusMessage = "Tally Connected (No open companies found. Please open a company in TallyPrime).";
+                    StatusMessage = "Tally Connected (No open companies)";
+                    DiagnosticReport += "\n⚠ No companies are currently open in TallyPrime.";
                 }
 
                 await _settingsService.SetTallyPortAsync(Port);
+                await _settingsService.SetTallyHostAsync(Host);
             }
             else
             {
                 IsConnected = false;
-                DetectedVersion = "—";
-                ActiveCompany = "—";
-                CompanyGstin = "—";
-                CompanyState = "—";
-                CompanyBooksDate = "—";
-                Latency = "—";
-                AvailableCompanies.Clear();
-                SelectedCompany = null;
-                StatusMessage = "Tally not detected. Open TallyPrime and Retry";
+                StatusMessage = "Tally not detected";
+                DiagnosticReport = "✗ Discovery failed. TallyPrime is not responding on the scanned ports.";
+                if (IsProcessRunning)
+                {
+                    DiagnosticReport += "\n⚠ Tally process is running but HTTP server is inaccessible.";
+                }
             }
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Tally not detected. Open TallyPrime and Retry (Error: {ex.Message})";
+            StatusMessage = "Discovery Error";
+            DiagnosticReport = $"✗ Error during discovery: {ex.Message}";
             IsConnected = false;
         }
         finally
@@ -236,15 +242,21 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
     private async Task TestManualConnectionAsync()
     {
         IsScanning = true;
-        StatusMessage = $"Testing connection to http://{Host}:{Port}...";
+        var (normalizedHost, normalizedPort, _) = TallyEndpointNormalization.Normalize(Host, Port);
+        Host = normalizedHost;
+        Port = normalizedPort;
+
+        StatusMessage = $"Testing http://{Host}:{Port}...";
+        DiagnosticReport = $"Probing {Host}:{Port}...";
 
         try
         {
-            var success = await _tallyConnection.TestConnectionAsync(Host, Port);
-            if (success)
+            var result = await _tallyConnection.TestConnectionDetailedAsync(Host, Port);
+            if (result.IsResponsive)
             {
                 IsConnected = true;
                 StatusMessage = "Tally Connected";
+                DiagnosticReport = "✓ Manual connection verified.";
                 
                 var companies = await _companyService.GetOpenCompaniesAsync($"http://{Host}:{Port}");
                 AvailableCompanies.Clear();
@@ -260,6 +272,7 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 else
                 {
                     SelectedCompany = null;
+                    DiagnosticReport += "\n⚠ No companies loaded.";
                 }
 
                 await _settingsService.SetTallyPortAsync(Port);
@@ -268,12 +281,18 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
             else
             {
                 IsConnected = false;
-                StatusMessage = "Tally not detected. Open TallyPrime and Retry";
+                StatusMessage = "Connection Failed";
+                DiagnosticReport = $"✗ Failed: {result.ErrorMessage}";
+                if (result.FailureCause == ConnectionFailureCause.ConnectionRefused)
+                {
+                    DiagnosticReport += "\n→ Verify TallyPrime is running and HTTP server is enabled.";
+                }
             }
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Error: {ex.Message}";
+            StatusMessage = "Error";
+            DiagnosticReport = $"✗ unexpected error: {ex.Message}";
             IsConnected = false;
         }
         finally

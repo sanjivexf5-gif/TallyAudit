@@ -48,66 +48,131 @@ public class TallyConnection : ITallyConnection
 
     public async Task<TallyEndpointInfo?> ProbePortRangeAsync(string host = "localhost", int startPort = 9000, int endPort = 9005, CancellationToken cancellationToken = default)
     {
+        return await DiscoverTallyAsync(host, startPort, endPort, cancellationToken);
+    }
+
+    public async Task<TallyEndpointInfo?> DiscoverTallyAsync(string? preferredHost = null, int? preferredPort = null, int scanRangeMax = 9005, CancellationToken cancellationToken = default)
+    {
         SetStatus(ConnectionStatus.Scanning);
-        _logger.LogInformation("Probing Tally endpoints on {Host} across ports {Start}-{End}...", host, startPort, endPort);
+        
+        var host = preferredHost ?? await _settingsService.GetTallyHostAsync();
+        if (string.IsNullOrEmpty(host)) host = "localhost";
 
-        var isProcessRunning = await CheckIfProcessRunningAsync(cancellationToken);
-
-        for (var port = startPort; port <= endPort; port++)
+        // 1. Try preferred/configured port first
+        var targetPort = preferredPort ?? await _settingsService.GetTallyPortAsync();
+        _logger.LogInformation("Attempting primary connection to TallyPrime at {Host}:{Port}...", host, targetPort);
+        
+        var primaryResult = await TestConnectionDetailedAsync(host, targetPort, cancellationToken);
+        if (primaryResult.IsResponsive)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var url = $"http://{host}:{port}";
-
-            try
-            {
-                var sw = Stopwatch.StartNew();
-                var responsive = await _tallyClient.PingAsync(url, cancellationToken);
-                sw.Stop();
-
-                if (responsive)
-                {
-                    _logger.LogInformation("Successfully connected to TallyPrime at {Url} in {Elapsed}ms", url, sw.ElapsedMilliseconds);
-                    
-                    ActiveEndpoint = new TallyEndpointInfo(
-                        Host: host,
-                        Port: port,
-                        IsResponsive: true,
-                        ServerVersion: "TallyPrime 4.x / 5.x Server",
-                        LatencyMs: sw.ElapsedMilliseconds
-                    );
-                    
-                    SetStatus(ConnectionStatus.Connected);
-                    return ActiveEndpoint;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug("Port {Port} ping check failed: {Message}", port, ex.Message);
-            }
+            ActiveEndpoint = primaryResult;
+            SetStatus(ConnectionStatus.Connected);
+            return primaryResult;
         }
 
+        // 2. Not found at primary, scan common range (9000 to scanRangeMax)
+        _logger.LogInformation("Primary port failed. Scanning range 9000-{Max} on {Host}...", scanRangeMax, host);
+        
+        // Use parallel probing for speed, but limit concurrency
+        var portsToScan = Enumerable.Range(9000, scanRangeMax - 9000 + 1)
+            .Where(p => p != targetPort)
+            .ToList();
+
+        var semaphore = new SemaphoreSlim(3); // Probing 3 ports at a time
+        var tasks = portsToScan.Select(async port =>
+        {
+            await semaphore.WaitAsync(cancellationToken);
+            try
+            {
+                return await TestConnectionDetailedAsync(host, port, cancellationToken);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        });
+
+        var results = await Task.WhenAll(tasks);
+        var successful = results.FirstOrDefault(r => r.IsResponsive);
+
+        if (successful != null)
+        {
+            _logger.LogInformation("Tally detected on alternative port {Port}", successful.Port);
+            ActiveEndpoint = successful;
+            SetStatus(ConnectionStatus.Connected);
+            
+            // Persist the newly discovered port
+            await _settingsService.SetTallyPortAsync(successful.Port);
+            return successful;
+        }
+
+        // 3. Not found anywhere
         ActiveEndpoint = null;
+        var isProcessRunning = await CheckIfProcessRunningAsync(cancellationToken);
+        
         if (isProcessRunning)
         {
-            LastErrorMessage = "TallyPrime process is running, but the HTTP server is not responding on ports 9000-9005. Check F12: Advanced Configuration in Tally.";
+            LastErrorMessage = $"TallyPrime process detected, but no responsive HTTP server found on ports 9000-{scanRangeMax}. Verify 'Enable HTTP Server' in Tally F12 settings.";
             SetStatus(ConnectionStatus.ProcessRunningPortClosed);
         }
         else
         {
-            LastErrorMessage = "TallyPrime is not running on this computer.";
+            LastErrorMessage = "TallyPrime is not detected on this system.";
             SetStatus(ConnectionStatus.Disconnected);
         }
 
         return null;
     }
 
-    public async Task<bool> TestConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
+    public async Task<TallyEndpointInfo> TestConnectionDetailedAsync(string host, int port, CancellationToken cancellationToken = default)
     {
         var url = $"http://{host}:{port}";
-        var responsive = await _tallyClient.PingAsync(url, cancellationToken);
-        if (responsive)
+        try
         {
-            ActiveEndpoint = new TallyEndpointInfo(host, port, true);
+            var sw = Stopwatch.StartNew();
+            // PingAsync in TallyClient now does body validation
+            var responsive = await _tallyClient.PingAsync(url, cancellationToken);
+            sw.Stop();
+
+            if (responsive)
+            {
+                return new TallyEndpointInfo(
+                    Host: host,
+                    Port: port,
+                    IsResponsive: true,
+                    ServerVersion: "TallyPrime",
+                    LatencyMs: sw.ElapsedMilliseconds
+                );
+            }
+
+            return new TallyEndpointInfo(
+                Host: host,
+                Port: port,
+                IsResponsive: false,
+                FailureCause: ConnectionFailureCause.InvalidResponse,
+                ErrorMessage: "Port is open but TallyPrime did not provide a valid XML response."
+            );
+        }
+        catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException { SocketErrorCode: System.Net.Sockets.SocketError.ConnectionRefused })
+        {
+            return new TallyEndpointInfo(host, port, false, FailureCause: ConnectionFailureCause.ConnectionRefused, ErrorMessage: "Connection refused.");
+        }
+        catch (TaskCanceledException)
+        {
+            return new TallyEndpointInfo(host, port, false, FailureCause: ConnectionFailureCause.Timeout, ErrorMessage: "Connection timed out.");
+        }
+        catch (Exception ex)
+        {
+            return new TallyEndpointInfo(host, port, false, FailureCause: ConnectionFailureCause.Unknown, ErrorMessage: ex.Message);
+        }
+    }
+
+    public async Task<bool> TestConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
+    {
+        var result = await TestConnectionDetailedAsync(host, port, cancellationToken);
+        if (result.IsResponsive)
+        {
+            ActiveEndpoint = result;
             SetStatus(ConnectionStatus.Connected);
             return true;
         }

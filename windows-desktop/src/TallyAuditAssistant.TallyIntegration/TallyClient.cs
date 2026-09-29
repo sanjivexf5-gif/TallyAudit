@@ -127,7 +127,16 @@ public class TallyClient : ITallyClient
 
             using var content = new StringContent(pingEnvelope, Encoding.UTF8, "text/xml");
             var response = await _httpClient.PostAsync(endpointUrl, content, cts.Token);
-            return response.IsSuccessStatusCode;
+            
+            if (!response.IsSuccessStatusCode) return false;
+
+            var body = await response.Content.ReadAsStringAsync(cts.Token);
+            
+            // Basic Tally XML validation
+            return body.Contains("<ENVELOPE>", StringComparison.OrdinalIgnoreCase) && 
+                   (body.Contains("<TALLYRESPONSE>", StringComparison.OrdinalIgnoreCase) || 
+                    body.Contains("<VERSION>", StringComparison.OrdinalIgnoreCase) ||
+                    body.Contains("<SVCSVERSION>", StringComparison.OrdinalIgnoreCase));
         }
         catch
         {
