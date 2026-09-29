@@ -254,6 +254,79 @@ public class DatabaseInitializer : IDatabaseInitializer
                 Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
+            -- 10. Audit Finalization & Workflow
+            CREATE TABLE IF NOT EXISTS AuditFinalizationStates (
+                Id TEXT PRIMARY KEY,
+                CompanyId TEXT NOT NULL REFERENCES Companies(Id) ON DELETE CASCADE,
+                FinancialPeriodId TEXT NOT NULL,
+                Status INTEGER NOT NULL,
+                CompletionPercentage REAL NOT NULL,
+                AuditorConclusionStatus TEXT NOT NULL,
+                AuditorConclusionText TEXT,
+                AuditorConclusionBasis TEXT,
+                AuditorConclusionDate DATETIME,
+                AuditorConclusionPreparedBy TEXT,
+                ReviewerName TEXT,
+                ReviewerComments TEXT,
+                ReviewedAt DATETIME,
+                FinalizedBy TEXT,
+                FinalizedAt DATETIME
+            );
+
+            CREATE TABLE IF NOT EXISTS AuditChecklistItems (
+                Id TEXT PRIMARY KEY,
+                AuditId TEXT NOT NULL REFERENCES AuditFinalizationStates(Id) ON DELETE CASCADE,
+                Section TEXT NOT NULL,
+                Code TEXT NOT NULL,
+                Description TEXT NOT NULL,
+                IsCompleted INTEGER DEFAULT 0,
+                CompletedAt DATETIME,
+                CompletedBy TEXT,
+                Notes TEXT,
+                SourceReference TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS AuditOpenItems (
+                Id TEXT PRIMARY KEY,
+                AuditId TEXT NOT NULL REFERENCES AuditFinalizationStates(Id) ON DELETE CASCADE,
+                Description TEXT NOT NULL,
+                Category TEXT NOT NULL,
+                Priority TEXT NOT NULL,
+                Owner TEXT NOT NULL,
+                DueDate DATETIME,
+                Status TEXT NOT NULL,
+                RelatedFindingId TEXT,
+                RelatedProcedureId TEXT,
+                RelatedEvidenceId TEXT,
+                Remarks TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS AuditReviewNotes (
+                Id TEXT PRIMARY KEY,
+                AuditId TEXT NOT NULL REFERENCES AuditFinalizationStates(Id) ON DELETE CASCADE,
+                Area TEXT NOT NULL,
+                Reference TEXT NOT NULL,
+                Reviewer TEXT NOT NULL,
+                CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                Comment TEXT NOT NULL,
+                Status TEXT NOT NULL,
+                ResolvedBy TEXT,
+                ResolvedAt DATETIME,
+                Resolution TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS AuditAmendments (
+                Id TEXT PRIMARY KEY,
+                AuditId TEXT NOT NULL REFERENCES AuditFinalizationStates(Id) ON DELETE CASCADE,
+                Reason TEXT NOT NULL,
+                RequestedBy TEXT NOT NULL,
+                RequestedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                ApprovedBy TEXT,
+                ApprovedAt DATETIME,
+                Status TEXT NOT NULL,
+                Description TEXT
+            );
+
             -- 9. Performance Indexes
             CREATE INDEX IF NOT EXISTS idx_vouchers_comp_date ON Vouchers(CompanyId, VoucherDate);
             CREATE INDEX IF NOT EXISTS idx_vouchers_comp_type ON Vouchers(CompanyId, VoucherTypeName);
@@ -264,6 +337,7 @@ public class DatabaseInitializer : IDatabaseInitializer
             CREATE INDEX IF NOT EXISTS idx_exceptions_status ON Exceptions(CompanyId, Status);
             CREATE INDEX IF NOT EXISTS idx_auditruns_comp ON AuditRuns(CompanyId);
             CREATE INDEX IF NOT EXISTS idx_corrections_comp_status ON TallyCorrections(CompanyId, Status);
+            CREATE INDEX IF NOT EXISTS idx_finalization_states ON AuditFinalizationStates(CompanyId, Status);
         ";
 
         await connection.ExecuteAsync(new CommandDefinition(schemaSql, cancellationToken: cancellationToken));

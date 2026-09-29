@@ -31,18 +31,18 @@ public class UpdateServiceTests
     }
 
     [Fact]
-    public void AppVersion_Properties_Match_Authoritative_106_Values()
+    public void AppVersion_Properties_Match_Authoritative_107_Values()
     {
-        Assert.Equal("1.0.6", AppVersion.Version);
-        Assert.Equal("2026.09.28.106", AppVersion.BuildNumber);
-        Assert.Contains("v1.0.6", AppVersion.DisplayString);
+        Assert.Equal("1.0.7", AppVersion.Version);
+        Assert.Equal("2026.09.28.107", AppVersion.BuildNumber);
+        Assert.Contains("v1.0.7", AppVersion.DisplayString);
     }
 
     [Fact]
     public void GetCurrentVersion_ReturnsVersionString()
     {
         var service = new UpdateService(NullLogger<UpdateService>.Instance);
-        Assert.Equal("1.0.6", service.GetCurrentVersion());
+        Assert.Equal("1.0.7", service.GetCurrentVersion());
     }
 
     [Fact]
@@ -248,23 +248,23 @@ public class UpdateServiceTests
     }
 
     [Fact]
-    public async Task CheckForUpdates_Installed106_GitHubRelease106_UpdateAvailableFalse()
+    public async Task CheckForUpdates_Installed106_GitHubRelease107_UpdateAvailableTrue()
     {
-        // Test: installed = 1.0.6, GitHub: v1.0.6
-        // Expected: update available = false
+        // Test: installed = 1.0.6, GitHub release: v1.0.7
+        // Expected: update available = true
         var jsonResponse = @"[
             {
-                ""tag_name"": ""v1.0.6"",
-                ""name"": ""Tally Audit Assistant v1.0.6"",
+                ""tag_name"": ""v1.0.7"",
+                ""name"": ""Tally Audit Assistant v1.0.7"",
                 ""draft"": false,
                 ""prerelease"": false,
-                ""body"": ""Current 1.0.6 release"",
-                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/tag/v1.0.6"",
+                ""body"": ""Audit finalization workflow release 1.0.7"",
+                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/tag/v1.0.7"",
                 ""assets"": [
                     {
-                        ""name"": ""TallyAuditAssistant-Setup-1.0.6.exe"",
-                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.6/TallyAuditAssistant-Setup-1.0.6.exe"",
-                        ""size"": 15750000
+                        ""name"": ""TallyAuditAssistant-Setup-1.0.7.exe"",
+                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.7/TallyAuditAssistant-Setup-1.0.7.exe"",
+                        ""size"": 15800000
                     }
                 ]
             }
@@ -281,9 +281,49 @@ public class UpdateServiceTests
         var update = await service.CheckForUpdatesAsync();
 
         Assert.NotNull(update);
-        Assert.False(update.IsUpdateAvailable);
-        Assert.Equal("1.0.6", update.LatestVersion);
+        Assert.True(update.IsUpdateAvailable);
+        Assert.Equal("1.0.7", update.LatestVersion);
         Assert.Equal("1.0.6", update.CurrentVersion);
+        Assert.Equal("https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.7/TallyAuditAssistant-Setup-1.0.7.exe", update.DownloadUrl);
+    }
+
+    [Fact]
+    public async Task CheckForUpdates_Installed107_GitHubRelease107_UpdateAvailableFalse()
+    {
+        // Test: installed = 1.0.7, GitHub: v1.0.7
+        // Expected: update available = false
+        var jsonResponse = @"[
+            {
+                ""tag_name"": ""v1.0.7"",
+                ""name"": ""Tally Audit Assistant v1.0.7"",
+                ""draft"": false,
+                ""prerelease"": false,
+                ""body"": ""Current 1.0.7 release"",
+                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/tag/v1.0.7"",
+                ""assets"": [
+                    {
+                        ""name"": ""TallyAuditAssistant-Setup-1.0.7.exe"",
+                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.7/TallyAuditAssistant-Setup-1.0.7.exe"",
+                        ""size"": 15800000
+                    }
+                ]
+            }
+        ]";
+
+        var mockHandler = new MockHttpMessageHandler(req => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
+        });
+
+        var httpClient = new HttpClient(mockHandler);
+        var service = new UpdateService(NullLogger<UpdateService>.Instance, httpClient, installedVersion: "1.0.7");
+
+        var update = await service.CheckForUpdatesAsync();
+
+        Assert.NotNull(update);
+        Assert.False(update.IsUpdateAvailable);
+        Assert.Equal("1.0.7", update.LatestVersion);
+        Assert.Equal("1.0.7", update.CurrentVersion);
     }
 
     [Fact]

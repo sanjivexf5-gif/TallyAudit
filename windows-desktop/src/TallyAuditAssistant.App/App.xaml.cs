@@ -15,8 +15,10 @@ using TallyAuditAssistant.Core.Services;
 using TallyAuditAssistant.Data;
 using TallyAuditAssistant.Data.Repositories;
 using TallyAuditAssistant.Engine;
+using TallyAuditAssistant.Engine.Services;
 using TallyAuditAssistant.TallyIntegration;
 using TallyAuditAssistant.TallyIntegration.Mocks;
+using TallyAuditAssistant.TallyIntegration.Services;
 
 namespace TallyAuditAssistant.App;
 
@@ -112,6 +114,10 @@ public partial class App : Application
         services.AddSingleton<IAuditRepository, AuditRepository>();
         services.AddSingleton<ISyncRepository, SyncRepository>();
         services.AddSingleton<ISettingsService, SettingsRepository>();
+        services.AddSingleton<ITallyCorrectionRepository, TallyCorrectionRepository>();
+        services.AddSingleton<ITallyWriteService, TallyWriteService>();
+        services.AddSingleton<IAuditFinalizationRepository, AuditFinalizationRepository>();
+        services.AddSingleton<IAuditFinalizationService, AuditFinalizationService>();
 
         // Tally Integration registrations
         services.AddSingleton<ITallyRequestBuilder, TallyRequestBuilder>();
