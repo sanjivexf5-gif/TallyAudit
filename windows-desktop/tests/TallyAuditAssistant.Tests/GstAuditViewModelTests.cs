@@ -130,10 +130,10 @@ public class GstAuditViewModelTests : IDisposable
             FlaggedAmount = 50000m
         };
 
-        _mockRepository.SetupSequence(r => r.GetExceptionsFilteredAsync(
+        var returnedList = new List<AuditException> { finding };
+        _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
                 _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new[] { finding })
-            .ReturnsAsync(Array.Empty<AuditException>());
+            .ReturnsAsync(() => returnedList.ToArray());
 
         using var vm = new GstAuditViewModel(
             _mockRepository.Object,
@@ -149,6 +149,7 @@ public class GstAuditViewModelTests : IDisposable
         Assert.True(vm.HasExceptions);
 
         // Act 2: Subsequent refresh returns 0 findings
+        returnedList.Clear();
         await vm.LoadGstExceptionsAsync();
 
         // Assert
@@ -338,7 +339,19 @@ public class GstAuditViewModelTests : IDisposable
 
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
                 _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new[] { finding });
+            .ReturnsAsync(() => new[] { finding });
+
+        _mockRepository.Setup(r => r.UpdateExceptionStatusAsync(
+                It.IsAny<string>(), It.IsAny<ReviewStatus>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<string, ReviewStatus, string?, CancellationToken>((id, status, note, ct) =>
+            {
+                if (finding.Id == id)
+                {
+                    finding.Status = status;
+                    finding.AuditorNote = note;
+                }
+            })
+            .Returns(Task.CompletedTask);
 
         using var vm = new GstAuditViewModel(
             _mockRepository.Object,
@@ -362,6 +375,11 @@ public class GstAuditViewModelTests : IDisposable
             "Verified tax invoice manually.",
             It.IsAny<CancellationToken>()), Times.Once);
 
+        // Assert note and status persisted on the finding
+        Assert.Equal(ReviewStatus.Reviewed, finding.Status);
+        Assert.Equal("Verified tax invoice manually.", finding.AuditorNote);
+        Assert.Equal("Verified tax invoice manually.", vm.AuditorNoteInput);
+
         // Act: Mark Accepted / Resolved
         await vm.MarkAsAcceptedCommand.ExecuteAsync(null);
 
@@ -371,5 +389,7 @@ public class GstAuditViewModelTests : IDisposable
             ReviewStatus.Resolved,
             "Verified tax invoice manually.",
             It.IsAny<CancellationToken>()), Times.Once);
+
+        Assert.Equal(ReviewStatus.Resolved, finding.Status);
     }
 }

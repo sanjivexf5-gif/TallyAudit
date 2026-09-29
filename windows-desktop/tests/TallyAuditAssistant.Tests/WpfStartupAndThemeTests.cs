@@ -12,6 +12,7 @@ using TallyAuditAssistant.Core.Services;
 using TallyAuditAssistant.Data;
 using TallyAuditAssistant.Data.Repositories;
 using TallyAuditAssistant.Engine.Services;
+using TallyAuditAssistant.TallyIntegration.Mocks;
 using Xunit;
 
 namespace TallyAuditAssistant.Tests;
@@ -240,6 +241,7 @@ public class WpfStartupAndThemeTests
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton<IAuditRepository, AuditRepository>();
         services.AddSingleton<ISettingsService, SettingsRepository>();
+        services.AddSingleton<ITallyCompanyService, MockTallyCompanyService>();
         services.AddSingleton<IActiveCompanyContext, ActiveCompanyContext>();
         services.AddSingleton<INavigationService, NavigationService>();
         services.AddSingleton<GstAuditViewModel>();
