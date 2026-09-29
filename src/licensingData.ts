@@ -190,6 +190,36 @@ export const defaultTrialLicense: LicenseInfo = {
 
 export const releaseNotesHistory: UpdateReleaseNote[] = [
   {
+    version: '1.0.14',
+    releaseDate: '29-Sep-2026',
+    title: 'Audit Exception Investigation & Root-Cause Analysis 2.0 (v1.0.14)',
+    highlights: [
+      'XAML type resolution fix for InvestigationWorkspace conclusions and recurrence classification',
+      'Auditor-Controlled Investigation Conclusions with strict read-only TallyPrime isolation',
+      'Comprehensive Finding Timeline, Root-Cause Pattern Grouping, and Impact Analysis',
+      'Cross-run recurring exception detection and evidence/working-paper linkage'
+    ],
+    newFeatures: [
+      'Auditor Conclusion Choice Selector with 6 formal choices (Pending, No Exception Noted, Exception Confirmed, Further Review Required, Unable to Complete, Not Applicable)',
+      'Cross-audit run and prior-year recurrence classification engine',
+      'Integrated working-paper and evidence linkage per investigation',
+      'Quantitative impact breakdown with gross amount, tax amount, and affected party counts'
+    ],
+    improvements: [
+      'Strict auditor decision boundary prohibiting AI or automated system conclusions',
+      'Fully isolated local SQLite audit persistence without Tally write-back',
+      'Clean XAML assembly namespace references across WPF controls'
+    ],
+    bugFixes: [
+      'Fixed XAML markup compiler MC3050 type resolution for InvestigationConclusion in WPF views',
+      'Updated version alignment across assembly metadata, installers, and test assertions'
+    ],
+    schemaMigrationRequired: false,
+    downloadUrl: 'https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.14/TallyAuditAssistant-Setup-1.0.14.exe',
+    sha256Checksum: 'b8d10e4f102837264a93821a938c110298374619a82746102938475619281014',
+    fileSizeBytes: 49200000
+  },
+  {
     version: '1.0.10',
     releaseDate: '29-Sep-2026',
     title: 'Audit Exception Root-Cause & Investigation Workspace (v1.0.10)',

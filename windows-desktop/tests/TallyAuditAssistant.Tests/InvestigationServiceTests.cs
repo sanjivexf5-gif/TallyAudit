@@ -277,6 +277,76 @@ public class InvestigationServiceTests : IAsyncLifetime
         Assert.Equal(50000.0m, relatedData.SourceVoucher.TotalAmount);
     }
 
+    [Fact]
+    public async Task SaveConclusionAsync_PersistsAuditorConclusionAndNotes()
+    {
+        const string compId = "COMP-INV-09";
+        const string excId = "EXC-INV-09";
+        await SeedCompanyAndExceptionAsync(compId, excId);
+
+        var inv = await _service.GetOrCreateInvestigationAsync(excId, compId, "AuditorA");
+        await _service.SaveConclusionAsync(inv.Id, InvestigationConclusion.ExceptionConfirmed, "Auditor verified duplicate entry.", "AuditorA");
+
+        var updated = await _service.GetInvestigationByIdAsync(inv.Id);
+        Assert.NotNull(updated);
+        Assert.Equal(InvestigationConclusion.ExceptionConfirmed, updated.Conclusion);
+        Assert.Equal("Auditor verified duplicate entry.", updated.ConclusionNotes);
+    }
+
+    [Fact]
+    public async Task UpdateInvestigationAsync_PersistsRecurrenceEvidenceAndWorkingPapers()
+    {
+        const string compId = "COMP-INV-10";
+        const string excId = "EXC-INV-10";
+        await SeedCompanyAndExceptionAsync(compId, excId);
+
+        var inv = await _service.GetOrCreateInvestigationAsync(excId, compId, "AuditorA");
+        inv.RecurrenceStatus = RecurrenceClassification.Recurring;
+        inv.LinkedEvidenceIds = "EVD-001,EVD-002";
+        inv.LinkedWorkingPaperIds = "WP-2026-GST-01";
+        inv.FinancialPeriodId = "FY-2025-26";
+
+        await _service.UpdateInvestigationAsync(inv, "AuditorA");
+
+        var updated = await _service.GetInvestigationByIdAsync(inv.Id);
+        Assert.NotNull(updated);
+        Assert.Equal(RecurrenceClassification.Recurring, updated.RecurrenceStatus);
+        Assert.Equal("EVD-001,EVD-002", updated.LinkedEvidenceIds);
+        Assert.Equal("WP-2026-GST-01", updated.LinkedWorkingPaperIds);
+        Assert.Equal("FY-2025-26", updated.FinancialPeriodId);
+    }
+
+    [Fact]
+    public async Task CompanyAndPeriodIsolation_EnsuresIndependentInvestigations()
+    {
+        const string compA = "COMP-ISOLATION-A";
+        const string compB = "COMP-ISOLATION-B";
+        const string excA = "EXC-ISOLATION-A";
+        const string excB = "EXC-ISOLATION-B";
+
+        await SeedCompanyAndExceptionAsync(compA, excA);
+        await SeedCompanyAndExceptionAsync(compB, excB);
+
+        var invA = await _service.GetOrCreateInvestigationAsync(excA, compA, "AuditorA");
+        var invB = await _service.GetOrCreateInvestigationAsync(excB, compB, "AuditorB");
+
+        Assert.NotEqual(invA.Id, invB.Id);
+        Assert.Equal(compA, invA.CompanyId);
+        Assert.Equal(compB, invB.CompanyId);
+    }
+
+    [Fact]
+    public void InvestigationConclusion_EnumValues_ContainAllAuditorChoices()
+    {
+        var values = Enum.GetValues(typeof(InvestigationConclusion)).Cast<InvestigationConclusion>().ToList();
+        Assert.Contains(InvestigationConclusion.Pending, values);
+        Assert.Contains(InvestigationConclusion.NoExceptionNoted, values);
+        Assert.Contains(InvestigationConclusion.ExceptionConfirmed, values);
+        Assert.Contains(InvestigationConclusion.FurtherReviewRequired, values);
+        Assert.Contains(InvestigationConclusion.UnableToComplete, values);
+        Assert.Contains(InvestigationConclusion.NotApplicable, values);
+    }
+
     public async Task DisposeAsync()
     {
         try

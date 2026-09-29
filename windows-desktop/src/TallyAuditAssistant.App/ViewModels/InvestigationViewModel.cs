@@ -63,6 +63,7 @@ public partial class InvestigationViewModel : ObservableObject, INavigationAware
 
     public ObservableCollection<InvestigationChecklistItem> ChecklistItems { get; } = new();
     public ObservableCollection<InvestigationStatus> AllowedTransitions { get; } = new();
+    public Array AvailableConclusions => Enum.GetValues(typeof(InvestigationConclusion));
 
     public InvestigationViewModel(
         IInvestigationService investigationService,

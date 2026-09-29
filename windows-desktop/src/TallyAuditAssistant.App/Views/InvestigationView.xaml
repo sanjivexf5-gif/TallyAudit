@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:auditDomain="clr-namespace:TallyAuditAssistant.Core.Domain.Audit;assembly=TallyAuditAssistant.Core"
              mc:Ignorable="d" 
              d:DesignHeight="700" d:DesignWidth="1000">
     <Grid Margin="0,0,10,0">
@@ -225,19 +226,7 @@
                         <!-- Auditor Final Conclusion Choice -->
                         <Separator Background="{StaticResource BorderBrush}" Margin="0,0,0,12"/>
                         <TextBlock Text="AUDITOR CONCLUSION" FontSize="11" FontWeight="Bold" Foreground="#38BDF8" Margin="0,0,0,4"/>
-                        <ComboBox SelectedItem="{Binding CurrentConclusion}" Background="#0F172A" Foreground="White" Padding="6" Margin="0,0,0,12">
-                            <ComboBox.ItemsSource>
-                                <x:Array Type="{x:Type vm:InvestigationConclusion}" 
-                                         xmlns:vm="clr-namespace:TallyAuditAssistant.Core.Domain.Audit">
-                                    <vm:InvestigationConclusion>Pending</vm:InvestigationConclusion>
-                                    <vm:InvestigationConclusion>NoExceptionNoted</vm:InvestigationConclusion>
-                                    <vm:InvestigationConclusion>ExceptionConfirmed</vm:InvestigationConclusion>
-                                    <vm:InvestigationConclusion>FurtherReviewRequired</vm:InvestigationConclusion>
-                                    <vm:InvestigationConclusion>UnableToComplete</vm:InvestigationConclusion>
-                                    <vm:InvestigationConclusion>NotApplicable</vm:InvestigationConclusion>
-                                </x:Array>
-                            </ComboBox.ItemsSource>
-                        </ComboBox>
+                        <ComboBox ItemsSource="{Binding AvailableConclusions}" SelectedItem="{Binding CurrentConclusion}" Background="#0F172A" Foreground="White" Padding="6" Margin="0,0,0,12"/>
 
                         <TextBlock Text="CONCLUSION NOTES &amp; BASIS" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
                         <TextBox Text="{Binding ConclusionNotes, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Height="70" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AcceptsReturn="True" Padding="6" Margin="0,0,0,14"/>
