@@ -1,3 +1,9 @@
+using System;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using TallyAuditAssistant.Core.Domain.Audit;
@@ -176,5 +182,218 @@ public class TallyIntegrationTests
         Assert.Equal(142800m, v.TotalAmount);
         Assert.Equal(3, v.Entries.Count);
         Assert.Contains(v.Entries, e => e.LedgerName == "Input IGST 18%");
+    }
+
+    [Fact]
+    public async Task TestConnectionDetailed_SuccessfulTallyEndpoint_ReturnsResponsiveEndpointInfo()
+    {
+        // Arrange
+        var mockClient = new Mock<ITallyClient>();
+        mockClient.Setup(c => c.PingAsync("http://localhost:9000", It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(true);
+
+        var mockSettings = new Mock<ISettingsService>();
+        mockSettings.Setup(s => s.IsMockModeEnabledAsync()).ReturnsAsync(false);
+
+        var connection = new TallyConnection(mockClient.Object, mockSettings.Object, _connectionLogger);
+
+        // Act
+        var result = await connection.TestConnectionDetailedAsync("localhost", 9000);
+
+        // Assert
+        Assert.True(result.IsResponsive);
+        Assert.Equal("localhost", result.Host);
+        Assert.Equal(9000, result.Port);
+        Assert.Equal("TallyPrime", result.ServerVersion);
+        Assert.Equal(ConnectionFailureCause.None, result.FailureCause);
+    }
+
+    [Fact]
+    public async Task TestConnectionDetailed_ConnectionRefused_ReturnsConnectionRefusedCause()
+    {
+        // Arrange
+        var mockClient = new Mock<ITallyClient>();
+        mockClient.Setup(c => c.PingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                  .ThrowsAsync(new HttpRequestException("Connection refused", new SocketException((int)SocketError.ConnectionRefused)));
+
+        var mockSettings = new Mock<ISettingsService>();
+        mockSettings.Setup(s => s.IsMockModeEnabledAsync()).ReturnsAsync(false);
+
+        var connection = new TallyConnection(mockClient.Object, mockSettings.Object, _connectionLogger);
+
+        // Act
+        var result = await connection.TestConnectionDetailedAsync("localhost", 9000);
+
+        // Assert
+        Assert.False(result.IsResponsive);
+        Assert.Equal(ConnectionFailureCause.ConnectionRefused, result.FailureCause);
+        Assert.Contains("refused", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task TestConnectionDetailed_Timeout_ReturnsTimeoutCause()
+    {
+        // Arrange
+        var mockClient = new Mock<ITallyClient>();
+        mockClient.Setup(c => c.PingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                  .ThrowsAsync(new TaskCanceledException("Request timed out."));
+
+        var mockSettings = new Mock<ISettingsService>();
+        mockSettings.Setup(s => s.IsMockModeEnabledAsync()).ReturnsAsync(false);
+
+        var connection = new TallyConnection(mockClient.Object, mockSettings.Object, _connectionLogger);
+
+        // Act
+        var result = await connection.TestConnectionDetailedAsync("localhost", 9000);
+
+        // Assert
+        Assert.False(result.IsResponsive);
+        Assert.Equal(ConnectionFailureCause.Timeout, result.FailureCause);
+    }
+
+    [Fact]
+    public async Task TestConnectionDetailed_Cancellation_ReturnsTimeoutOrCancelled()
+    {
+        // Arrange
+        var mockClient = new Mock<ITallyClient>();
+        var mockSettings = new Mock<ISettingsService>();
+        var connection = new TallyConnection(mockClient.Object, mockSettings.Object, _connectionLogger);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        // Act
+        var result = await connection.TestConnectionDetailedAsync("localhost", 9000, cts.Token);
+
+        // Assert
+        Assert.False(result.IsResponsive);
+        Assert.Equal(ConnectionFailureCause.Timeout, result.FailureCause);
+    }
+
+    [Fact]
+    public async Task TestConnectionDetailed_InvalidEndpoint_ReturnsUnknownFailureCause()
+    {
+        // Arrange
+        var mockClient = new Mock<ITallyClient>();
+        var mockSettings = new Mock<ISettingsService>();
+        var connection = new TallyConnection(mockClient.Object, mockSettings.Object, _connectionLogger);
+
+        // Act
+        var result = await connection.TestConnectionDetailedAsync("http://http://localhost", 9000);
+
+        // Assert
+        Assert.False(result.IsResponsive);
+        Assert.Equal(ConnectionFailureCause.Unknown, result.FailureCause);
+        Assert.Contains("Invalid endpoint", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task TestConnectionDetailed_NonTallyHttpResponse_ReturnsInvalidResponseCause()
+    {
+        // Arrange
+        var mockClient = new Mock<ITallyClient>();
+        mockClient.Setup(c => c.PingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(false); // Port responds with HTTP but body is not valid Tally XML
+
+        var mockSettings = new Mock<ISettingsService>();
+        var connection = new TallyConnection(mockClient.Object, mockSettings.Object, _connectionLogger);
+
+        // Act
+        var result = await connection.TestConnectionDetailedAsync("localhost", 9000);
+
+        // Assert
+        Assert.False(result.IsResponsive);
+        Assert.Equal(ConnectionFailureCause.InvalidResponse, result.FailureCause);
+        Assert.Contains("XML", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task DiscoverTallyAsync_CustomPort_DiscoversAlternativePort()
+    {
+        // Arrange
+        var mockClient = new Mock<ITallyClient>();
+        mockClient.Setup(c => c.PingAsync("http://localhost:9000", It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(false);
+        mockClient.Setup(c => c.PingAsync("http://localhost:9003", It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(true);
+
+        var mockSettings = new Mock<ISettingsService>();
+        mockSettings.Setup(s => s.GetTallyHostAsync()).ReturnsAsync("localhost");
+        mockSettings.Setup(s => s.GetTallyPortAsync()).ReturnsAsync(9000);
+        mockSettings.Setup(s => s.IsMockModeEnabledAsync()).ReturnsAsync(false);
+
+        var connection = new TallyConnection(mockClient.Object, mockSettings.Object, _connectionLogger);
+
+        // Act
+        var result = await connection.DiscoverTallyAsync("localhost", 9000, scanRangeMax: 9005);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsResponsive);
+        Assert.Equal(9003, result.Port);
+        Assert.Equal(ConnectionStatus.Connected, connection.CurrentStatus);
+        mockSettings.Verify(s => s.SetTallyPortAsync(9003), Times.Once);
+    }
+
+    [Fact]
+    public async Task DiscoverTallyAsync_ValidTallyResponse_ConnectsSuccessfully()
+    {
+        // Arrange
+        var mockClient = new Mock<ITallyClient>();
+        mockClient.Setup(c => c.PingAsync("http://localhost:9000", It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(true);
+
+        var mockSettings = new Mock<ISettingsService>();
+        mockSettings.Setup(s => s.GetTallyHostAsync()).ReturnsAsync("localhost");
+        mockSettings.Setup(s => s.GetTallyPortAsync()).ReturnsAsync(9000);
+        mockSettings.Setup(s => s.IsMockModeEnabledAsync()).ReturnsAsync(false);
+
+        var connection = new TallyConnection(mockClient.Object, mockSettings.Object, _connectionLogger);
+
+        // Act
+        var result = await connection.DiscoverTallyAsync("localhost", 9000);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsResponsive);
+        Assert.Equal(9000, result.Port);
+        Assert.Equal(ConnectionStatus.Connected, connection.CurrentStatus);
+    }
+
+    [Fact]
+    public async Task CompanyService_NoCompanyLoaded_ReturnsEmptyList()
+    {
+        // Arrange
+        var mockClient = new Mock<ITallyClient>();
+        const string emptyCollectionXml = @"<ENVELOPE>
+  <HEADER><VERSION>1</VERSION><STATUS>1</STATUS></HEADER>
+  <BODY>
+    <DATA>
+      <COLLECTION>
+      </COLLECTION>
+    </DATA>
+  </BODY>
+</ENVELOPE>";
+
+        mockClient.Setup(c => c.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<TallyRequestFormat>(), It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(new TallyRawResponse(
+                      IsSuccess: true,
+                      HttpStatusCode: 200,
+                      Content: emptyCollectionXml,
+                      LatencyMs: 10));
+
+        var builder = new TallyRequestBuilder();
+        var parser = new TallyResponseParser(_parserLogger);
+        var mockSettings = new Mock<ISettingsService>();
+        mockSettings.Setup(s => s.GetTallyHostAsync()).ReturnsAsync("localhost");
+        mockSettings.Setup(s => s.GetTallyPortAsync()).ReturnsAsync(9000);
+
+        var companyService = new TallyCompanyService(mockClient.Object, builder, parser, mockSettings.Object, _companyServiceLogger);
+
+        // Act
+        var companies = await companyService.GetOpenCompaniesAsync("http://localhost:9000");
+
+        // Assert
+        Assert.Empty(companies);
     }
 }

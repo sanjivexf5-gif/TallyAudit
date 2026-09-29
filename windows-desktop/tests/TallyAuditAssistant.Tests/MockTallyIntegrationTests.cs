@@ -447,6 +447,24 @@ public class MockTallyIntegrationTests : IAsyncLifetime
             return Task.FromResult<TallyEndpointInfo?>(info);
         }
 
+        public Task<TallyEndpointInfo?> DiscoverTallyAsync(string? preferredHost = null, int? preferredPort = null, int scanRangeMax = 9005, CancellationToken cancellationToken = default)
+        {
+            var host = preferredHost ?? "localhost";
+            var port = preferredPort ?? 9000;
+            var info = new TallyEndpointInfo(host, port, true, "Mock/Demo", "Demo Industrial Solutions Pvt Ltd (FY 2025-26)", 5);
+            ActiveEndpoint = info;
+            CurrentStatus = ConnectionStatus.Connected;
+            return Task.FromResult<TallyEndpointInfo?>(info);
+        }
+
+        public Task<TallyEndpointInfo> TestConnectionDetailedAsync(string host, int port, CancellationToken cancellationToken = default)
+        {
+            var info = new TallyEndpointInfo(host, port, true, "Mock/Demo", "Demo Industrial Solutions Pvt Ltd (FY 2025-26)", 5);
+            ActiveEndpoint = info;
+            CurrentStatus = ConnectionStatus.Connected;
+            return Task.FromResult(info);
+        }
+
         public Task<bool> TestConnectionAsync(string host, int port, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(true);
