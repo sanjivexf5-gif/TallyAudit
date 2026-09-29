@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -16,6 +17,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
   </ItemGroup>
 
@@ -24,6 +26,7 @@
     <ProjectReference Include="..\..\src\TallyAuditAssistant.Data\TallyAuditAssistant.Data.csproj" />
     <ProjectReference Include="..\..\src\TallyAuditAssistant.TallyIntegration\TallyAuditAssistant.TallyIntegration.csproj" />
     <ProjectReference Include="..\..\src\TallyAuditAssistant.Engine\TallyAuditAssistant.Engine.csproj" />
+    <ProjectReference Include="..\..\src\TallyAuditAssistant.App\TallyAuditAssistant.App.csproj" />
   </ItemGroup>
 
 </Project>
