@@ -149,6 +149,7 @@ public class AuditQualityControlTests : IAsyncLifetime
 
         var stateA = await _finalizationService.GetOrCreateStateAsync(compA, periodId);
         var checklistA = await _finalizationRepository.GetChecklistAsync(stateA.Id);
+        Assert.NotEmpty(checklistA);
         await _finalizationService.SetChecklistItemCompletedAsync(checklistA[0].Id, true, "Auditor-S", "Complete");
 
         var summaryA = await _qcService.GetQualityControlSummaryAsync(compA, periodId);
@@ -171,7 +172,7 @@ public class AuditQualityControlTests : IAsyncLifetime
         using var conn = await _factory.CreateConnectionAsync();
         await conn.ExecuteAsync(@"
             INSERT INTO Exceptions (Id, CompanyId, RuleId, RuleName, Category, Severity, EvidenceJson, Status)
-            VALUES (@Id, @CompanyId, 'R1', 'Rule 1', 1, 1, '{}', 0);
+            VALUES (@Id, @CompanyId, 'ACC-DUP-01', 'Duplicate Voucher Number', 6, 3, '{}', 0);
         ", new { Id = "EXC-QC-01", CompanyId = companyId });
 
         var summary = await _qcService.GetQualityControlSummaryAsync(companyId, periodId);
@@ -206,7 +207,7 @@ public class AuditQualityControlTests : IAsyncLifetime
         using var conn = await _factory.CreateConnectionAsync();
         await conn.ExecuteAsync(@"
             INSERT INTO Exceptions (Id, CompanyId, RuleId, RuleName, Category, Severity, EvidenceJson, Status)
-            VALUES (@Id, @CompanyId, 'R1', 'Rule 1', 1, 1, '{}', 4);
+            VALUES (@Id, @CompanyId, 'ACC-DUP-01', 'Duplicate Voucher Number', 6, 3, '{}', 4);
         ", new { Id = "EXC-QC-02", CompanyId = companyId });
 
         var summary = await _qcService.GetQualityControlSummaryAsync(companyId, periodId);

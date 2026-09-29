@@ -87,6 +87,7 @@ public class AuditFinalizationTests : IAsyncLifetime
         var state = await GetOrCreateStateAsync(companyId, periodId);
 
         var checklist = await _repository.GetChecklistAsync(state.Id);
+        Assert.NotEmpty(checklist);
         var firstItem = checklist[0];
 
         await _service.SetChecklistItemCompletedAsync(firstItem.Id, true, "Auditor-S", "Document is valid");
@@ -231,6 +232,7 @@ public class AuditFinalizationTests : IAsyncLifetime
         var stateB = await GetOrCreateStateAsync(compB, periodId);
 
         var checklistA = await _repository.GetChecklistAsync(stateA.Id);
+        Assert.NotEmpty(checklistA);
         await _service.SetChecklistItemCompletedAsync(checklistA[0].Id, true, "Auditor-S", "Done");
 
         var updatedA = await _repository.GetStateByIdAsync(stateA.Id);
