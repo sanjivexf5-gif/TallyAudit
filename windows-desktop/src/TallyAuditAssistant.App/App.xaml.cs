@@ -161,9 +161,9 @@ public partial class App : Application
         services.AddSingleton<VouchersViewModel>();
         services.AddSingleton<LedgersViewModel>();
         services.AddSingleton<BankAuditViewModel>();
+        services.AddSingleton<InvestigationViewModel>();
         services.AddSingleton<ExceptionsViewModel>();
         services.AddSingleton<ReportsViewModel>();
-        services.AddSingleton<InvestigationViewModel>();
 
         // Views
         services.AddSingleton<MainWindow>();

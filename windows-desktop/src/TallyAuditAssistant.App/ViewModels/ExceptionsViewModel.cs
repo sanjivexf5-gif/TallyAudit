@@ -20,6 +20,7 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
     private readonly ISettingsService _settingsService;
     private readonly IActiveCompanyContext _companyContext;
     private readonly INavigationService _navigationService;
+    private readonly InvestigationViewModel? _investigationViewModel;
     private readonly ILogger<ExceptionsViewModel> _logger;
 
     private readonly SemaphoreSlim _loadGate = new(1, 1);
@@ -71,12 +72,14 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
         ISettingsService settingsService,
         IActiveCompanyContext companyContext,
         INavigationService navigationService,
+        InvestigationViewModel? investigationViewModel = null,
         ILogger<ExceptionsViewModel>? logger = null)
     {
         _repository = repository;
         _settingsService = settingsService;
         _companyContext = companyContext;
         _navigationService = navigationService;
+        _investigationViewModel = investigationViewModel;
         _logger = logger ?? NullLogger<ExceptionsViewModel>.Instance;
 
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
@@ -202,7 +205,9 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
             HasExceptions = Exceptions.Count > 0;
             if (Exceptions.Count > 0)
             {
-                SelectedException = Exceptions[0];
+                var existingId = SelectedException?.Id;
+                var matched = existingId != null ? Exceptions.FirstOrDefault(e => e.Id == existingId) : null;
+                SelectedException = matched ?? Exceptions[0];
             }
             else
             {
@@ -274,6 +279,18 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
         if (SelectedException == null) return;
         SelectedException.Status = ReviewStatus.Resolved;
         await SaveExceptionStatusAsync();
+    }
+
+    [RelayCommand]
+    public async Task OpenInvestigationAsync()
+    {
+        if (SelectedException == null) return;
+
+        if (_investigationViewModel != null)
+        {
+            await _investigationViewModel.LoadForExceptionAsync(SelectedException);
+        }
+        _navigationService.Navigate("Investigation");
     }
 
     partial void OnSelectedExceptionChanged(AuditException? value)
