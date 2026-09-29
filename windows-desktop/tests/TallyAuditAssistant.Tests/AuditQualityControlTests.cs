@@ -1,7 +1,9 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Dapper;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using TallyAuditAssistant.Core.Domain.Audit;
@@ -64,9 +66,16 @@ public class AuditQualityControlTests : IAsyncLifetime
     private async Task SaveVoucherAsync(string companyId)
     {
         using var conn = await _factory.CreateConnectionAsync();
+        
+        // Ensure VoucherType exists for FK
+        await conn.ExecuteAsync(@"
+            INSERT OR IGNORE INTO VoucherTypes (Id, CompanyId, Name, ParentType)
+            VALUES ('VT-SALES', @CompanyId, 'Sales', 'Sales');
+        ", new { CompanyId = companyId });
+
         await conn.ExecuteAsync(@"
             INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, AlterId)
-            VALUES (@Id, @CompanyId, 'Sales', 'Sales', '1', '2025-04-01', 100, 1);
+            VALUES (@Id, @CompanyId, 'VT-SALES', 'Sales', '1', '2025-04-01', 100, 1);
         ", new { Id = Guid.NewGuid().ToString(), CompanyId = companyId });
     }
 
@@ -161,9 +170,9 @@ public class AuditQualityControlTests : IAsyncLifetime
         // Add a pending finding using Dapper
         using var conn = await _factory.CreateConnectionAsync();
         await conn.ExecuteAsync(@"
-            INSERT INTO AuditResults (ResultId, CompanyId, RuleId, RuleName, Category, Severity, Evidence, ReviewStatus)
-            VALUES (@ResultId, @CompanyId, 'R1', 'Rule 1', 1, 1, '{}', 0);
-        ", new { ResultId = "EXC-QC-01", CompanyId = companyId });
+            INSERT INTO Exceptions (Id, CompanyId, RuleId, RuleName, Category, Severity, EvidenceJson, Status)
+            VALUES (@Id, @CompanyId, 'R1', 'Rule 1', 1, 1, '{}', 0);
+        ", new { Id = "EXC-QC-01", CompanyId = companyId });
 
         var summary = await _qcService.GetQualityControlSummaryAsync(companyId, periodId);
 
@@ -196,9 +205,9 @@ public class AuditQualityControlTests : IAsyncLifetime
         // Add a finding that is RequiresClientClarification (Status = 4)
         using var conn = await _factory.CreateConnectionAsync();
         await conn.ExecuteAsync(@"
-            INSERT INTO AuditResults (ResultId, CompanyId, RuleId, RuleName, Category, Severity, Evidence, ReviewStatus)
-            VALUES (@ResultId, @CompanyId, 'R1', 'Rule 1', 1, 1, '{}', 4);
-        ", new { ResultId = "EXC-QC-02", CompanyId = companyId });
+            INSERT INTO Exceptions (Id, CompanyId, RuleId, RuleName, Category, Severity, EvidenceJson, Status)
+            VALUES (@Id, @CompanyId, 'R1', 'Rule 1', 1, 1, '{}', 4);
+        ", new { Id = "EXC-QC-02", CompanyId = companyId });
 
         var summary = await _qcService.GetQualityControlSummaryAsync(companyId, periodId);
 
@@ -207,3 +216,4 @@ public class AuditQualityControlTests : IAsyncLifetime
         Assert.True(summary.IsReadyForFinalization); // Excluded from blockers
     }
 }
+

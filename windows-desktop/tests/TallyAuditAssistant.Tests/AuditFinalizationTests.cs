@@ -236,6 +236,8 @@ public class AuditFinalizationTests : IAsyncLifetime
         var updatedA = await _repository.GetStateByIdAsync(stateA.Id);
         var updatedB = await _repository.GetStateByIdAsync(stateB.Id);
 
+        Assert.NotNull(updatedA);
+        Assert.NotNull(updatedB);
         Assert.True(updatedA.CompletionPercentage > 0.0);
         Assert.Equal(0.0, updatedB.CompletionPercentage);
     }
