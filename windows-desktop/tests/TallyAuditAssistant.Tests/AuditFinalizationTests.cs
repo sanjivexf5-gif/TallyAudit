@@ -221,4 +221,54 @@ public class AuditFinalizationTests : IAsyncLifetime
         Assert.True(updatedA.CompletionPercentage > 0.0);
         Assert.Equal(0.0, updatedB.CompletionPercentage);
     }
+
+    [Fact]
+    public async Task AddOpenItem_PersistsAndSavesSuccessfully()
+    {
+        string companyId = "COMP-FIN-09";
+        string periodId = "FY-2025-26";
+        var state = await _service.GetOrCreateStateAsync(companyId, periodId);
+
+        var openItem = new OpenItem
+        {
+            AuditId = state.Id,
+            Description = "Confirm HSN for voucher 02",
+            Category = "Findings",
+            Priority = "High",
+            Owner = "Auditor-S",
+            Status = "Open"
+        };
+
+        await _service.AddOpenItemAsync(openItem);
+
+        var items = await _repository.GetOpenItemsAsync(state.Id);
+        var savedItem = Assert.Single(items);
+        Assert.Equal("Confirm HSN for voucher 02", savedItem.Description);
+        Assert.Equal("High", savedItem.Priority);
+    }
+
+    [Fact]
+    public async Task AddReviewNote_PersistsAndSavesSuccessfully()
+    {
+        string companyId = "COMP-FIN-10";
+        string periodId = "FY-2025-26";
+        var state = await _service.GetOrCreateStateAsync(companyId, periodId);
+
+        var reviewNote = new ReviewNote
+        {
+            AuditId = state.Id,
+            Area = "GST",
+            Reference = "GST-001",
+            Reviewer = "Reviewer-P",
+            Comment = "Need clarification on inter-state rate choice.",
+            Status = "Open"
+        };
+
+        await _service.AddReviewNoteAsync(reviewNote);
+
+        var notes = await _repository.GetReviewNotesAsync(state.Id);
+        var savedNote = Assert.Single(notes);
+        Assert.Equal("GST", savedNote.Area);
+        Assert.Equal("Need clarification on inter-state rate choice.", savedNote.Comment);
+    }
 }

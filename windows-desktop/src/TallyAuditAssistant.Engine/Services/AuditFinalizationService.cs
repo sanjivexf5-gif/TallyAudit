@@ -270,6 +270,16 @@ public class AuditFinalizationService : IAuditFinalizationService
         }
     }
 
+    public async Task AddOpenItemAsync(OpenItem item, CancellationToken cancellationToken = default)
+    {
+        await _repository.SaveOpenItemAsync(item, cancellationToken);
+    }
+
+    public async Task AddReviewNoteAsync(ReviewNote note, CancellationToken cancellationToken = default)
+    {
+        await _repository.SaveReviewNoteAsync(note, cancellationToken);
+    }
+
     private void ValidateTransition(AuditLifecycleStatus current, AuditLifecycleStatus target)
     {
         bool isValid = current switch
