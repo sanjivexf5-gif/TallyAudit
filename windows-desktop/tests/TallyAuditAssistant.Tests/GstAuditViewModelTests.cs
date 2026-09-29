@@ -85,7 +85,7 @@ public class GstAuditViewModelTests : IDisposable
             RuleName = "GST Rate Mismatch",
             Category = RuleCategory.GST,
             Severity = SeverityLevel.High,
-            Status = ReviewStatus.Open,
+            Status = ReviewStatus.Pending,
             VoucherNumber = "VCH-1001",
             FlaggedAmount = 18000m,
             SuggestedCorrection = "Verify tax ledger rate applicability."
@@ -125,7 +125,7 @@ public class GstAuditViewModelTests : IDisposable
             RuleName = "Blocked ITC on Motor Vehicles",
             Category = RuleCategory.GST,
             Severity = SeverityLevel.Critical,
-            Status = ReviewStatus.Open,
+            Status = ReviewStatus.Pending,
             VoucherNumber = "VCH-8888",
             FlaggedAmount = 50000m
         };
@@ -162,19 +162,35 @@ public class GstAuditViewModelTests : IDisposable
     public async Task LoadGstExceptionsAsync_OverlappingCalls_OnlyLatestGenerationUpdatesState()
     {
         // Arrange
+        var initialResult = Array.Empty<AuditException>();
         var fastResult = new[]
         {
-            new AuditException { Id = "FAST-1", CompanyId = _testCompanyA.Id, RuleName = "Fast Finding", Category = RuleCategory.GST }
+            new AuditException { Id = "FAST-1", CompanyId = _testCompanyA.Id, RuleName = "Fast Finding", Category = RuleCategory.GST, Status = ReviewStatus.Pending }
         };
 
         var slowResult = new[]
         {
-            new AuditException { Id = "SLOW-1", CompanyId = _testCompanyA.Id, RuleName = "Slow Finding", Category = RuleCategory.GST }
+            new AuditException { Id = "SLOW-1", CompanyId = _testCompanyA.Id, RuleName = "Slow Finding", Category = RuleCategory.GST, Status = ReviewStatus.Pending }
         };
 
         var slowTcs = new TaskCompletionSource<IReadOnlyList<AuditException>>();
         var fastTcs = new TaskCompletionSource<IReadOnlyList<AuditException>>();
 
+        // Start with initial setup returning empty list for constructor
+        _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
+                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(initialResult);
+
+        using var vm = new GstAuditViewModel(
+            _mockRepository.Object,
+            _mockSettingsService.Object,
+            _mockCompanyContext.Object,
+            _mockNavigationService.Object,
+            NullLogger<GstAuditViewModel>.Instance);
+
+        await vm.LoadGstExceptionsAsync(); // ensure constructor run is settled
+
+        // Configure mock sequence for overlapping calls: first call gets slowTcs, second gets fastTcs
         int callCount = 0;
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
                 _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>()))
@@ -187,13 +203,6 @@ public class GstAuditViewModelTests : IDisposable
                 }
                 return fastTcs.Task;
             });
-
-        using var vm = new GstAuditViewModel(
-            _mockRepository.Object,
-            _mockSettingsService.Object,
-            _mockCompanyContext.Object,
-            _mockNavigationService.Object,
-            NullLogger<GstAuditViewModel>.Instance);
 
         // Act: trigger call 1 (slow), then call 2 (fast)
         var task1 = vm.LoadGstExceptionsAsync();
@@ -216,12 +225,12 @@ public class GstAuditViewModelTests : IDisposable
         // Arrange
         var companyAResult = new[]
         {
-            new AuditException { Id = "EXC-A", CompanyId = _testCompanyA.Id, RuleName = "Alpha Finding", Category = RuleCategory.GST }
+            new AuditException { Id = "EXC-A", CompanyId = _testCompanyA.Id, RuleName = "Alpha Finding", Category = RuleCategory.GST, Status = ReviewStatus.Pending }
         };
 
         var companyBResult = new[]
         {
-            new AuditException { Id = "EXC-B", CompanyId = _testCompanyB.Id, RuleName = "Beta Finding", Category = RuleCategory.GST }
+            new AuditException { Id = "EXC-B", CompanyId = _testCompanyB.Id, RuleName = "Beta Finding", Category = RuleCategory.GST, Status = ReviewStatus.Pending }
         };
 
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
@@ -249,7 +258,7 @@ public class GstAuditViewModelTests : IDisposable
 
         _mockCompanyContext.Raise(c => c.ActiveCompanyChanged += null, this, _testCompanyB);
 
-        // Wait a short duration for async event trigger
+        // Wait for load to finish
         await vm.LoadGstExceptionsAsync();
 
         // Assert: Company B is active and its finding is selected
@@ -264,8 +273,8 @@ public class GstAuditViewModelTests : IDisposable
         // Arrange
         var findings = new List<AuditException>
         {
-            new() { Id = "EXC-1", CompanyId = _testCompanyA.Id, RuleName = "GST 1", Category = RuleCategory.GST },
-            new() { Id = "EXC-2", CompanyId = _testCompanyA.Id, RuleName = "GST 2", Category = RuleCategory.GST }
+            new() { Id = "EXC-1", CompanyId = _testCompanyA.Id, RuleName = "GST 1", Category = RuleCategory.GST, Status = ReviewStatus.Pending },
+            new() { Id = "EXC-2", CompanyId = _testCompanyA.Id, RuleName = "GST 2", Category = RuleCategory.GST, Status = ReviewStatus.Pending }
         };
 
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
@@ -324,7 +333,7 @@ public class GstAuditViewModelTests : IDisposable
             CompanyId = _testCompanyA.Id,
             RuleName = "Place of Supply Inconsistency",
             Category = RuleCategory.GST,
-            Status = ReviewStatus.Open
+            Status = ReviewStatus.Pending
         };
 
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
