@@ -265,14 +265,17 @@ public class InvestigationService : IInvestigationService
 
         // 1. Fetch Exception from audit repository
         var exceptions = await _auditRepository.GetExceptionsAsync(companyId, take: 500, cancellationToken: ct);
-        var targetException = exceptions.FirstOrDefault(e => e.Id == exceptionId);
+        var targetException = exceptions?.FirstOrDefault(e => e.Id == exceptionId);
 
         // 2. Fetch Audit Trail entries for this exception/investigation
         var auditTrail = await _auditTrailService.GetAuditTrailAsync(companyId, limit: 100, ct: ct);
-        relatedData.InvestigationAuditTrail = auditTrail
-            .Where(a => a.EntityId == exceptionId || a.Description.Contains(exceptionId))
-            .OrderByDescending(a => a.Timestamp)
-            .ToList();
+        if (auditTrail != null)
+        {
+            relatedData.InvestigationAuditTrail = auditTrail
+                .Where(a => a != null && (a.EntityId == exceptionId || (a.Description != null && a.Description.Contains(exceptionId))))
+                .OrderByDescending(a => a.Timestamp)
+                .ToList();
+        }
 
         // 3. Fetch Working Papers & Evidence from finalization/evidence repository
         try
@@ -280,23 +283,29 @@ public class InvestigationService : IInvestigationService
             var openItems = await _finalizationRepository.GetOpenItemsAsync(companyId, ct);
             var reviewNotes = await _finalizationRepository.GetReviewNotesAsync(companyId, ct);
             
-            relatedData.WorkingPapers = reviewNotes.Select(r => new WorkingPaperSummary
+            if (reviewNotes != null)
             {
-                Id = r.Id,
-                Title = r.Reference,
-                AuditArea = r.Area,
-                Status = r.Status,
-                PreparedBy = r.Reviewer
-            }).ToList();
+                relatedData.WorkingPapers = reviewNotes.Select(r => new WorkingPaperSummary
+                {
+                    Id = r.Id,
+                    Title = r.Reference,
+                    AuditArea = r.Area,
+                    Status = r.Status,
+                    PreparedBy = r.Reviewer
+                }).ToList();
+            }
 
-            relatedData.Evidence = openItems.Select(o => new AuditEvidenceSummary
+            if (openItems != null)
             {
-                Id = o.Id,
-                Description = o.Description,
-                EvidenceType = o.Category,
-                ReferenceNumber = o.RelatedFindingId,
-                Status = o.Status
-            }).ToList();
+                relatedData.Evidence = openItems.Select(o => new AuditEvidenceSummary
+                {
+                    Id = o.Id,
+                    Description = o.Description,
+                    EvidenceType = o.Category,
+                    ReferenceNumber = o.RelatedFindingId,
+                    Status = o.Status
+                }).ToList();
+            }
         }
         catch (Exception ex)
         {
