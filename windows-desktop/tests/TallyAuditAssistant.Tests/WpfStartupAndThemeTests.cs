@@ -165,6 +165,35 @@ public class WpfStartupAndThemeTests
         Assert.True(File.Exists(physicalPath), $"The resource targeted by pack URI does not exist physically at: {physicalPath}");
     }
 
+    [Fact]
+    public void VerifyAppXamlCsRegistersAllRequiredAuditAndInvestigationDependencies()
+    {
+        var appDir = FindAppDirectory();
+        var appXamlCsPath = Path.Combine(appDir, "App.xaml.cs");
+        Assert.True(File.Exists(appXamlCsPath), $"App.xaml.cs not found at: {appXamlCsPath}");
+
+        var content = File.ReadAllText(appXamlCsPath);
+
+        // Core & Investigation registrations
+        Assert.Contains("services.AddSingleton<IAuditTrailRepository, AuditTrailRepository>()", content);
+        Assert.Contains("services.AddSingleton<IAuditTrailService, AuditTrailService>()", content);
+        Assert.Contains("services.AddSingleton<IInvestigationRepository, InvestigationRepository>()", content);
+        Assert.Contains("services.AddSingleton<IInvestigationService, InvestigationService>()", content);
+        Assert.Contains("services.AddSingleton<InvestigationViewModel>()", content);
+
+        // Finalization & QC registrations
+        Assert.Contains("services.AddSingleton<IAuditFinalizationRepository, AuditFinalizationRepository>()", content);
+        Assert.Contains("services.AddSingleton<IAuditFinalizationService, AuditFinalizationService>()", content);
+        Assert.Contains("services.AddSingleton<IAuditQualityControlService, AuditQualityControlService>()", content);
+
+        // Repository registrations
+        Assert.Contains("services.AddSingleton<IAuditRepository, AuditRepository>()", content);
+        Assert.Contains("services.AddSingleton<ISyncRepository, SyncRepository>()", content);
+        Assert.Contains("services.AddSingleton<ISettingsService, SettingsRepository>()", content);
+        Assert.Contains("services.AddSingleton<ITallyCorrectionRepository, TallyCorrectionRepository>()", content);
+        Assert.Contains("services.AddSingleton<ITallyWriteService, TallyWriteService>()", content);
+    }
+
     private static string FindAppDirectory()
     {
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;

@@ -119,6 +119,8 @@ public partial class App : Application
         services.AddSingleton<IAuditFinalizationRepository, AuditFinalizationRepository>();
         services.AddSingleton<IAuditFinalizationService, AuditFinalizationService>();
         services.AddSingleton<IAuditQualityControlService, AuditQualityControlService>();
+        services.AddSingleton<IAuditTrailRepository, AuditTrailRepository>();
+        services.AddSingleton<IAuditTrailService, AuditTrailService>();
         services.AddSingleton<IInvestigationRepository, InvestigationRepository>();
         services.AddSingleton<IInvestigationService, InvestigationService>();
 
