@@ -60,16 +60,19 @@ public class InvestigationServiceTests : IAsyncLifetime
 
         // Insert rule and exception into database
         using var conn = await _factory.CreateConnectionAsync();
-        await Dapper.SqliteConnectionExtensions.ExecuteAsync(conn, @"
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
             INSERT OR IGNORE INTO AuditRules (RuleId, Category, Name, Description, Severity, SuggestedReview, Version, IsEnabled)
             VALUES ('ACC-DUP-01', 6, 'Duplicate Voucher Number', 'Duplicate check', 3, 'Inspect duplicate', '1.0.0', 1);
 
             INSERT OR REPLACE INTO Exceptions (
                 Id, CompanyId, RuleId, RuleName, Category, Severity, VoucherNumber, FlaggedAmount, Status, EvidenceJson
             ) VALUES (
-                @ExceptionId, @CompanyId, 'ACC-DUP-01', 'Duplicate Voucher Number', 6, 3, 'V-1001', 50000.0, 0, '{}'
-            );
-        ", new { ExceptionId = exceptionId, CompanyId = companyId });
+                $ExceptionId, $CompanyId, 'ACC-DUP-01', 'Duplicate Voucher Number', 6, 3, 'V-1001', 50000.0, 0, '{}'
+            );";
+        cmd.Parameters.AddWithValue("$ExceptionId", exceptionId);
+        cmd.Parameters.AddWithValue("$CompanyId", companyId);
+        await cmd.ExecuteNonQueryAsync();
     }
 
     [Fact]
@@ -157,16 +160,19 @@ public class InvestigationServiceTests : IAsyncLifetime
         // Investigating -> AwaitingEvidence
         await _service.TransitionStatusAsync(inv.Id, InvestigationStatus.AwaitingEvidence, "AuditorA", "Requested vendor bill");
         updated = await _service.GetInvestigationByIdAsync(inv.Id);
+        Assert.NotNull(updated);
         Assert.Equal(InvestigationStatus.AwaitingEvidence, updated.Status);
 
         // AwaitingEvidence -> Investigating
         await _service.TransitionStatusAsync(inv.Id, InvestigationStatus.Investigating, "AuditorA", "Evidence received");
         updated = await _service.GetInvestigationByIdAsync(inv.Id);
+        Assert.NotNull(updated);
         Assert.Equal(InvestigationStatus.Investigating, updated.Status);
 
         // Investigating -> Resolved
         await _service.TransitionStatusAsync(inv.Id, InvestigationStatus.Resolved, "AuditorA", "Confirmed and rectified");
         updated = await _service.GetInvestigationByIdAsync(inv.Id);
+        Assert.NotNull(updated);
         Assert.Equal(InvestigationStatus.Resolved, updated.Status);
         Assert.NotNull(updated.ClosedAt);
     }
@@ -198,12 +204,14 @@ public class InvestigationServiceTests : IAsyncLifetime
         await _service.TransitionStatusAsync(inv.Id, InvestigationStatus.Resolved, "AuditorA");
 
         var resolvedInv = await _service.GetInvestigationByIdAsync(inv.Id);
-        Assert.NotNull(resolvedInv?.ClosedAt);
+        Assert.NotNull(resolvedInv);
+        Assert.NotNull(resolvedInv.ClosedAt);
 
         // Reopen to Investigating
         await _service.TransitionStatusAsync(inv.Id, InvestigationStatus.Investigating, "AuditorA", "Re-opening for supplementary test");
         var reopenedInv = await _service.GetInvestigationByIdAsync(inv.Id);
-        Assert.Null(reopenedInv?.ClosedAt);
+        Assert.NotNull(reopenedInv);
+        Assert.Null(reopenedInv.ClosedAt);
     }
 
     [Fact]
