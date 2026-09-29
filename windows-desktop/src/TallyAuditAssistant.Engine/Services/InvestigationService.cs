@@ -238,9 +238,6 @@ public class InvestigationService : IInvestigationService
         string? notes = null,
         CancellationToken ct = default)
     {
-        using var conn = await _investigationRepository.GetByIdAsync(itemId, ct);
-        // Look up by item ID through checklist items
-        // Let's create an item update
         var item = new InvestigationChecklistItem
         {
             Id = itemId,
