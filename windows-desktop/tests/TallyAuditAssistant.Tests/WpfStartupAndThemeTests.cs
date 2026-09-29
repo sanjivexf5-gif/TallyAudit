@@ -2,6 +2,13 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using TallyAuditAssistant.Core.Interfaces;
+using TallyAuditAssistant.Data;
+using TallyAuditAssistant.Data.Repositories;
+using TallyAuditAssistant.Engine.Services;
 using Xunit;
 
 namespace TallyAuditAssistant.Tests;
@@ -192,6 +199,30 @@ public class WpfStartupAndThemeTests
         Assert.Contains("services.AddSingleton<ISettingsService, SettingsRepository>()", content);
         Assert.Contains("services.AddSingleton<ITallyCorrectionRepository, TallyCorrectionRepository>()", content);
         Assert.Contains("services.AddSingleton<ITallyWriteService, TallyWriteService>()", content);
+    }
+
+    [Fact]
+    public void VerifyInvestigationServiceDependencyChain_CanBeActivatedByServiceContainer()
+    {
+        var services = new ServiceCollection();
+        var tempDb = Path.Combine(Path.GetTempPath(), $"di_test_{Guid.NewGuid():N}.db");
+        services.AddSingleton(new SqliteConnectionFactory(tempDb));
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddSingleton<IAuditRepository, AuditRepository>();
+        services.AddSingleton<IAuditFinalizationRepository, AuditFinalizationRepository>();
+        services.AddSingleton<IAuditTrailRepository, AuditTrailRepository>();
+        services.AddSingleton<IAuditTrailService, AuditTrailService>();
+        services.AddSingleton<IInvestigationRepository, InvestigationRepository>();
+        services.AddSingleton<IInvestigationService, InvestigationService>();
+
+        using var provider = services.BuildServiceProvider();
+        var investigationService = provider.GetRequiredService<IInvestigationService>();
+        Assert.NotNull(investigationService);
+        Assert.IsType<InvestigationService>(investigationService);
+
+        var auditTrailService = provider.GetRequiredService<IAuditTrailService>();
+        Assert.NotNull(auditTrailService);
+        Assert.IsType<AuditTrailService>(auditTrailService);
     }
 
     private static string FindAppDirectory()

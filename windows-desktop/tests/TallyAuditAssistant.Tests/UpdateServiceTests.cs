@@ -446,20 +446,20 @@ public class UpdateServiceTests
     }
 
     [Fact]
-    public async Task CheckForUpdates_SemanticVersion1010_IsNewerThan109()
+    public async Task CheckForUpdates_SemanticVersion1011_IsNewerThan109()
     {
         var jsonResponse = @"[
             {
-                ""tag_name"": ""v1.0.10"",
-                ""name"": ""Tally Audit Assistant v1.0.10"",
+                ""tag_name"": ""v1.0.11"",
+                ""name"": ""Tally Audit Assistant v1.0.11"",
                 ""draft"": false,
                 ""prerelease"": false,
-                ""body"": ""Build 10"",
-                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/tag/v1.0.10"",
+                ""body"": ""Build 11"",
+                ""html_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/tag/v1.0.11"",
                 ""assets"": [
                     {
-                        ""name"": ""TallyAuditAssistant-Setup-1.0.10.exe"",
-                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.10/TallyAuditAssistant-Setup-1.0.10.exe"",
+                        ""name"": ""TallyAuditAssistant-Setup-1.0.11.exe"",
+                        ""browser_download_url"": ""https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.11/TallyAuditAssistant-Setup-1.0.11.exe"",
                         ""size"": 15420000
                     }
                 ]
@@ -478,7 +478,7 @@ public class UpdateServiceTests
 
         Assert.NotNull(update);
         Assert.True(update.IsUpdateAvailable);
-        Assert.Equal("1.0.10", update.LatestVersion);
+        Assert.Equal("1.0.11", update.LatestVersion);
     }
 
     [Fact]
