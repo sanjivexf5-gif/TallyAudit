@@ -118,6 +118,7 @@ public partial class App : Application
         services.AddSingleton<ITallyWriteService, TallyWriteService>();
         services.AddSingleton<IAuditFinalizationRepository, AuditFinalizationRepository>();
         services.AddSingleton<IAuditFinalizationService, AuditFinalizationService>();
+        services.AddSingleton<IAuditQualityControlService, AuditQualityControlService>();
 
         // Tally Integration registrations
         services.AddSingleton<ITallyRequestBuilder, TallyRequestBuilder>();
