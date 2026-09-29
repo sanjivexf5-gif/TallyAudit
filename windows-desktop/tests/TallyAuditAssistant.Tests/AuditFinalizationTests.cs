@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using TallyAuditAssistant.Core.Domain.Audit;
+using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
 using TallyAuditAssistant.Data;
 using TallyAuditAssistant.Data.Repositories;
@@ -36,6 +37,23 @@ public class AuditFinalizationTests : IAsyncLifetime
         await _initializer.InitializeAsync();
     }
 
+    private async Task SaveCompanyAsync(string companyId)
+    {
+        var companyRepo = new AuditRepository(_factory);
+        await companyRepo.SaveCompanyAsync(new Company
+        {
+            Id = companyId,
+            TallyCompanyName = $"Company {companyId}",
+            BooksFromDate = new DateTime(2025, 4, 1)
+        });
+    }
+
+    private async Task<AuditFinalizationState> GetOrCreateStateAsync(string companyId, string financialPeriodId)
+    {
+        await SaveCompanyAsync(companyId);
+        return await _service.GetOrCreateStateAsync(companyId, financialPeriodId);
+    }
+
     public async Task DisposeAsync()
     {
         try
@@ -51,7 +69,7 @@ public class AuditFinalizationTests : IAsyncLifetime
         string companyId = "COMP-FIN-01";
         string periodId = "FY-2025-26";
 
-        var state = await _service.GetOrCreateStateAsync(companyId, periodId);
+        var state = await GetOrCreateStateAsync(companyId, periodId);
 
         Assert.NotNull(state);
         Assert.Equal(AuditLifecycleStatus.Draft, state.Status);
@@ -66,7 +84,7 @@ public class AuditFinalizationTests : IAsyncLifetime
     {
         string companyId = "COMP-FIN-02";
         string periodId = "FY-2025-26";
-        var state = await _service.GetOrCreateStateAsync(companyId, periodId);
+        var state = await GetOrCreateStateAsync(companyId, periodId);
 
         var checklist = await _repository.GetChecklistAsync(state.Id);
         var firstItem = checklist[0];
@@ -84,7 +102,7 @@ public class AuditFinalizationTests : IAsyncLifetime
     {
         string companyId = "COMP-FIN-03";
         string periodId = "FY-2025-26";
-        var state = await _service.GetOrCreateStateAsync(companyId, periodId);
+        var state = await GetOrCreateStateAsync(companyId, periodId);
 
         // Cannot transition from Draft directly to Finalized
         await Assert.ThrowsAsync<InvalidOperationException>(() => 
@@ -96,7 +114,7 @@ public class AuditFinalizationTests : IAsyncLifetime
     {
         string companyId = "COMP-FIN-04";
         string periodId = "FY-2025-26";
-        var state = await _service.GetOrCreateStateAsync(companyId, periodId);
+        var state = await GetOrCreateStateAsync(companyId, periodId);
         state.Status = AuditLifecycleStatus.InProgress;
         await _repository.SaveStateAsync(state);
 
@@ -113,7 +131,7 @@ public class AuditFinalizationTests : IAsyncLifetime
     {
         string companyId = "COMP-FIN-05";
         string periodId = "FY-2025-26";
-        var state = await _service.GetOrCreateStateAsync(companyId, periodId);
+        var state = await GetOrCreateStateAsync(companyId, periodId);
         state.Status = AuditLifecycleStatus.UnderReview;
         await _repository.SaveStateAsync(state);
 
@@ -130,7 +148,7 @@ public class AuditFinalizationTests : IAsyncLifetime
     {
         string companyId = "COMP-FIN-06";
         string periodId = "FY-2025-26";
-        var state = await _service.GetOrCreateStateAsync(companyId, periodId);
+        var state = await GetOrCreateStateAsync(companyId, periodId);
         state.Status = AuditLifecycleStatus.UnderReview;
         await _repository.SaveStateAsync(state);
 
@@ -146,7 +164,7 @@ public class AuditFinalizationTests : IAsyncLifetime
     {
         string companyId = "COMP-FIN-07";
         string periodId = "FY-2025-26";
-        var state = await _service.GetOrCreateStateAsync(companyId, periodId);
+        var state = await GetOrCreateStateAsync(companyId, periodId);
         state.Status = AuditLifecycleStatus.ReadyForFinalization;
         state.AuditorConclusionText = "Unqualified Opinion";
         await _repository.SaveStateAsync(state);
@@ -174,7 +192,7 @@ public class AuditFinalizationTests : IAsyncLifetime
     {
         string companyId = "COMP-FIN-08";
         string periodId = "FY-2025-26";
-        var state = await _service.GetOrCreateStateAsync(companyId, periodId);
+        var state = await GetOrCreateStateAsync(companyId, periodId);
         
         // Setup finalized state
         state.Status = AuditLifecycleStatus.ReadyForFinalization;
@@ -209,8 +227,8 @@ public class AuditFinalizationTests : IAsyncLifetime
         string compB = "COMP-B";
         string periodId = "FY-2025-26";
 
-        var stateA = await _service.GetOrCreateStateAsync(compA, periodId);
-        var stateB = await _service.GetOrCreateStateAsync(compB, periodId);
+        var stateA = await GetOrCreateStateAsync(compA, periodId);
+        var stateB = await GetOrCreateStateAsync(compB, periodId);
 
         var checklistA = await _repository.GetChecklistAsync(stateA.Id);
         await _service.SetChecklistItemCompletedAsync(checklistA[0].Id, true, "Auditor-S", "Done");
@@ -227,7 +245,7 @@ public class AuditFinalizationTests : IAsyncLifetime
     {
         string companyId = "COMP-FIN-09";
         string periodId = "FY-2025-26";
-        var state = await _service.GetOrCreateStateAsync(companyId, periodId);
+        var state = await GetOrCreateStateAsync(companyId, periodId);
 
         var openItem = new OpenItem
         {
@@ -252,7 +270,7 @@ public class AuditFinalizationTests : IAsyncLifetime
     {
         string companyId = "COMP-FIN-10";
         string periodId = "FY-2025-26";
-        var state = await _service.GetOrCreateStateAsync(companyId, periodId);
+        var state = await GetOrCreateStateAsync(companyId, periodId);
 
         var reviewNote = new ReviewNote
         {
