@@ -593,16 +593,21 @@ public class InvestigationService : IInvestigationService
     {
         return new List<InvestigationChecklistItem>
         {
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-01", Description = "Review source voucher" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-01", Description = "Review source transaction" },
             new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-02", Description = "Review ledger" },
             new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-03", Description = "Review party details" },
             new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-04", Description = "Review supporting evidence" },
             new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-05", Description = "Review related transactions" },
             new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-06", Description = "Check tax treatment" },
             new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-07", Description = "Check reconciliation impact" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-08", Description = "Record investigation remarks" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-09", Description = "Attach supporting evidence" },
-            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-10", Description = "Record conclusion" }
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-08", Description = "Evaluate materiality & quantitative impact" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-09", Description = "Check prior audit run & year recurrence" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-10", Description = "Verify voucher narration & documentation" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-11", Description = "Perform root-cause pattern classification" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-12", Description = "Record investigation remarks" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-13", Description = "Attach supporting evidence" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-14", Description = "Link working papers" },
+            new() { Id = Guid.NewGuid().ToString(), InvestigationId = investigationId, Code = "INV-CHK-15", Description = "Record conclusion" }
         };
     }
 }

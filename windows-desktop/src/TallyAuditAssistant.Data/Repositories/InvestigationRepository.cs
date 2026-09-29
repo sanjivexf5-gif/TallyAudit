@@ -102,6 +102,8 @@ public class InvestigationRepository : IInvestigationRepository
         using var conn = await _connectionFactory.CreateConnectionAsync(ct);
         const string sql = @"
             UPDATE ExceptionInvestigations SET
+                FinancialPeriodId = @FinancialPeriodId,
+                AuditRunId = @AuditRunId,
                 Status = @Status,
                 RootCause = @RootCause,
                 Conclusion = @Conclusion,
