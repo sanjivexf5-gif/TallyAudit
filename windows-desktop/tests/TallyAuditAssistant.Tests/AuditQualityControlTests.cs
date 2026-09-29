@@ -61,6 +61,15 @@ public class AuditQualityControlTests : IAsyncLifetime
         });
     }
 
+    private async Task SaveVoucherAsync(string companyId)
+    {
+        using var conn = await _factory.CreateConnectionAsync();
+        await conn.ExecuteAsync(@"
+            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, AlterId)
+            VALUES (@Id, @CompanyId, 'Sales', 'Sales', '1', '2025-04-01', 100, 1);
+        ", new { Id = Guid.NewGuid().ToString(), CompanyId = companyId });
+    }
+
     [Fact]
     public async Task GetQualityControlSummary_WithEmptyState_ReturnsReadyForReviewFalse()
     {
@@ -82,6 +91,7 @@ public class AuditQualityControlTests : IAsyncLifetime
         string companyId = "COMP-QC-02";
         string periodId = "FY-2025-26";
         await SaveCompanyAsync(companyId);
+        await SaveVoucherAsync(companyId);
 
         var state = await _finalizationService.GetOrCreateStateAsync(companyId, periodId);
         
@@ -136,5 +146,64 @@ public class AuditQualityControlTests : IAsyncLifetime
         var summaryB = await _qcService.GetQualityControlSummaryAsync(compB, periodId);
 
         Assert.NotEqual(summaryA.PassedChecksCount, summaryB.PassedChecksCount);
+    }
+
+    [Fact]
+    public async Task GetQualityControlSummary_WithPendingFinding_ReturnsAttentionRequired()
+    {
+        string companyId = "COMP-QC-04";
+        string periodId = "FY-2025-26";
+        await SaveCompanyAsync(companyId);
+        await SaveVoucherAsync(companyId);
+
+        var state = await _finalizationService.GetOrCreateStateAsync(companyId, periodId);
+
+        // Add a pending finding using Dapper
+        using var conn = await _factory.CreateConnectionAsync();
+        await conn.ExecuteAsync(@"
+            INSERT INTO AuditResults (ResultId, CompanyId, RuleId, RuleName, Category, Severity, Evidence, ReviewStatus)
+            VALUES (@ResultId, @CompanyId, 'R1', 'Rule 1', 1, 1, '{}', 0);
+        ", new { ResultId = "EXC-QC-01", CompanyId = companyId });
+
+        var summary = await _qcService.GetQualityControlSummaryAsync(companyId, periodId);
+
+        var check = summary.Checks.First(c => c.Name == "Findings and Exceptions Review");
+        Assert.Equal("Attention Required", check.Status);
+        Assert.False(summary.IsReadyForFinalization);
+    }
+
+    [Fact]
+    public async Task GetQualityControlSummary_WithRequiresClarificationFinding_ReturnsPassAndReadyForFinalization()
+    {
+        // This test proves that RequiresClientClarification is EXCLUDED from unreviewed findings
+        // as per the new SA 250 alignment requirement (it is considered 'reviewed' for the purpose of the initial count).
+        string companyId = "COMP-QC-05";
+        string periodId = "FY-2025-26";
+        await SaveCompanyAsync(companyId);
+        await SaveVoucherAsync(companyId);
+
+        var state = await _finalizationService.GetOrCreateStateAsync(companyId, periodId);
+        
+        // Complete checklist
+        var checklist = await _finalizationRepository.GetChecklistAsync(state.Id);
+        foreach (var item in checklist)
+        {
+            await _finalizationService.SetChecklistItemCompletedAsync(item.Id, true, "Auditor-S", "Done");
+        }
+        state.AuditorConclusionText = "Satisfactory evidence obtained.";
+        await _finalizationRepository.SaveStateAsync(state);
+
+        // Add a finding that is RequiresClientClarification (Status = 4)
+        using var conn = await _factory.CreateConnectionAsync();
+        await conn.ExecuteAsync(@"
+            INSERT INTO AuditResults (ResultId, CompanyId, RuleId, RuleName, Category, Severity, Evidence, ReviewStatus)
+            VALUES (@ResultId, @CompanyId, 'R1', 'Rule 1', 1, 1, '{}', 4);
+        ", new { ResultId = "EXC-QC-02", CompanyId = companyId });
+
+        var summary = await _qcService.GetQualityControlSummaryAsync(companyId, periodId);
+
+        var check = summary.Checks.First(c => c.Name == "Findings and Exceptions Review");
+        Assert.Equal("Pass", check.Status); // Excluded from unreviewed count
+        Assert.True(summary.IsReadyForFinalization); // Excluded from blockers
     }
 }
