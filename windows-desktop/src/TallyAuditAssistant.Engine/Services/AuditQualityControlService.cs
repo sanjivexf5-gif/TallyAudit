@@ -135,7 +135,7 @@ public class AuditQualityControlService : IAuditQualityControlService
         });
 
         // Check 6: Unreviewed Findings (SA 250)
-        int unreviewedCount = exceptions.Count(e => e.Status == ReviewStatus.Pending || e.Status == ReviewStatus.RequiresReview);
+        int unreviewedCount = exceptions.Count(e => e.Status == ReviewStatus.Pending);
         checks.Add(new QualityControlCheckItem
         {
             Name = "Findings and Exceptions Review",
