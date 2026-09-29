@@ -34,7 +34,7 @@ public class InvestigationServiceTests : IAsyncLifetime
         _auditRepository = new AuditRepository(_factory);
         _finalizationRepository = new AuditFinalizationRepository(_factory);
         _mockAuditTrail = new Mock<IAuditTrailService>();
-        _mockAuditTrail.Setup(a => a.GetAuditTrailAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        _mockAuditTrail.Setup(a => a.GetAuditTrailAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<AuditTrailEntry>());
 
         _service = new InvestigationService(
