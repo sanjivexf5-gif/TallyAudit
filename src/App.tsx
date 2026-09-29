@@ -157,6 +157,12 @@ import {
 } from './companyData';
 import { CompanyWorkspaceView } from './CompanyWorkspaceView';
 import { PilotAuditWorkflowView } from './PilotAuditWorkflowView';
+import { InvestigationWorkspaceView } from './InvestigationWorkspaceView';
+import {
+  ExceptionInvestigation,
+  initialInvestigationsSeed,
+  createDefaultInvestigation
+} from './investigationData';
 import {
   LicenseInfo,
   LicenseStatus,
@@ -2188,6 +2194,25 @@ export default function App() {
   const [tallyXmlVerifyStatus, setTallyXmlVerifyStatus] = useState<'idle' | 'checking' | 'verified_xml_responded' | 'fallback_ready'>('idle');
   const [copiedTallyKey, setCopiedTallyKey] = useState<string | null>(null);
 
+  // Investigation Workspace State
+  const [investigationsMap, setInvestigationsMap] = useState<Record<string, ExceptionInvestigation>>(initialInvestigationsSeed);
+  const [isInvestigationWorkspaceOpen, setIsInvestigationWorkspaceOpen] = useState<boolean>(false);
+
+  const openInvestigationWorkspace = (exceptionId: string) => {
+    const target = workspaceExceptions.find(e => e.id === exceptionId) || selectedWorkspaceException;
+    if (!target) return;
+
+    if (!investigationsMap[target.id]) {
+      const newInv = createDefaultInvestigation(target);
+      setInvestigationsMap(prev => ({
+        ...prev,
+        [target.id]: newInv
+      }));
+    }
+    setSelectedWorkspaceException(target);
+    setIsInvestigationWorkspaceOpen(true);
+  };
+
   const handleOpenInTally = () => {
     setIsTallyDrillDownModalOpen(true);
     setTallyXmlVerifyStatus('checking');
@@ -2934,7 +2959,7 @@ export default function App() {
         <div className="flex items-center gap-2">
           <div className="w-3.5 h-3.5 bg-teal-600 rounded flex items-center justify-center text-[9px] font-bold text-white">T</div>
           <span className="font-semibold text-slate-200">Tally Audit Assistant</span>
-          <span className="text-[10px] bg-slate-800 text-teal-400 px-1.5 py-0.5 rounded border border-slate-700 font-mono">v1.0.0 (Commercial Stable)</span>
+          <span className="text-[10px] bg-slate-800 text-teal-400 px-1.5 py-0.5 rounded border border-slate-700 font-mono">v1.0.10 (Commercial Stable)</span>
         </div>
         <div className="flex items-center gap-2 text-slate-400 text-[11px]">
           <span>Offline Statutory &amp; Anomaly Engine • {currentLicense.licenseType} Edition</span>
@@ -5220,6 +5245,21 @@ export default function App() {
                             className="w-full bg-[#070b14] border border-slate-700 rounded p-2 text-xs text-white focus:outline-none focus:border-teal-500"
                           />
 
+                          {/* Investigation Workspace Primary Trigger */}
+                          <button
+                            onClick={() => openInvestigationWorkspace(selectedWorkspaceException.id)}
+                            className="w-full px-3 py-2 bg-gradient-to-r from-teal-700 via-emerald-700 to-teal-800 hover:from-teal-600 hover:to-emerald-600 text-white rounded-lg text-xs font-bold flex items-center justify-between shadow-md cursor-pointer border border-teal-500/50 transition-all hover:shadow-teal-900/30"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Compass className="w-4 h-4 text-teal-300" />
+                              <span>Audit Exception Root-Cause &amp; Investigation Workspace</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 font-mono text-[10px] bg-black/40 px-2 py-0.5 rounded text-teal-200 border border-teal-500/30">
+                              <span>Status: {investigationsMap[selectedWorkspaceException.id]?.status || 'Open'}</span>
+                              <ChevronRight className="w-3 h-3 text-teal-400" />
+                            </div>
+                          </button>
+
                           {/* Action Buttons with Open in Tally */}
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             <button
@@ -5682,6 +5722,26 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {/* MODAL 5: ROOT-CAUSE & INVESTIGATION WORKSPACE */}
+              {isInvestigationWorkspaceOpen && selectedWorkspaceException && (
+                <InvestigationWorkspaceView
+                  exception={selectedWorkspaceException}
+                  investigation={investigationsMap[selectedWorkspaceException.id] || createDefaultInvestigation(selectedWorkspaceException)}
+                  onSave={(updated) => {
+                    setInvestigationsMap(prev => ({
+                      ...prev,
+                      [updated.exceptionId]: updated
+                    }));
+                    if (updated.status === 'Resolved') {
+                      markExceptionReviewed(updated.exceptionId);
+                    }
+                  }}
+                  onClose={() => setIsInvestigationWorkspaceOpen(false)}
+                  onOpenInTally={handleOpenInTally}
+                  onOpenSourceData={() => setSourceDataModalOpen(true)}
+                />
               )}
             </div>
           )}

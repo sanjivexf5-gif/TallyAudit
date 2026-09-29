@@ -31,18 +31,18 @@ public class UpdateServiceTests
     }
 
     [Fact]
-    public void AppVersion_Properties_Match_Authoritative_109_Values()
+    public void AppVersion_Properties_Match_Authoritative_110_Values()
     {
-        Assert.Equal("1.0.9", AppVersion.Version);
-        Assert.Equal("2026.09.29.109", AppVersion.BuildNumber);
-        Assert.Contains("v1.0.9", AppVersion.DisplayString);
+        Assert.Equal("1.0.10", AppVersion.Version);
+        Assert.Equal("2026.09.29.110", AppVersion.BuildNumber);
+        Assert.Contains("v1.0.10", AppVersion.DisplayString);
     }
 
     [Fact]
     public void GetCurrentVersion_ReturnsVersionString()
     {
         var service = new UpdateService(NullLogger<UpdateService>.Instance);
-        Assert.Equal("1.0.9", service.GetCurrentVersion());
+        Assert.Equal("1.0.10", service.GetCurrentVersion());
     }
 
     [Fact]

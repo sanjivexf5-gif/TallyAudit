@@ -46,6 +46,7 @@ public partial class MainWindowViewModel : ObservableObject
     public BankAuditViewModel BankVM { get; }
     public ExceptionsViewModel ExceptionsVM { get; }
     public ReportsViewModel ReportsVM { get; }
+    public InvestigationViewModel InvestigationVM { get; }
 
     public MainWindowViewModel(
         ITallyConnection tallyConnection,
@@ -64,7 +65,8 @@ public partial class MainWindowViewModel : ObservableObject
         LedgersViewModel ledgersVM,
         BankAuditViewModel bankVM,
         ExceptionsViewModel exceptionsVM,
-        ReportsViewModel reportsVM)
+        ReportsViewModel reportsVM,
+        InvestigationViewModel investigationVM)
     {
         _tallyConnection = tallyConnection;
         _companyContext = companyContext;
@@ -84,6 +86,7 @@ public partial class MainWindowViewModel : ObservableObject
         BankVM = bankVM;
         ExceptionsVM = exceptionsVM;
         ReportsVM = reportsVM;
+        InvestigationVM = investigationVM;
 
         _currentViewModel = dashboardVM;
 
@@ -153,6 +156,7 @@ public partial class MainWindowViewModel : ObservableObject
             "Ledgers" => LedgersVM,
             "Bank" => BankVM,
             "Exceptions" => ExceptionsVM,
+            "Investigation" => InvestigationVM,
             "Reports" => ReportsVM,
             "Settings" => SettingsVM,
             _ => null

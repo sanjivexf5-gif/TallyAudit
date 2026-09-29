@@ -474,5 +474,45 @@ public class MigrationService : IMigrationService
                         new CommandDefinition("ALTER TABLE Exceptions ADD COLUMN DetectedAt DATETIME DEFAULT CURRENT_TIMESTAMP;", transaction: tx, cancellationToken: ct));
                 }
             });
+
+        yield return new MigrationDefinition(
+            "008_ExceptionInvestigations",
+            "1.7.0",
+            "Audit exception root-cause investigation workspace and checklist tables",
+            @"
+            CREATE TABLE IF NOT EXISTS ExceptionInvestigations (
+                Id TEXT PRIMARY KEY,
+                ExceptionId TEXT NOT NULL REFERENCES Exceptions(Id) ON DELETE CASCADE,
+                CompanyId TEXT NOT NULL REFERENCES Companies(Id) ON DELETE CASCADE,
+                FinancialPeriodId TEXT,
+                AuditRunId TEXT,
+                Status INTEGER NOT NULL DEFAULT 0,
+                RootCause INTEGER NOT NULL DEFAULT 9,
+                AuditorNotes TEXT,
+                ManagementResponse TEXT,
+                ProposedCorrectiveAction TEXT,
+                ReviewerNotes TEXT,
+                CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                CreatedBy TEXT NOT NULL,
+                UpdatedBy TEXT NOT NULL,
+                ClosedAt DATETIME
+            );
+
+            CREATE TABLE IF NOT EXISTS InvestigationChecklistItems (
+                Id TEXT PRIMARY KEY,
+                InvestigationId TEXT NOT NULL REFERENCES ExceptionInvestigations(Id) ON DELETE CASCADE,
+                Code TEXT NOT NULL,
+                Description TEXT NOT NULL,
+                IsCompleted INTEGER DEFAULT 0,
+                CompletedAt DATETIME,
+                CompletedBy TEXT,
+                Notes TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_investigations_exc ON ExceptionInvestigations(ExceptionId);
+            CREATE INDEX IF NOT EXISTS idx_investigations_comp ON ExceptionInvestigations(CompanyId, Status);
+            CREATE INDEX IF NOT EXISTS idx_inv_checklist_inv ON InvestigationChecklistItems(InvestigationId);
+            ");
     }
 }

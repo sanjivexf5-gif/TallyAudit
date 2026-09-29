@@ -119,6 +119,8 @@ public partial class App : Application
         services.AddSingleton<IAuditFinalizationRepository, AuditFinalizationRepository>();
         services.AddSingleton<IAuditFinalizationService, AuditFinalizationService>();
         services.AddSingleton<IAuditQualityControlService, AuditQualityControlService>();
+        services.AddSingleton<IInvestigationRepository, InvestigationRepository>();
+        services.AddSingleton<IInvestigationService, InvestigationService>();
 
         // Tally Integration registrations
         services.AddSingleton<ITallyRequestBuilder, TallyRequestBuilder>();
@@ -161,6 +163,7 @@ public partial class App : Application
         services.AddSingleton<BankAuditViewModel>();
         services.AddSingleton<ExceptionsViewModel>();
         services.AddSingleton<ReportsViewModel>();
+        services.AddSingleton<InvestigationViewModel>();
 
         // Views
         services.AddSingleton<MainWindow>();

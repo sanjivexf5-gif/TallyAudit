@@ -327,6 +327,37 @@ public class DatabaseInitializer : IDatabaseInitializer
                 Description TEXT
             );
 
+            -- 11. Exception Investigations & Root-Cause Workspace
+            CREATE TABLE IF NOT EXISTS ExceptionInvestigations (
+                Id TEXT PRIMARY KEY,
+                ExceptionId TEXT NOT NULL REFERENCES Exceptions(Id) ON DELETE CASCADE,
+                CompanyId TEXT NOT NULL REFERENCES Companies(Id) ON DELETE CASCADE,
+                FinancialPeriodId TEXT,
+                AuditRunId TEXT,
+                Status INTEGER NOT NULL DEFAULT 0,
+                RootCause INTEGER NOT NULL DEFAULT 9,
+                AuditorNotes TEXT,
+                ManagementResponse TEXT,
+                ProposedCorrectiveAction TEXT,
+                ReviewerNotes TEXT,
+                CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                CreatedBy TEXT NOT NULL,
+                UpdatedBy TEXT NOT NULL,
+                ClosedAt DATETIME
+            );
+
+            CREATE TABLE IF NOT EXISTS InvestigationChecklistItems (
+                Id TEXT PRIMARY KEY,
+                InvestigationId TEXT NOT NULL REFERENCES ExceptionInvestigations(Id) ON DELETE CASCADE,
+                Code TEXT NOT NULL,
+                Description TEXT NOT NULL,
+                IsCompleted INTEGER DEFAULT 0,
+                CompletedAt DATETIME,
+                CompletedBy TEXT,
+                Notes TEXT
+            );
+
             -- 9. Performance Indexes
             CREATE INDEX IF NOT EXISTS idx_vouchers_comp_date ON Vouchers(CompanyId, VoucherDate);
             CREATE INDEX IF NOT EXISTS idx_vouchers_comp_type ON Vouchers(CompanyId, VoucherTypeName);
@@ -338,6 +369,9 @@ public class DatabaseInitializer : IDatabaseInitializer
             CREATE INDEX IF NOT EXISTS idx_auditruns_comp ON AuditRuns(CompanyId);
             CREATE INDEX IF NOT EXISTS idx_corrections_comp_status ON TallyCorrections(CompanyId, Status);
             CREATE INDEX IF NOT EXISTS idx_finalization_states ON AuditFinalizationStates(CompanyId, Status);
+            CREATE INDEX IF NOT EXISTS idx_investigations_exc ON ExceptionInvestigations(ExceptionId);
+            CREATE INDEX IF NOT EXISTS idx_investigations_comp ON ExceptionInvestigations(CompanyId, Status);
+            CREATE INDEX IF NOT EXISTS idx_inv_checklist_inv ON InvestigationChecklistItems(InvestigationId);
         ";
 
         await connection.ExecuteAsync(new CommandDefinition(schemaSql, cancellationToken: cancellationToken));

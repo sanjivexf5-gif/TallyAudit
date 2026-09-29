@@ -119,9 +119,9 @@ export interface DiagnosticBundle {
 }
 
 export const currentAppVersion: AppVersionInfo = {
-  version: '1.0.0',
-  buildNumber: '2026.09.26.101',
-  releaseDate: '26-Sep-2026',
+  version: '1.0.10',
+  buildNumber: '2026.09.29.110',
+  releaseDate: '29-Sep-2026',
   channel: 'Stable',
   dotNetRuntime: '.NET 8.0.8 (win-x64 Self-Contained)',
   targetPlatform: 'Windows 10/11 x64',
@@ -189,6 +189,62 @@ export const defaultTrialLicense: LicenseInfo = {
 };
 
 export const releaseNotesHistory: UpdateReleaseNote[] = [
+  {
+    version: '1.0.10',
+    releaseDate: '29-Sep-2026',
+    title: 'Audit Exception Root-Cause & Investigation Workspace (v1.0.10)',
+    highlights: [
+      'Comprehensive Exception Investigation Workspace with explicit 8-state lifecycle validation',
+      'Structured 15-Point Investigation Checklist with persisted verification timestamps and notes',
+      'Auditor Root-Cause Classification (10 categories: Data Entry, Master Data, Process Control, etc.)',
+      'Seamless Related Data Inspection: Source Voucher, Related Vouchers, GST/TDS Profiling, and Audit Trail'
+    ],
+    newFeatures: [
+      'Audit Exception Investigation Workspace with validated lifecycle transitions (Open to Resolved/Accepted)',
+      'Root-cause classification selector ensuring professional auditor classification without automated fault conclusions',
+      'Structured 15-point checklist covering transactions, ledgers, parties, GST, TDS, reconciliation, and evidence',
+      'Direct drill-down into correlated vouchers, GSTR matching, Section 206AA withholding, and working papers',
+      'Investigation summary text report export and tamper-evident audit trail logging'
+    ],
+    improvements: [
+      'Enforced SQLite foreign key relationships and schema migration 008_ExceptionInvestigations',
+      'Direct integration with TallyPrime XML drill-down and manual keyboard navigation fallback',
+      'Real-time checklist progress calculation and supervisory sign-off workflows'
+    ],
+    bugFixes: [
+      'Ensured atomic state machine validation preventing unauthorized jumping between open and resolved states',
+      'Synchronized parent exception review status automatically upon investigation resolution'
+    ],
+    schemaMigrationRequired: true,
+    downloadUrl: 'https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.10/TallyAuditAssistant-Setup-1.0.10.exe',
+    sha256Checksum: 'a7c93e4b102837264a93821a938c110298374619a82746102938475619281010',
+    fileSizeBytes: 49100000
+  },
+  {
+    version: '1.0.9',
+    releaseDate: '29-Sep-2026',
+    title: 'TallyPrime High-Reliability Connectivity & Endpoint Normalization (v1.0.9)',
+    highlights: [
+      'Automated multi-port scanning (9000-9005) with bounded discovery',
+      'Robust localhost / 127.0.0.1 / custom LAN IP endpoint normalization',
+      'Live connection diagnostics with latency probe and XML health check'
+    ],
+    newFeatures: [
+      'TallyEndpointNormalization engine supporting raw and URL-based host/port endpoints',
+      'Detailed diagnostic connection report with actionable troubleshooting steps'
+    ],
+    improvements: [
+      'Optimized connection ping backoff under network disconnects',
+      'Resilient mock integration test harness'
+    ],
+    bugFixes: [
+      'Fixed endpoint parsing for IPv4 addresses with custom port numbers'
+    ],
+    schemaMigrationRequired: false,
+    downloadUrl: 'https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.9/TallyAuditAssistant-Setup-1.0.9.exe',
+    sha256Checksum: 'b8d91f0bc12837264a93821a938c110298374619a82746102938475619283109',
+    fileSizeBytes: 48900000
+  },
   {
     version: '1.0.0',
     releaseDate: '26-Sep-2026',

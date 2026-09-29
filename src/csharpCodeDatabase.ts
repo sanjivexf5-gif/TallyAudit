@@ -1594,6 +1594,148 @@ public class GeminiAuditProviderTests
         Assert.Contains("AI assistance is not configured", result);
     }
 }`
+  },
+  'InvestigationModels.cs': {
+    path: 'src/TallyAuditAssistant.Core/Domain/Audit/InvestigationModels.cs',
+    desc: 'Audit Exception Root-Cause Domain Models: InvestigationStatus lifecycle, RootCauseClassification enum, and 15-point checklist items.',
+    code: `namespace TallyAuditAssistant.Core.Domain.Audit;
+
+public enum InvestigationStatus
+{
+    Open = 0,
+    Investigating = 1,
+    AwaitingEvidence = 2,
+    AwaitingManagementResponse = 3,
+    Resolved = 4,
+    NotResolved = 5,
+    Accepted = 6,
+    Escalated = 7
+}
+
+public enum RootCauseClassification
+{
+    DataEntry = 0,
+    MasterDataIssue = 1,
+    Configuration = 2,
+    ProcessControlWeakness = 3,
+    TimingCutoff = 4,
+    TaxTreatment = 5,
+    Duplicate = 6,
+    ReconciliationDifference = 7,
+    Other = 8,
+    Unknown = 9
+}
+
+public class ExceptionInvestigation
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string ExceptionId { get; set; } = string.Empty;
+    public string CompanyId { get; set; } = string.Empty;
+    public string? FinancialPeriodId { get; set; }
+    public string? AuditRunId { get; set; }
+    public InvestigationStatus Status { get; set; } = InvestigationStatus.Open;
+    public RootCauseClassification RootCause { get; set; } = RootCauseClassification.Unknown;
+    public string? AuditorNotes { get; set; }
+    public string? ManagementResponse { get; set; }
+    public string? ProposedCorrectiveAction { get; set; }
+    public string? ReviewerNotes { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public string CreatedBy { get; set; } = string.Empty;
+    public string UpdatedBy { get; set; } = string.Empty;
+    public DateTime? ClosedAt { get; set; }
+    public List<InvestigationChecklistItem> ChecklistItems { get; set; } = new();
+}`
+  },
+  'IInvestigationService.cs': {
+    path: 'src/TallyAuditAssistant.Core/Interfaces/IInvestigationService.cs',
+    desc: 'Contract for Investigation Lifecycle: state machine transitions, audit trail recording, and related data inspection.',
+    code: `namespace TallyAuditAssistant.Core.Interfaces;
+
+public interface IInvestigationService
+{
+    Task<ExceptionInvestigation> GetOrCreateInvestigationAsync(string exceptionId, string companyId, string username, string? financialPeriodId = null, string? auditRunId = null, CancellationToken ct = default);
+    Task<ExceptionInvestigation?> GetInvestigationByIdAsync(string investigationId, CancellationToken ct = default);
+    Task<ExceptionInvestigation?> GetInvestigationByExceptionIdAsync(string exceptionId, CancellationToken ct = default);
+    bool CanTransition(InvestigationStatus currentStatus, InvestigationStatus targetStatus);
+    IReadOnlyList<InvestigationStatus> GetAllowedTransitions(InvestigationStatus currentStatus);
+    Task<bool> TransitionStatusAsync(string investigationId, InvestigationStatus newStatus, string username, string? reason = null, CancellationToken ct = default);
+    Task UpdateInvestigationAsync(ExceptionInvestigation investigation, string username, CancellationToken ct = default);
+    Task ToggleChecklistItemAsync(string itemId, bool isCompleted, string username, string? notes = null, CancellationToken ct = default);
+    Task<InvestigationRelatedData> GetRelatedDataAsync(string exceptionId, string companyId, CancellationToken ct = default);
+}`
+  },
+  'InvestigationRepository.cs': {
+    path: 'src/TallyAuditAssistant.Data/Repositories/InvestigationRepository.cs',
+    desc: 'Dapper SQLite repository persistence for ExceptionInvestigations and structured InvestigationChecklistItems.',
+    code: `namespace TallyAuditAssistant.Data.Repositories;
+
+public class InvestigationRepository : IInvestigationRepository
+{
+    private readonly SqliteConnectionFactory _connectionFactory;
+    private readonly ILogger<InvestigationRepository> _logger;
+
+    public InvestigationRepository(SqliteConnectionFactory connectionFactory, ILogger<InvestigationRepository> logger)
+    {
+        _connectionFactory = connectionFactory;
+        _logger = logger;
+    }
+
+    public async Task<ExceptionInvestigation?> GetByExceptionIdAsync(string exceptionId, CancellationToken ct = default)
+    {
+        using var conn = await _connectionFactory.CreateConnectionAsync(ct);
+        const string sql = "SELECT * FROM ExceptionInvestigations WHERE ExceptionId = @ExceptionId LIMIT 1;";
+        var item = await conn.QuerySingleOrDefaultAsync<ExceptionInvestigation>(new CommandDefinition(sql, new { ExceptionId = exceptionId }, cancellationToken: ct));
+        if (item != null)
+        {
+            var checklist = await GetChecklistItemsAsync(item.Id, ct);
+            item.ChecklistItems = checklist.ToList();
+        }
+        return item;
+    }
+}`
+  },
+  'InvestigationService.cs': {
+    path: 'src/TallyAuditAssistant.Engine/Services/InvestigationService.cs',
+    desc: 'Audit Exception Root-Cause Workflow Engine: lifecycle validation, audit trail integration, and checklist management.',
+    code: `namespace TallyAuditAssistant.Engine.Services;
+
+public class InvestigationService : IInvestigationService
+{
+    public bool CanTransition(InvestigationStatus currentStatus, InvestigationStatus targetStatus)
+    {
+        if (currentStatus == targetStatus) return true;
+        return currentStatus switch
+        {
+            InvestigationStatus.Open => targetStatus == InvestigationStatus.Investigating,
+            InvestigationStatus.Investigating => targetStatus is InvestigationStatus.AwaitingEvidence or InvestigationStatus.AwaitingManagementResponse or InvestigationStatus.Resolved or InvestigationStatus.NotResolved or InvestigationStatus.Accepted or InvestigationStatus.Escalated,
+            InvestigationStatus.AwaitingEvidence => targetStatus is InvestigationStatus.Investigating or InvestigationStatus.Resolved or InvestigationStatus.Escalated or InvestigationStatus.AwaitingManagementResponse,
+            InvestigationStatus.AwaitingManagementResponse => targetStatus is InvestigationStatus.Investigating or InvestigationStatus.Resolved or InvestigationStatus.Accepted or InvestigationStatus.Escalated,
+            InvestigationStatus.NotResolved => targetStatus is InvestigationStatus.Investigating or InvestigationStatus.Escalated or InvestigationStatus.Accepted,
+            InvestigationStatus.Accepted => targetStatus is InvestigationStatus.Investigating or InvestigationStatus.Resolved,
+            InvestigationStatus.Resolved => targetStatus == InvestigationStatus.Investigating,
+            InvestigationStatus.Escalated => targetStatus is InvestigationStatus.Investigating or InvestigationStatus.Resolved,
+            _ => false
+        };
+    }
+}`
+  },
+  'InvestigationServiceTests.cs': {
+    path: 'tests/TallyAuditAssistant.Tests/InvestigationServiceTests.cs',
+    desc: 'Automated test suite verifying the 8-state lifecycle, valid/invalid transitions, 15 checklist items, and audit logging.',
+    code: `namespace TallyAuditAssistant.Tests;
+
+public class InvestigationServiceTests
+{
+    [Fact]
+    public async Task GetOrCreateInvestigationAsync_CreatesInvestigationWith15DefaultChecklistItems()
+    {
+        var inv = await _service.GetOrCreateInvestigationAsync("EXC-01", "COMP-01", "AuditorA");
+        Assert.NotNull(inv);
+        Assert.Equal(InvestigationStatus.Open, inv.Status);
+        Assert.Equal(15, inv.ChecklistItems.Count);
+    }
+}`
   }
 };
 
