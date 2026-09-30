@@ -38,16 +38,19 @@ public class TallyConnectionViewModelTests
     [Fact]
     public async Task ScanForTallyAsync_WhenEndpointResponsive_PopulatesAvailableCompanies()
     {
-        var endpoint = new TallyEndpointInfo
-        {
-            Port = 9000,
-            IsResponsive = true,
-            LatencyMs = 2,
-            ServerVersion = "TallyPrime 4.0"
-        };
+        var endpoint = new TallyEndpointInfo(
+            Host: "localhost",
+            Port: 9000,
+            IsResponsive: true,
+            ServerVersion: "TallyPrime 4.0",
+            ActiveCompany: null,
+            LatencyMs: 2,
+            ErrorMessage: null,
+            FailureCause: ConnectionFailureCause.None
+        );
 
         _mockConnection.Setup(c => c.CheckIfProcessRunningAsync()).ReturnsAsync(true);
-        _mockConnection.Setup(c => c.DiscoverTallyAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        _mockConnection.Setup(c => c.DiscoverTallyAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(endpoint);
 
         var companyList = new List<string> { "Test Company A", "Test Company B" };
@@ -76,12 +79,15 @@ public class TallyConnectionViewModelTests
     [Fact]
     public async Task TestManualConnectionAsync_WhenSuccessful_PopulatesAvailableCompanies()
     {
-        var result = new ConnectionTestResult(
+        var result = new TallyEndpointInfo(
+            Host: "localhost",
+            Port: 9000,
             IsResponsive: true,
-            FailureCause: ConnectionFailureCause.None,
-            ErrorMessage: null,
+            ServerVersion: "TallyPrime",
+            ActiveCompany: null,
             LatencyMs: 5,
-            ServerVersion: "TallyPrime"
+            ErrorMessage: null,
+            FailureCause: ConnectionFailureCause.None
         );
 
         _mockConnection.Setup(c => c.TestConnectionDetailedAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -111,15 +117,18 @@ public class TallyConnectionViewModelTests
     [Fact]
     public async Task ScanForTallyAsync_WhenNoCompaniesOpen_LeavesListEmptyGracefully()
     {
-        var endpoint = new TallyEndpointInfo
-        {
-            Port = 9000,
-            IsResponsive = true,
-            LatencyMs = 2,
-            ServerVersion = "TallyPrime"
-        };
+        var endpoint = new TallyEndpointInfo(
+            Host: "localhost",
+            Port: 9000,
+            IsResponsive: true,
+            ServerVersion: "TallyPrime",
+            ActiveCompany: null,
+            LatencyMs: 2,
+            ErrorMessage: null,
+            FailureCause: ConnectionFailureCause.None
+        );
 
-        _mockConnection.Setup(c => c.DiscoverTallyAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        _mockConnection.Setup(c => c.DiscoverTallyAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(endpoint);
 
         _mockCompanyService.Setup(s => s.GetOpenCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -145,15 +154,18 @@ public class TallyConnectionViewModelTests
     [Fact]
     public async Task ScanForTallyAsync_WhenCompanyQueryThrowsException_ReportsCorrectDiagnostic()
     {
-        var endpoint = new TallyEndpointInfo
-        {
-            Port = 9000,
-            IsResponsive = true,
-            LatencyMs = 2,
-            ServerVersion = "TallyPrime"
-        };
+        var endpoint = new TallyEndpointInfo(
+            Host: "localhost",
+            Port: 9000,
+            IsResponsive: true,
+            ServerVersion: "TallyPrime",
+            ActiveCompany: null,
+            LatencyMs: 2,
+            ErrorMessage: null,
+            FailureCause: ConnectionFailureCause.None
+        );
 
-        _mockConnection.Setup(c => c.DiscoverTallyAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        _mockConnection.Setup(c => c.DiscoverTallyAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(endpoint);
 
         _mockCompanyService.Setup(s => s.GetOpenCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
