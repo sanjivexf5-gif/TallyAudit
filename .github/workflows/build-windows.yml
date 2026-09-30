@@ -24,6 +24,7 @@ jobs:
   build-windows:
     name: Build, Test & Package Windows Release
     runs-on: windows-latest
+    if: "!startsWith(github.event.head_commit.message, 'chore: bump application version')"
 
     steps:
       - name: Checkout repository
@@ -51,13 +52,17 @@ jobs:
             "Accept" = "application/vnd.github.v3+json"
             "User-Agent" = "TallyAuditAssistant-CI"
           }
-          $url = "https://api.github.com/repos/$repo/releases?per_page=100"
           
-          # Fetch releases with retry in case of transient API error
+          # Fetch both releases and tags to be absolutely collision-proof
+          $releasesUrl = "https://api.github.com/repos/$repo/releases?per_page=100"
+          $tagsUrl = "https://api.github.com/repos/$repo/tags?per_page=100"
+          
           $releases = $null
+          $tags = $null
+          
           for ($i=1; $i -le 3; $i++) {
             try {
-              $releases = Invoke-RestMethod -Uri $url -Headers $headers -ErrorAction Stop
+              $releases = Invoke-RestMethod -Uri $releasesUrl -Headers $headers -ErrorAction Stop
               break
             } catch {
               Write-Host "Warning: Attempt $i to fetch releases failed: $_"
@@ -65,13 +70,39 @@ jobs:
             }
           }
           
-          $validVersions = @()
+          for ($i=1; $i -le 3; $i++) {
+            try {
+              $tags = Invoke-RestMethod -Uri $tagsUrl -Headers $headers -ErrorAction Stop
+              break
+            } catch {
+              Write-Host "Warning: Attempt $i to fetch tags failed: $_"
+              Start-Sleep -Seconds 2
+            }
+          }
+          
+          # Collect all existing semantic versions
+          $existingVersions = @()
+          
           if ($releases) {
             foreach ($r in $releases) {
               $tag = $r.tag_name
               if ($tag -match '^v(\d+)\.(\d+)\.(\d+)$') {
                 $verObj = [version]"$($matches[1]).$($matches[2]).$($matches[3])"
-                $validVersions += $verObj
+                if ($existingVersions -notcontains $verObj) {
+                  $existingVersions += $verObj
+                }
+              }
+            }
+          }
+          
+          if ($tags) {
+            foreach ($t in $tags) {
+              $tag = $t.name
+              if ($tag -match '^v(\d+)\.(\d+)\.(\d+)$') {
+                $verObj = [version]"$($matches[1]).$($matches[2]).$($matches[3])"
+                if ($existingVersions -notcontains $verObj) {
+                  $existingVersions += $verObj
+                }
               }
             }
           }
@@ -86,22 +117,30 @@ jobs:
             $ver = $manualVer
             Write-Host "Triggered by workflow_dispatch with manual version: $ver"
           } else {
-            if ($validVersions.Count -gt 0) {
-              $latestVersion = $validVersions | Sort-Object -Descending | Select-Object -First 1
-              $major = $latestVersion.Major
-              $minor = $latestVersion.Minor
-              $patch = $latestVersion.Build + 1
-              $ver = "$major.$minor.$patch"
-              Write-Host "Calculated next patch version: $ver (based on latest release tag v$($latestVersion.ToString(3)))"
+            # Find the highest existing version
+            if ($existingVersions.Count -gt 0) {
+              $highestVersion = $existingVersions | Sort-Object -Descending | Select-Object -First 1
+              $major = $highestVersion.Major
+              $minor = $highestVersion.Minor
+              $patch = $highestVersion.Build + 1
+              
+              # Loop until we find a version that has absolutely no collision with existing releases or tags
+              $candidate = "$major.$minor.$patch"
+              while ($existingVersions -contains [version]$candidate) {
+                $patch++
+                $candidate = "$major.$minor.$patch"
+              }
+              $ver = $candidate
+              Write-Host "Calculated next patch version: $ver (based on highest version v$($highestVersion.ToString(3)))"
             } else {
               $ver = "1.0.17"
-              Write-Host "No previous release tags found. Defaulting to: $ver"
+              Write-Host "No previous versions found. Defaulting to: $ver"
             }
           }
           
-          # Verify the release tag does not already exist
-          if ($validVersions.Count -gt 0 -and $validVersions -contains [version]$ver) {
-            throw "FATAL: Release for tag 'v$ver' already exists! Releases cannot be overwritten."
+          # Final safety validation to make sure there's no collision
+          if ($existingVersions.Count -gt 0 -and $existingVersions -contains [version]$ver) {
+            throw "FATAL: Release/Tag for 'v$ver' already exists! Versioning collision detected."
           }
           
           $tag = "v$ver"
