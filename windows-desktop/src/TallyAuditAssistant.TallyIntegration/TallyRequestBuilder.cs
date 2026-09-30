@@ -33,7 +33,7 @@ public class TallyRequestBuilder : ITallyRequestBuilder
   <HEADER>
     <VERSION>1</VERSION>
     <TALLYREQUEST>Export</TALLYREQUEST>
-    <TYPE>Data</TYPE>
+    <TYPE>Collection</TYPE>
     <ID>List of Companies</ID>
   </HEADER>
   <BODY>
@@ -41,6 +41,21 @@ public class TallyRequestBuilder : ITallyRequestBuilder
       <STATICVARIABLES>
         <SVEXPORTFORMAT>{formatSysName}</SVEXPORTFORMAT>
       </STATICVARIABLES>
+      <TDL>
+        <TDLMESSAGE>
+          <COLLECTION NAME=""List of Companies""
+                      ISMODIFY=""No""
+                      ISFIXED=""No""
+                      ISINITIALIZE=""Yes""
+                      ISOPTION=""No""
+                      ISINTERNAL=""No"">
+            <TYPE>Company</TYPE>
+            <NATIVEMETHOD>Name</NATIVEMETHOD>
+            <NATIVEMETHOD>StartingFrom</NATIVEMETHOD>
+            <NATIVEMETHOD>BooksFrom</NATIVEMETHOD>
+          </COLLECTION>
+        </TDLMESSAGE>
+      </TDL>
     </DESC>
   </BODY>
 </ENVELOPE>";

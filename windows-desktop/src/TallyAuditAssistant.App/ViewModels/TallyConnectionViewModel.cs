@@ -215,8 +215,8 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
                 if (queryError != null)
                 {
-                    DiagnosticReport += $"\n✗ Tally company query failed: {queryError}";
-                    StatusMessage = "Company Query Error";
+                    StatusMessage = "Connected to TallyPrime, but the company list could not be read.";
+                    DiagnosticReport += $"\n✗ Connected to TallyPrime, but the company list could not be read.\nRetry Company Discovery\nView Diagnostic Details\nError: {queryError}";
                     SelectedCompany = null;
                 }
                 else if (companies.Count > 0)
@@ -231,7 +231,7 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                     ActiveCompany = "—";
                     SelectedCompany = null;
                     StatusMessage = "Tally Connected (No open companies)";
-                    DiagnosticReport += "\n⚠ TallyPrime responded successfully, but no open companies were returned.";
+                    DiagnosticReport += "\n⚠ TallyPrime responded successfully, but no loaded company was returned.";
                 }
 
                 await _settingsService.SetTallyPortAsync(Port);
@@ -297,8 +297,8 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
                 if (queryError != null)
                 {
-                    DiagnosticReport += $"\n✗ Tally company query failed: {queryError}";
-                    StatusMessage = "Company Query Error";
+                    StatusMessage = "Connected to TallyPrime, but the company list could not be read.";
+                    DiagnosticReport += $"\n✗ Connected to TallyPrime, but the company list could not be read.\nRetry Company Discovery\nView Diagnostic Details\nError: {queryError}";
                     SelectedCompany = null;
                 }
                 else if (companies.Count > 0)
@@ -310,7 +310,8 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 else
                 {
                     SelectedCompany = null;
-                    DiagnosticReport += "\n⚠ TallyPrime responded successfully, but no open companies were returned.";
+                    StatusMessage = "Tally Connected (No open companies)";
+                    DiagnosticReport += "\n⚠ TallyPrime responded successfully, but no loaded company was returned.";
                 }
 
                 await _settingsService.SetTallyPortAsync(Port);
@@ -333,6 +334,79 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
             DiagnosticReport = $"✗ Company discovery failed: {ex.Message}";
             _logger.LogError(ex, "Unexpected error during manual connection test.");
             IsConnected = false;
+        }
+        finally
+        {
+            IsScanning = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task RefreshCompaniesAsync()
+    {
+        if (!IsConnected)
+        {
+            StatusMessage = "Not connected to TallyPrime.";
+            return;
+        }
+
+        IsScanning = true;
+        StatusMessage = "Refreshing company list...";
+        DiagnosticReport = "Querying loaded companies...";
+
+        try
+        {
+            IReadOnlyList<string> companies = Array.Empty<string>();
+            string? queryError = null;
+            try
+            {
+                companies = await _companyService.GetOpenCompaniesAsync($"http://{Host}:{Port}");
+            }
+            catch (Exception ex)
+            {
+                queryError = ex.Message;
+                _logger.LogError(ex, "Tally company query failed during refresh.");
+            }
+
+            var previousSelection = SelectedCompany;
+            await UpdateAvailableCompaniesAsync(companies);
+
+            if (queryError != null)
+            {
+                StatusMessage = "Connected to TallyPrime, but the company list could not be read.";
+                DiagnosticReport += $"\n✗ Connected to TallyPrime, but the company list could not be read.\nRetry Company Discovery\nView Diagnostic Details\nError: {queryError}";
+                SelectedCompany = null;
+            }
+            else if (companies.Count > 0)
+            {
+                StatusMessage = "Tally Connected";
+                
+                // Preserve currently selected company if it still exists
+                if (!string.IsNullOrEmpty(previousSelection) && companies.Contains(previousSelection))
+                {
+                    SelectedCompany = previousSelection;
+                }
+                else
+                {
+                    SelectedCompany = companies[0];
+                }
+                
+                DiagnosticReport += $"\n✓ Company query completed. {companies.Count} company/companies returned.";
+                DiagnosticReport += "\n✓ Companies loaded into the application.";
+            }
+            else
+            {
+                ActiveCompany = "—";
+                SelectedCompany = null;
+                StatusMessage = "Tally Connected (No open companies)";
+                DiagnosticReport += "\n⚠ TallyPrime responded successfully, but no loaded company was returned.";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = "Refresh Error";
+            DiagnosticReport = $"✗ Company refresh failed: {ex.Message}";
+            _logger.LogError(ex, "Unexpected error during company refresh.");
         }
         finally
         {

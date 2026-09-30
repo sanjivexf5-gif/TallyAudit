@@ -121,27 +121,114 @@ public class TallyResponseParser : ITallyResponseParser
             var doc = new XmlDocument();
             doc.LoadXml(sanitizedXml);
 
-            var nodes = doc.SelectNodes("//COMPANY//NAME | //COMPANYNAME | //COMPANY");
-            if (nodes != null)
+            // Find all elements representing COMPANY (or any node with local name 'COMPANY')
+            var companyNodes = doc.GetElementsByTagName("COMPANY");
+            if (companyNodes.Count == 0)
             {
-                foreach (XmlNode node in nodes)
+                // Fallback to searching all nodes that might be company blocks or contain company lists
+                companyNodes = doc.SelectNodes("//COMPANY") ?? doc.SelectNodes("//*[local-name()='COMPANY']");
+            }
+
+            if (companyNodes != null)
+            {
+                foreach (XmlNode companyNode in companyNodes)
                 {
-                    var text = node.InnerText?.Trim();
-                    if (!string.IsNullOrEmpty(text) && !results.Contains(text) && !text.Contains("<"))
+                    string? name = null;
+
+                    // 1. First inspect NAME attribute
+                    if (companyNode.Attributes != null && companyNode.Attributes["NAME"] != null)
                     {
-                        results.Add(text);
+                        name = companyNode.Attributes["NAME"]?.Value;
+                    }
+
+                    // 2. Then inspect direct NAME element
+                    if (string.IsNullOrEmpty(name))
+                    {
+                        var directNameNode = companyNode.SelectSingleNode("NAME");
+                        if (directNameNode != null && !directNameNode.HasChildNodes)
+                        {
+                            name = directNameNode.InnerText;
+                        }
+                        else if (directNameNode != null)
+                        {
+                            name = directNameNode.Value ?? directNameNode.InnerText;
+                        }
+                    }
+
+                    // 3. Then inspect NAME.LIST/NAME
+                    if (string.IsNullOrEmpty(name))
+                    {
+                        var nameListNode = companyNode.SelectSingleNode("NAME.LIST/NAME");
+                        if (nameListNode != null)
+                        {
+                            name = nameListNode.InnerText;
+                        }
+                    }
+
+                    // 4. Clean and validate the extracted name
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        name = name.Trim();
+                        // Filter out structural/unrelated XML tag text like COLLECTION, COMPANY.LIST, etc.
+                        if (!string.IsNullOrEmpty(name) && 
+                            !name.Equals("COLLECTION", StringComparison.OrdinalIgnoreCase) &&
+                            !name.Equals("COMPANY.LIST", StringComparison.OrdinalIgnoreCase) &&
+                            !name.Equals("FORMALNAME", StringComparison.OrdinalIgnoreCase) &&
+                            !name.Equals("STATE", StringComparison.OrdinalIgnoreCase) &&
+                            !name.Equals("GSTIN", StringComparison.OrdinalIgnoreCase) &&
+                            !name.Contains("<") && !name.Contains(">"))
+                        {
+                            // Deduplicate case-insensitively while preserving original company name
+                            if (!results.Any(r => r.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                results.Add(name);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // If we found zero companies with structured XML parsing, use a robust regex fallback specifically tuned for company structures
+            if (results.Count == 0)
+            {
+                var nameMatches = Regex.Matches(responseContent, @"<COMPANY[^>]*NAME=""([^""]+)""", RegexOptions.IgnoreCase);
+                foreach (Match m in nameMatches)
+                {
+                    var val = m.Groups[1].Value.Trim();
+                    if (!string.IsNullOrEmpty(val) && !results.Any(r => r.Equals(val, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        results.Add(val);
+                    }
+                }
+
+                var listMatches = Regex.Matches(responseContent, @"<COMPANY[^>]*>[\s\S]*?<NAME[^>]*>([^<]+)</NAME>", RegexOptions.IgnoreCase);
+                foreach (Match m in listMatches)
+                {
+                    var val = m.Groups[1].Value.Trim();
+                    if (!string.IsNullOrEmpty(val) && 
+                        !val.Equals("COLLECTION", StringComparison.OrdinalIgnoreCase) &&
+                        !val.Equals("COMPANY.LIST", StringComparison.OrdinalIgnoreCase) &&
+                        !results.Any(r => r.Equals(val, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        results.Add(val);
                     }
                 }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Standard XmlDocument failed. Using regex fallback for company names.");
+            _logger.LogWarning(ex, "Standard XML company parsing failed. Using general regex fallback.");
             var matches = Regex.Matches(responseContent, @"<NAME[^>]*>([^<]+)</NAME>", RegexOptions.IgnoreCase);
             foreach (Match m in matches)
             {
                 var val = m.Groups[1].Value.Trim();
-                if (!string.IsNullOrEmpty(val) && !results.Contains(val)) results.Add(val);
+                if (!string.IsNullOrEmpty(val) && 
+                    !val.Equals("COLLECTION", StringComparison.OrdinalIgnoreCase) &&
+                    !val.Equals("COMPANY.LIST", StringComparison.OrdinalIgnoreCase) &&
+                    !results.Any(r => r.Equals(val, StringComparison.OrdinalIgnoreCase)))
+                {
+                    results.Add(val);
+                }
             }
         }
 

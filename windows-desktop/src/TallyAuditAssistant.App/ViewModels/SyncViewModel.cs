@@ -145,13 +145,14 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
     {
         if (IsSyncing) return;
 
-        if (string.IsNullOrEmpty(CompanyName))
+        var comp = await _companyContext.GetActiveCompanyAsync();
+        if (comp == null || string.IsNullOrEmpty(comp.TallyCompanyName))
         {
-            var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            CompanyName = comp?.TallyCompanyName ?? await _companyService.GetActiveCompanyAsync() ?? string.Empty;
+            CurrentTaskDescription = "Please select a Tally company before synchronization.";
+            return;
         }
 
-        if (string.IsNullOrEmpty(CompanyName)) return;
+        CompanyName = comp.TallyCompanyName;
 
         IsSyncing = true;
         IsPaused = false;
