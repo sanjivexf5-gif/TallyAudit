@@ -122,6 +122,41 @@ public class NavigationMappingTests
     }
 
     [Fact]
+    public void VerifyMainWindowXamlHasExplicitKeyedTemplateAndDataTriggerForInvestigation()
+    {
+        var appDir = FindAppDirectory();
+        var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
+        var doc = XDocument.Parse(File.ReadAllText(mainWindowXamlPath));
+
+        // 1. Verify the keyed data template is declared
+        var keyedTemplate = doc.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "DataTemplate" && 
+                                 e.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Value == "InvestigationViewTemplate");
+        Assert.NotNull(keyedTemplate);
+
+        var innerView = keyedTemplate.Elements().FirstOrDefault();
+        Assert.NotNull(innerView);
+        Assert.Equal("InvestigationView", innerView.Name.LocalName);
+
+        // 2. Verify ContentControl has a Style with a DataTrigger matching Investigation
+        var contentControl = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "ContentControl");
+        Assert.NotNull(contentControl);
+
+        var dataTrigger = contentControl.Descendants().FirstOrDefault(e => e.Name.LocalName == "DataTrigger");
+        Assert.NotNull(dataTrigger);
+
+        var bindingAttr = dataTrigger.Attribute("Binding")?.Value ?? "";
+        var valueAttr = dataTrigger.Attribute("Value")?.Value ?? "";
+        Assert.Contains("CurrentSection", bindingAttr);
+        Assert.Equal("Investigation", valueAttr);
+
+        var setter = dataTrigger.Descendants().FirstOrDefault(e => e.Name.LocalName == "Setter");
+        Assert.NotNull(setter);
+        Assert.Equal("ContentTemplate", setter.Attribute("Property")?.Value);
+        Assert.Contains("InvestigationViewTemplate", setter.Attribute("Value")?.Value ?? "");
+    }
+
+    [Fact]
     public void VerifyMainWindowViewModelSourceCodeContainsCompleteTwelveSectionRouting()
     {
         var appDir = FindAppDirectory();

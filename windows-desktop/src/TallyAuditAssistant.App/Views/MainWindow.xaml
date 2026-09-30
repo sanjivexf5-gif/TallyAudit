@@ -55,6 +55,9 @@
         <DataTemplate DataType="{x:Type vm:InvestigationViewModel}">
             <views:InvestigationView />
         </DataTemplate>
+        <DataTemplate x:Key="InvestigationViewTemplate">
+            <views:InvestigationView />
+        </DataTemplate>
 
         <Style x:Key="SidebarButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
@@ -170,7 +173,17 @@
 
             <!-- Dynamic View Host -->
             <Border Grid.Column="1" Padding="20" Background="{StaticResource SurfaceBackgroundBrush}">
-                <ContentControl Content="{Binding CurrentViewModel}" />
+                <ContentControl Content="{Binding CurrentViewModel}">
+                    <ContentControl.Style>
+                        <Style TargetType="ContentControl">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentSection}" Value="Investigation">
+                                    <Setter Property="ContentTemplate" Value="{StaticResource InvestigationViewTemplate}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ContentControl.Style>
+                </ContentControl>
             </Border>
         </Grid>
     </Grid>
