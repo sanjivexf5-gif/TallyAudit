@@ -190,6 +190,29 @@ export const defaultTrialLicense: LicenseInfo = {
 
 export const releaseNotesHistory: UpdateReleaseNote[] = [
   {
+    version: '1.0.16',
+    releaseDate: '29-Sep-2026',
+    title: 'Audit Exception View Resolution & Navigation Fix (v1.0.16)',
+    highlights: [
+      'Resolved view mapping issue where the Investigation Workspace 2.0 rendered as plain text',
+      'Configured explicit DataTemplate mapping in MainWindow.xaml to correctly resolve InvestigationView',
+      'Tested seamless transition from Central Register to Investigation 2.0 with preserved context and back navigation'
+    ],
+    newFeatures: [
+      'Active mapping of InvestigationViewModel to InvestigationView'
+    ],
+    improvements: [
+      'Clean view resolution without any runtime XAML loading or binding warnings'
+    ],
+    bugFixes: [
+      'Fixed the blank screen bug in v1.0.15 where the view did not render for InvestigationViewModel'
+    ],
+    schemaMigrationRequired: false,
+    downloadUrl: 'https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.16/TallyAuditAssistant-Setup-1.0.16.exe',
+    sha256Checksum: 'a8d20e5c103948375b0482910394857201938475610293847561029384756101',
+    fileSizeBytes: 49260000
+  },
+  {
     version: '1.0.15',
     releaseDate: '29-Sep-2026',
     title: 'Audit Exception Investigation UI & Workspace Integration (v1.0.15)',

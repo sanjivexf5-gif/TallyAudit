@@ -98,6 +98,30 @@ public class NavigationMappingTests
     }
 
     [Fact]
+    public void VerifyInvestigationViewModelHasCorrectDataTemplateInMainWindowXaml()
+    {
+        var appDir = FindAppDirectory();
+        var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
+        var doc = XDocument.Parse(File.ReadAllText(mainWindowXamlPath));
+
+        var dataTemplates = doc.Descendants()
+            .Where(e => e.Name.LocalName == "DataTemplate" && e.Attribute("DataType") != null)
+            .ToList();
+
+        var matchingTemplate = dataTemplates.FirstOrDefault(dt =>
+        {
+            var dtAttr = dt.Attribute("DataType")?.Value ?? "";
+            return dtAttr.Contains("InvestigationViewModel");
+        });
+
+        Assert.NotNull(matchingTemplate);
+
+        var childView = matchingTemplate.Elements().FirstOrDefault();
+        Assert.NotNull(childView);
+        Assert.Equal("InvestigationView", childView.Name.LocalName);
+    }
+
+    [Fact]
     public void VerifyMainWindowViewModelSourceCodeContainsCompleteTwelveSectionRouting()
     {
         var appDir = FindAppDirectory();
