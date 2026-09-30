@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -12,6 +13,7 @@ using TallyAuditAssistant.Core.Domain.Tally;
 using TallyAuditAssistant.Core.Domain.Vouchers;
 using TallyAuditAssistant.Core.Interfaces;
 using TallyAuditAssistant.Core.Services;
+using TallyAuditAssistant.Data;
 using TallyAuditAssistant.TallyIntegration;
 using Xunit;
 
@@ -29,6 +31,7 @@ public class CompanySelectionSyncFlowTests
     private readonly NavigationService _navigationService;
     private readonly TallyConnectionMonitor _connectionMonitor;
     private readonly ActiveCompanyContext _companyContext;
+    private readonly SqliteConnectionFactory _sqliteConnectionFactory;
 
     public CompanySelectionSyncFlowTests()
     {
@@ -40,6 +43,9 @@ public class CompanySelectionSyncFlowTests
         _mockMasterService = new Mock<ITallyMasterService>();
         _mockVoucherService = new Mock<ITallyVoucherService>();
         _navigationService = new NavigationService();
+
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_sync_flow_{Guid.NewGuid():N}.db");
+        _sqliteConnectionFactory = new SqliteConnectionFactory(dbPath);
 
         _mockSettings.Setup(s => s.GetTallyHostAsync()).ReturnsAsync("localhost");
         _mockSettings.Setup(s => s.GetTallyPortAsync()).ReturnsAsync(9000);
@@ -54,6 +60,108 @@ public class CompanySelectionSyncFlowTests
                       .ReturnsAsync((Company c, CancellationToken ct) => c);
         _mockAuditRepo.Setup(r => r.GetCompanyByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                       .ReturnsAsync((string name, CancellationToken ct) => null);
+    }
+
+    private MainWindowViewModel CreateMainWindowViewModel(SyncViewModel syncVM, TallyConnectionViewModel connVM)
+    {
+        var dashboardVM = new DashboardViewModel(
+            _mockAuditRepo.Object,
+            _mockConnection.Object,
+            new Mock<IAuditEngine>().Object,
+            _mockSettings.Object,
+            new Mock<ITallyDrillDownService>().Object,
+            new Mock<IAuditAssistantService>().Object,
+            _companyContext,
+            NullLogger<DashboardViewModel>.Instance);
+
+        var settingsVM = new SettingsViewModel(
+            _mockSettings.Object,
+            new Mock<IDatabaseInitializer>().Object,
+            _companyContext,
+            new Mock<IUpdateService>().Object,
+            _mockAuditRepo.Object,
+            _mockConnection.Object);
+
+        var companiesVM = new CompaniesViewModel(
+            _mockAuditRepo.Object,
+            _mockSettings.Object,
+            _companyContext,
+            _mockCompanyService.Object,
+            _navigationService);
+
+        var gstVM = new GstAuditViewModel(
+            _mockAuditRepo.Object,
+            _mockSettings.Object,
+            _companyContext,
+            _navigationService,
+            NullLogger<GstAuditViewModel>.Instance);
+
+        var tdsVM = new TdsAuditViewModel(
+            _mockAuditRepo.Object,
+            _mockSettings.Object,
+            _companyContext,
+            _navigationService,
+            NullLogger<TdsAuditViewModel>.Instance);
+
+        var vouchersVM = new VouchersViewModel(
+            _sqliteConnectionFactory,
+            _mockSettings.Object,
+            _mockAuditRepo.Object,
+            _companyContext,
+            _navigationService);
+
+        var ledgersVM = new LedgersViewModel(
+            _sqliteConnectionFactory,
+            _mockSettings.Object,
+            _mockAuditRepo.Object,
+            _companyContext,
+            _navigationService);
+
+        var bankVM = new BankAuditViewModel(
+            _mockAuditRepo.Object,
+            _mockSettings.Object,
+            _companyContext,
+            _navigationService);
+
+        var exceptionsVM = new ExceptionsViewModel(
+            _mockAuditRepo.Object,
+            _mockSettings.Object,
+            _companyContext,
+            _navigationService,
+            null,
+            NullLogger<ExceptionsViewModel>.Instance);
+
+        var reportsVM = new ReportsViewModel(
+            _mockAuditRepo.Object,
+            _mockSettings.Object,
+            _companyContext,
+            _navigationService);
+
+        var investigationVM = new InvestigationViewModel(
+            new Mock<IInvestigationService>().Object,
+            _mockAuditRepo.Object,
+            _companyContext,
+            _navigationService);
+
+        return new MainWindowViewModel(
+            _mockConnection.Object,
+            _companyContext,
+            _mockCompanyService.Object,
+            _mockSettings.Object,
+            _navigationService,
+            dashboardVM,
+            connVM,
+            syncVM,
+            settingsVM,
+            companiesVM,
+            gstVM,
+            tdsVM,
+            vouchersVM,
+            ledgersVM,
+            bankVM,
+            exceptionsVM,
+            reportsVM,
+            investigationVM);
     }
 
     [Fact]
@@ -118,22 +226,7 @@ public class CompanySelectionSyncFlowTests
         var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
         var syncVM = new SyncViewModel(syncManager, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
         var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
-        var companiesVM = new CompaniesViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _mockCompanyService.Object, _navigationService);
-        var mainVM = new MainWindowViewModel(
-            _mockConnection.Object, _companyContext, _mockCompanyService.Object, _mockSettings.Object, _navigationService,
-            new DashboardViewModel(_mockAuditRepo.Object, _mockSettings.Object, _mockCompanyService.Object, _navigationService),
-            connVM, syncVM,
-            new SettingsViewModel(_mockSettings.Object, _companyContext, _mockAuditRepo.Object),
-            companiesVM,
-            new GstAuditViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
-            new TdsAuditViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
-            new VouchersViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
-            new LedgersViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
-            new BankAuditViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
-            new ExceptionsViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
-            new ReportsViewModel(_mockAuditRepo.Object, _companyContext, _mockSettings.Object, _mockCompanyService.Object),
-            new InvestigationViewModel(new Mock<IInvestigationService>().Object, _mockAuditRepo.Object, _companyContext, _navigationService)
-        );
+        var mainVM = CreateMainWindowViewModel(syncVM, connVM);
 
         await _companyContext.SetActiveCompanyNameAsync("Sanjiv Sinha Pvt Ltd");
 
@@ -147,22 +240,7 @@ public class CompanySelectionSyncFlowTests
         var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
         var syncVM = new SyncViewModel(syncManager, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
         var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
-        var companiesVM = new CompaniesViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _mockCompanyService.Object, _navigationService);
-        var mainVM = new MainWindowViewModel(
-            _mockConnection.Object, _companyContext, _mockCompanyService.Object, _mockSettings.Object, _navigationService,
-            new DashboardViewModel(_mockAuditRepo.Object, _mockSettings.Object, _mockCompanyService.Object, _navigationService),
-            connVM, syncVM,
-            new SettingsViewModel(_mockSettings.Object, _companyContext, _mockAuditRepo.Object),
-            companiesVM,
-            new GstAuditViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
-            new TdsAuditViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
-            new VouchersViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
-            new LedgersViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
-            new BankAuditViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
-            new ExceptionsViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
-            new ReportsViewModel(_mockAuditRepo.Object, _companyContext, _mockSettings.Object, _mockCompanyService.Object),
-            new InvestigationViewModel(new Mock<IInvestigationService>().Object, _mockAuditRepo.Object, _companyContext, _navigationService)
-        );
+        var mainVM = CreateMainWindowViewModel(syncVM, connVM);
 
         await _companyContext.SetActiveCompanyNameAsync("Sanjiv Sinha Pvt Ltd");
 
@@ -183,7 +261,7 @@ public class CompanySelectionSyncFlowTests
         // 6. Synchronize_WhenCompanySelected_Starts
         var mockSyncManager = new Mock<ISyncManager>();
         mockSyncManager.Setup(m => m.StartSyncAsync(It.IsAny<string>(), It.IsAny<SyncMode>(), It.IsAny<CancellationToken>()))
-                       .ReturnsAsync(new SyncResult { IsSuccess = true, TotalProcessed = 10 });
+                       .ReturnsAsync(new SyncResult(true, SyncMode.Full, 10, 10, 0, 0, 0, TimeSpan.FromSeconds(1)));
 
         var syncVM = new SyncViewModel(mockSyncManager.Object, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
 
@@ -216,7 +294,7 @@ public class CompanySelectionSyncFlowTests
         // 8. Synchronize_UsesActiveCompanyContext
         var mockSyncManager = new Mock<ISyncManager>();
         mockSyncManager.Setup(m => m.StartSyncAsync(It.IsAny<string>(), It.IsAny<SyncMode>(), It.IsAny<CancellationToken>()))
-                       .ReturnsAsync(new SyncResult { IsSuccess = true });
+                       .ReturnsAsync(new SyncResult(true, SyncMode.Full, 0, 0, 0, 0, 0, TimeSpan.FromSeconds(1)));
 
         var syncVM = new SyncViewModel(mockSyncManager.Object, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
 
@@ -369,23 +447,7 @@ public class CompanySelectionSyncFlowTests
         var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
         var syncVM = new SyncViewModel(syncManager, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
         var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
-        var companiesVM = new CompaniesViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _mockCompanyService.Object, _navigationService);
-
-        var mainVM = new MainWindowViewModel(
-            _mockConnection.Object, _companyContext, _mockCompanyService.Object, _mockSettings.Object, _navigationService,
-            new DashboardViewModel(_mockAuditRepo.Object, _mockSettings.Object, _mockCompanyService.Object, _navigationService),
-            connVM, syncVM,
-            new SettingsViewModel(_mockSettings.Object, _companyContext, _mockAuditRepo.Object),
-            companiesVM,
-            new GstAuditViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
-            new TdsAuditViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
-            new VouchersViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
-            new LedgersViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
-            new BankAuditViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
-            new ExceptionsViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
-            new ReportsViewModel(_mockAuditRepo.Object, _companyContext, _mockSettings.Object, _mockCompanyService.Object),
-            new InvestigationViewModel(new Mock<IInvestigationService>().Object, _mockAuditRepo.Object, _companyContext, _navigationService)
-        );
+        var mainVM = CreateMainWindowViewModel(syncVM, connVM);
 
         // 1. Scan for Tally
         await connVM.ScanForTallyCommand.ExecuteAsync(null);
