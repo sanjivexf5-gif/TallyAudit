@@ -148,7 +148,7 @@ public class TallyConnectionViewModelTests
         Assert.True(vm.IsConnected);
         Assert.Empty(vm.AvailableCompanies);
         Assert.Null(vm.SelectedCompany);
-        Assert.Contains("⚠ TallyPrime responded successfully, but no open companies were returned", vm.DiagnosticReport);
+        Assert.Contains("⚠ TallyPrime responded successfully, but no loaded company was returned.", vm.DiagnosticReport);
     }
 
     [Fact]
@@ -184,7 +184,8 @@ public class TallyConnectionViewModelTests
 
         Assert.True(vm.IsConnected);
         Assert.Empty(vm.AvailableCompanies);
-        Assert.Contains("✗ Tally company query failed: Internal XML Parser Error", vm.DiagnosticReport);
+        Assert.Contains("✗ Connected to TallyPrime, but the company list could not be read.", vm.DiagnosticReport);
+        Assert.Contains("Error: Internal XML Parser Error", vm.DiagnosticReport);
     }
 
     [Fact]
