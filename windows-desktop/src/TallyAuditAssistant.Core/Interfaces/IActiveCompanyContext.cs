@@ -12,6 +12,7 @@ namespace TallyAuditAssistant.Core.Interfaces;
 public interface IActiveCompanyContext
 {
     string? ActiveCompanyName { get; }
+    string? TallyCompanyName => ActiveCompanyName;
     string? ActiveCompanyId { get; }
     Company? CurrentCompany { get; }
     FinancialPeriod? CurrentPeriod { get; }
@@ -19,6 +20,7 @@ public interface IActiveCompanyContext
     string? ActiveFinancialPeriodId { get; }
     DateTime? ActivePeriodFrom { get; }
     DateTime? ActivePeriodTo { get; }
+    DateTime? BooksFrom => ActivePeriodFrom;
 
     event EventHandler<Company?>? ActiveCompanyChanged;
 

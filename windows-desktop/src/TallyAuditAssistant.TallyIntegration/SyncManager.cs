@@ -55,10 +55,18 @@ public class SyncManager : ISyncManager
 
     public async Task<SyncResult> StartSyncAsync(string companyName, SyncMode mode, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(companyName))
+        {
+            throw new ArgumentException("A valid Tally company name must be selected before synchronization.", nameof(companyName));
+        }
+
         if (CurrentStatus == SyncStatus.Running)
         {
             throw new InvalidOperationException("A synchronization process is already running.");
         }
+
+        _logger.LogInformation("Synchronization starting for company: {CompanyName}", companyName);
+        EmitLog($"Synchronization starting for company: {companyName}");
 
         _lastCompanySynced = companyName;
         _lastModeSynced = mode;
@@ -77,13 +85,18 @@ public class SyncManager : ISyncManager
             // PIPELINE STAGE 1: CONNECT
             SetStage(SyncStage.Connect, "Verifying connectivity with TallyPrime HTTP server...");
             EmitLog("Testing connection to TallyPrime...");
-            var isConnected = await _connection.TestConnectionAsync("localhost", 9000, ct);
+            var host = await _settingsService.GetTallyHostAsync();
+            var port = await _settingsService.GetTallyPortAsync();
+            if (string.IsNullOrEmpty(host)) host = "localhost";
+            if (port <= 0) port = 9000;
+
+            var isConnected = await _connection.TestConnectionAsync(host, port, ct);
             if (!isConnected)
             {
-                var endpoint = await _connection.ProbePortRangeAsync("localhost", 9000, 9005, ct);
+                var endpoint = await _connection.ProbePortRangeAsync(host, port, port + 5, ct);
                 if (endpoint == null)
                 {
-                    throw new InvalidOperationException("Could not connect to TallyPrime on ports 9000-9005. Verify Tally is running.");
+                    throw new InvalidOperationException($"Could not connect to TallyPrime on {host}:{port}. Verify Tally is running.");
                 }
             }
             EmitLog("Connection established successfully.");

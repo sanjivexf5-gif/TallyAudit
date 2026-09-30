@@ -87,15 +87,29 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
 
     private void OnActiveCompanyChanged(object? sender, Company? comp)
     {
-        if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
+        void Update()
         {
-            CompanyName = comp.TallyCompanyName;
-            _ = LoadHistoryAsync();
+            var compName = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
+            if (!string.IsNullOrEmpty(compName))
+            {
+                CompanyName = compName;
+                CurrentTaskDescription = $"Ready to synchronize {compName}.";
+                _ = LoadHistoryAsync();
+            }
+            else
+            {
+                CompanyName = string.Empty;
+                SyncHistory.Clear();
+            }
+        }
+
+        if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
+        {
+            App.Current.Dispatcher.Invoke(Update);
         }
         else
         {
-            CompanyName = string.Empty;
-            SyncHistory.Clear();
+            Update();
         }
     }
 
@@ -104,10 +118,12 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
         try
         {
             var comp = await _companyContext.GetActiveCompanyAsync();
+            var compName = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
 
-            if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
+            if (!string.IsNullOrEmpty(compName))
             {
-                CompanyName = comp.TallyCompanyName;
+                CompanyName = compName;
+                CurrentTaskDescription = $"Ready to synchronize {compName}.";
                 await LoadHistoryAsync();
             }
             else
@@ -146,16 +162,25 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
         if (IsSyncing) return;
 
         var comp = await _companyContext.GetActiveCompanyAsync();
-        if (comp == null || string.IsNullOrEmpty(comp.TallyCompanyName))
+        var companyNameToSync = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName ?? CompanyName;
+
+        if (string.IsNullOrWhiteSpace(companyNameToSync))
         {
             CurrentTaskDescription = "Please select a Tally company before synchronization.";
             return;
         }
 
-        CompanyName = comp.TallyCompanyName;
+        CompanyName = companyNameToSync;
+        if (comp == null)
+        {
+            await _companyContext.SetActiveCompanyNameAsync(companyNameToSync);
+            comp = await _companyContext.GetActiveCompanyAsync();
+        }
 
         IsSyncing = true;
         IsPaused = false;
+        CurrentStageText = "Connecting";
+        CurrentTaskDescription = $"Starting full synchronization for '{CompanyName}'...";
         LiveLogs.Clear();
         try
         {
@@ -195,16 +220,26 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
     {
         if (IsSyncing) return;
 
-        if (string.IsNullOrEmpty(CompanyName))
+        var comp = await _companyContext.GetActiveCompanyAsync();
+        var companyNameToSync = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName ?? CompanyName;
+
+        if (string.IsNullOrWhiteSpace(companyNameToSync))
         {
-            var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            CompanyName = comp?.TallyCompanyName ?? await _companyService.GetActiveCompanyAsync() ?? string.Empty;
+            CurrentTaskDescription = "Please select a Tally company before synchronization.";
+            return;
         }
 
-        if (string.IsNullOrEmpty(CompanyName)) return;
+        CompanyName = companyNameToSync;
+        if (comp == null)
+        {
+            await _companyContext.SetActiveCompanyNameAsync(companyNameToSync);
+            comp = await _companyContext.GetActiveCompanyAsync();
+        }
 
         IsSyncing = true;
         IsPaused = false;
+        CurrentStageText = "Connecting";
+        CurrentTaskDescription = $"Starting incremental synchronization for '{CompanyName}'...";
         LiveLogs.Clear();
         try
         {

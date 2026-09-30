@@ -102,9 +102,10 @@ public partial class MainWindowViewModel : ObservableObject
         {
             void Update()
             {
-                if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
+                var compName = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
+                if (!string.IsNullOrEmpty(compName))
                 {
-                    ActiveCompany = comp.TallyCompanyName;
+                    ActiveCompany = compName;
                 }
                 else
                 {
@@ -131,9 +132,10 @@ public partial class MainWindowViewModel : ObservableObject
     private async Task InitializeActiveCompanyAsync()
     {
         var comp = await _companyContext.GetActiveCompanyAsync();
-        if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
+        var compName = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
+        if (!string.IsNullOrEmpty(compName))
         {
-            ActiveCompany = comp.TallyCompanyName;
+            ActiveCompany = compName;
         }
         else
         {
@@ -144,6 +146,12 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     public void Navigate(string section)
     {
+        var activeName = _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
+        if (!string.IsNullOrEmpty(activeName) && ActiveCompany != activeName)
+        {
+            ActiveCompany = activeName;
+        }
+
         ObservableObject? nextVM = section switch
         {
             "Dashboard" => DashboardVM,

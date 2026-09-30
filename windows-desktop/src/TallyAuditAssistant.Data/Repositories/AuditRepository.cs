@@ -77,7 +77,6 @@ public class AuditRepository : IAuditRepository
             if (string.IsNullOrEmpty(company.StateCode)) company.StateCode = existing.StateCode;
             if (company.LastSyncDate == null) company.LastSyncDate = existing.LastSyncDate;
             if (company.LastAlterId == 0) company.LastAlterId = existing.LastAlterId;
-            if (!company.IsMock && existing.IsMock) company.IsMock = existing.IsMock;
 
             const string updateSql = @"
                 UPDATE Companies SET

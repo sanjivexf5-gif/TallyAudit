@@ -75,7 +75,7 @@ public class TallyRequestBuilder : ITallyRequestBuilder
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>{formatSysName}</SVEXPORTFORMAT>
-        <SVCURRENTCOMPANY>{EscapeXml(companyName)}</SVCURRENTCOMPANY>
+        <SVCurrentCompany>{EscapeXml(companyName)}</SVCurrentCompany>
       </STATICVARIABLES>
       <TDL>
         <TDLMESSAGE>
@@ -112,7 +112,7 @@ public class TallyRequestBuilder : ITallyRequestBuilder
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>{formatSysName}</SVEXPORTFORMAT>
-        <SVCURRENTCOMPANY>{EscapeXml(companyName)}</SVCURRENTCOMPANY>
+        <SVCurrentCompany>{EscapeXml(companyName)}</SVCurrentCompany>
       </STATICVARIABLES>
       <TDL>
         <TDLMESSAGE>
@@ -141,7 +141,7 @@ public class TallyRequestBuilder : ITallyRequestBuilder
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>{formatSysName}</SVEXPORTFORMAT>
-        <SVCURRENTCOMPANY>{EscapeXml(companyName)}</SVCURRENTCOMPANY>
+        <SVCurrentCompany>{EscapeXml(companyName)}</SVCurrentCompany>
       </STATICVARIABLES>
       <TDL>
         <TDLMESSAGE>
@@ -179,7 +179,7 @@ public class TallyRequestBuilder : ITallyRequestBuilder
     <DESC>
       <STATICVARIABLES>
         <SVEXPORTFORMAT>{formatSysName}</SVEXPORTFORMAT>
-        <SVCURRENTCOMPANY>{EscapeXml(companyName)}</SVCURRENTCOMPANY>
+        <SVCurrentCompany>{EscapeXml(companyName)}</SVCurrentCompany>
         <SVFROMDATE>{dateFromStr}</SVFROMDATE>
         <SVTODATE>{dateToStr}</SVTODATE>
       </STATICVARIABLES>

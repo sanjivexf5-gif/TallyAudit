@@ -1,0 +1,410 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using TallyAuditAssistant.App.Services;
+using TallyAuditAssistant.App.ViewModels;
+using TallyAuditAssistant.Core.Domain.Companies;
+using TallyAuditAssistant.Core.Domain.Sync;
+using TallyAuditAssistant.Core.Domain.Tally;
+using TallyAuditAssistant.Core.Domain.Vouchers;
+using TallyAuditAssistant.Core.Interfaces;
+using TallyAuditAssistant.Core.Services;
+using TallyAuditAssistant.TallyIntegration;
+using Xunit;
+
+namespace TallyAuditAssistant.Tests;
+
+public class CompanySelectionSyncFlowTests
+{
+    private readonly Mock<ITallyConnection> _mockConnection;
+    private readonly Mock<ITallyCompanyService> _mockCompanyService;
+    private readonly Mock<ISettingsService> _mockSettings;
+    private readonly Mock<IAuditRepository> _mockAuditRepo;
+    private readonly Mock<ISyncRepository> _mockSyncRepo;
+    private readonly Mock<ITallyMasterService> _mockMasterService;
+    private readonly Mock<ITallyVoucherService> _mockVoucherService;
+    private readonly NavigationService _navigationService;
+    private readonly TallyConnectionMonitor _connectionMonitor;
+    private readonly ActiveCompanyContext _companyContext;
+
+    public CompanySelectionSyncFlowTests()
+    {
+        _mockConnection = new Mock<ITallyConnection>();
+        _mockCompanyService = new Mock<ITallyCompanyService>();
+        _mockSettings = new Mock<ISettingsService>();
+        _mockAuditRepo = new Mock<IAuditRepository>();
+        _mockSyncRepo = new Mock<ISyncRepository>();
+        _mockMasterService = new Mock<ITallyMasterService>();
+        _mockVoucherService = new Mock<ITallyVoucherService>();
+        _navigationService = new NavigationService();
+
+        _mockSettings.Setup(s => s.GetTallyHostAsync()).ReturnsAsync("localhost");
+        _mockSettings.Setup(s => s.GetTallyPortAsync()).ReturnsAsync(9000);
+        _mockSettings.Setup(s => s.IsMockModeEnabledAsync()).ReturnsAsync(false);
+        _mockSettings.Setup(s => s.GetSettingAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                     .ReturnsAsync((string key, string def, CancellationToken ct) => def);
+
+        _connectionMonitor = new TallyConnectionMonitor(_mockConnection.Object, _mockSettings.Object, NullLogger<TallyConnectionMonitor>.Instance);
+        _companyContext = new ActiveCompanyContext(_mockAuditRepo.Object, _mockSettings.Object, _mockCompanyService.Object);
+
+        _mockAuditRepo.Setup(r => r.EnsureCompanyAsync(It.IsAny<Company>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync((Company c, CancellationToken ct) => c);
+        _mockAuditRepo.Setup(r => r.GetCompanyByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                      .ReturnsAsync((string name, CancellationToken ct) => null);
+    }
+
+    [Fact]
+    public async Task CompanyDiscovery_ReturnsCompany()
+    {
+        // 1. CompanyDiscovery_ReturnsCompany
+        var endpoint = new TallyEndpointInfo("localhost", 9000, true, "TallyPrime", null, 2, null, ConnectionFailureCause.None);
+        _mockConnection.Setup(c => c.CheckIfProcessRunningAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _mockConnection.Setup(c => c.DiscoverTallyAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                       .ReturnsAsync(endpoint);
+        _mockCompanyService.Setup(c => c.GetOpenCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                           .ReturnsAsync(new List<string> { "Sanjiv Sinha Pvt Ltd" });
+
+        var vm = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
+        await vm.ScanForTallyCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsConnected);
+        Assert.Single(vm.AvailableCompanies);
+        Assert.Contains("Sanjiv Sinha Pvt Ltd", vm.AvailableCompanies);
+    }
+
+    [Fact]
+    public async Task SingleDiscoveredCompany_IsAutomaticallySelected()
+    {
+        // 2. SingleDiscoveredCompany_IsAutomaticallySelected
+        var endpoint = new TallyEndpointInfo("localhost", 9000, true, "TallyPrime", null, 2, null, ConnectionFailureCause.None);
+        _mockConnection.Setup(c => c.CheckIfProcessRunningAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _mockConnection.Setup(c => c.DiscoverTallyAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                       .ReturnsAsync(endpoint);
+        _mockCompanyService.Setup(c => c.GetOpenCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                           .ReturnsAsync(new List<string> { "Sanjiv Sinha Pvt Ltd" });
+
+        var vm = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
+        await vm.ScanForTallyCommand.ExecuteAsync(null);
+
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", vm.SelectedCompany);
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", vm.ActiveCompany);
+    }
+
+    [Fact]
+    public async Task SelectedCompany_UpdatesActiveCompanyContext()
+    {
+        // 3. SelectedCompany_UpdatesActiveCompanyContext
+        var endpoint = new TallyEndpointInfo("localhost", 9000, true, "TallyPrime", null, 2, null, ConnectionFailureCause.None);
+        _mockConnection.Setup(c => c.CheckIfProcessRunningAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _mockConnection.Setup(c => c.DiscoverTallyAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                       .ReturnsAsync(endpoint);
+        _mockCompanyService.Setup(c => c.GetOpenCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                           .ReturnsAsync(new List<string> { "Sanjiv Sinha Pvt Ltd" });
+
+        var vm = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
+        await vm.ScanForTallyCommand.ExecuteAsync(null);
+
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", _companyContext.ActiveCompanyName);
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", _companyContext.TallyCompanyName);
+    }
+
+    [Fact]
+    public async Task SelectedCompany_UpdatesHeader()
+    {
+        // 4. SelectedCompany_UpdatesHeader
+        var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
+        var syncVM = new SyncViewModel(syncManager, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
+        var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
+        var companiesVM = new CompaniesViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _mockCompanyService.Object, _navigationService);
+        var mainVM = new MainWindowViewModel(
+            _mockConnection.Object, _companyContext, _mockCompanyService.Object, _mockSettings.Object, _navigationService,
+            new DashboardViewModel(_mockAuditRepo.Object, _mockSettings.Object, _mockCompanyService.Object, _navigationService),
+            connVM, syncVM,
+            new SettingsViewModel(_mockSettings.Object, _companyContext, _mockAuditRepo.Object),
+            companiesVM,
+            new GstAuditViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
+            new TdsAuditViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
+            new VouchersViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
+            new LedgersViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
+            new BankAuditViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
+            new ExceptionsViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
+            new ReportsViewModel(_mockAuditRepo.Object, _companyContext, _mockSettings.Object, _mockCompanyService.Object),
+            new InvestigationViewModel(new Mock<IInvestigationService>().Object, _mockAuditRepo.Object, _companyContext, _navigationService)
+        );
+
+        await _companyContext.SetActiveCompanyNameAsync("Sanjiv Sinha Pvt Ltd");
+
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", mainVM.ActiveCompany);
+    }
+
+    [Fact]
+    public async Task SelectedCompany_SurvivesNavigation()
+    {
+        // 5. SelectedCompany_SurvivesNavigation
+        var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
+        var syncVM = new SyncViewModel(syncManager, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
+        var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
+        var companiesVM = new CompaniesViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _mockCompanyService.Object, _navigationService);
+        var mainVM = new MainWindowViewModel(
+            _mockConnection.Object, _companyContext, _mockCompanyService.Object, _mockSettings.Object, _navigationService,
+            new DashboardViewModel(_mockAuditRepo.Object, _mockSettings.Object, _mockCompanyService.Object, _navigationService),
+            connVM, syncVM,
+            new SettingsViewModel(_mockSettings.Object, _companyContext, _mockAuditRepo.Object),
+            companiesVM,
+            new GstAuditViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
+            new TdsAuditViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
+            new VouchersViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
+            new LedgersViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
+            new BankAuditViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
+            new ExceptionsViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
+            new ReportsViewModel(_mockAuditRepo.Object, _companyContext, _mockSettings.Object, _mockCompanyService.Object),
+            new InvestigationViewModel(new Mock<IInvestigationService>().Object, _mockAuditRepo.Object, _companyContext, _navigationService)
+        );
+
+        await _companyContext.SetActiveCompanyNameAsync("Sanjiv Sinha Pvt Ltd");
+
+        mainVM.Navigate("Sync");
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", mainVM.ActiveCompany);
+
+        mainVM.Navigate("Vouchers");
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", mainVM.ActiveCompany);
+
+        mainVM.Navigate("Sync");
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", mainVM.ActiveCompany);
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", syncVM.CompanyName);
+    }
+
+    [Fact]
+    public async Task Synchronize_WhenCompanySelected_Starts()
+    {
+        // 6. Synchronize_WhenCompanySelected_Starts
+        var mockSyncManager = new Mock<ISyncManager>();
+        mockSyncManager.Setup(m => m.StartSyncAsync(It.IsAny<string>(), It.IsAny<SyncMode>(), It.IsAny<CancellationToken>()))
+                       .ReturnsAsync(new SyncResult { IsSuccess = true, TotalProcessed = 10 });
+
+        var syncVM = new SyncViewModel(mockSyncManager.Object, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
+
+        await _companyContext.SetActiveCompanyNameAsync("Sanjiv Sinha Pvt Ltd");
+
+        await syncVM.StartFullSyncCommand.ExecuteAsync(null);
+
+        mockSyncManager.Verify(m => m.StartSyncAsync("Sanjiv Sinha Pvt Ltd", SyncMode.Full, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.DoesNotContain("Please select a Tally company", syncVM.CurrentTaskDescription);
+    }
+
+    [Fact]
+    public async Task Synchronize_WhenNoCompanySelected_IsBlocked()
+    {
+        // 7. Synchronize_WhenNoCompanySelected_IsBlocked
+        var mockSyncManager = new Mock<ISyncManager>();
+        var syncVM = new SyncViewModel(mockSyncManager.Object, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
+
+        await _companyContext.ClearActiveCompanyAsync();
+
+        await syncVM.StartFullSyncCommand.ExecuteAsync(null);
+
+        mockSyncManager.Verify(m => m.StartSyncAsync(It.IsAny<string>(), It.IsAny<SyncMode>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Contains("Please select a Tally company before synchronization", syncVM.CurrentTaskDescription);
+    }
+
+    [Fact]
+    public async Task Synchronize_UsesActiveCompanyContext()
+    {
+        // 8. Synchronize_UsesActiveCompanyContext
+        var mockSyncManager = new Mock<ISyncManager>();
+        mockSyncManager.Setup(m => m.StartSyncAsync(It.IsAny<string>(), It.IsAny<SyncMode>(), It.IsAny<CancellationToken>()))
+                       .ReturnsAsync(new SyncResult { IsSuccess = true });
+
+        var syncVM = new SyncViewModel(mockSyncManager.Object, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
+
+        await _companyContext.SetActiveCompanyNameAsync("Sanjiv Sinha Pvt Ltd");
+
+        await syncVM.StartFullSyncCommand.ExecuteAsync(null);
+
+        mockSyncManager.Verify(m => m.StartSyncAsync(_companyContext.ActiveCompanyName, SyncMode.Full, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public void TallyQuery_UsesSelectedCompany()
+    {
+        // 9. TallyQuery_UsesSelectedCompany
+        var builder = new TallyRequestBuilder();
+        var xml = builder.BuildLedgerCollectionRequest("Sanjiv Sinha Pvt Ltd");
+
+        Assert.Contains("Sanjiv Sinha Pvt Ltd", xml);
+    }
+
+    [Fact]
+    public void TallyQuery_ContainsSVCurrentCompany()
+    {
+        // 10. TallyQuery_ContainsSVCurrentCompany
+        var builder = new TallyRequestBuilder();
+        var xml = builder.BuildVoucherCollectionRequest("Sanjiv Sinha Pvt Ltd", new DateTime(2025, 4, 1), new DateTime(2026, 3, 31));
+
+        Assert.Contains("<SVCurrentCompany>Sanjiv Sinha Pvt Ltd</SVCurrentCompany>", xml);
+    }
+
+    [Fact]
+    public async Task ChangingCompany_UpdatesContext()
+    {
+        // 11. ChangingCompany_UpdatesContext
+        await _companyContext.SetActiveCompanyNameAsync("First Company");
+        Assert.Equal("First Company", _companyContext.ActiveCompanyName);
+
+        await _companyContext.SetActiveCompanyNameAsync("Second Company");
+        Assert.Equal("Second Company", _companyContext.ActiveCompanyName);
+        Assert.Equal("Second Company", _companyContext.TallyCompanyName);
+    }
+
+    [Fact]
+    public async Task ChangingCompany_DoesNotRetainPreviousCompany()
+    {
+        // 12. ChangingCompany_DoesNotRetainPreviousCompany
+        var comp1 = new Company { Id = "COMP-1", TallyCompanyName = "Company 1", BooksFromDate = new DateTime(2024, 4, 1) };
+        var comp2 = new Company { Id = "COMP-2", TallyCompanyName = "Company 2", BooksFromDate = new DateTime(2025, 4, 1) };
+
+        await _companyContext.SetActiveCompanyAsync(comp1);
+        Assert.Equal("Company 1", _companyContext.ActiveCompanyName);
+        Assert.Equal("COMP-1-FY2024", _companyContext.CurrentPeriod?.Id);
+
+        await _companyContext.SetActiveCompanyAsync(comp2);
+        Assert.Equal("Company 2", _companyContext.ActiveCompanyName);
+        Assert.NotEqual("Company 1", _companyContext.ActiveCompanyName);
+        Assert.Equal("COMP-2-FY2025", _companyContext.CurrentPeriod?.Id);
+    }
+
+    [Fact]
+    public async Task FinancialPeriodRemainsConsistentWithCompany()
+    {
+        // 13. FinancialPeriodRemainsConsistentWithCompany
+        var comp = new Company { Id = "COMP-ALPHA", TallyCompanyName = "Alpha Corp", BooksFromDate = new DateTime(2025, 4, 1) };
+        await _companyContext.SetActiveCompanyAsync(comp);
+
+        var period = await _companyContext.GetActivePeriodAsync();
+        Assert.NotNull(period);
+        Assert.Equal("COMP-ALPHA", period.CompanyId);
+        Assert.Equal(new DateTime(2025, 4, 1), period.StartDate);
+        Assert.Equal(new DateTime(2026, 3, 31), period.EndDate);
+    }
+
+    [Fact]
+    public async Task SyncManager_UsesCurrentCompany()
+    {
+        // 14. SyncManager_UsesCurrentCompany
+        _mockConnection.Setup(c => c.TestConnectionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                       .ReturnsAsync(true);
+        _mockCompanyService.Setup(c => c.GetCompanyProfileTypedAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                           .ReturnsAsync(new TallyCompanyProfile { Name = "Sanjiv Sinha Pvt Ltd", BooksBeginningFrom = new DateTime(2025, 4, 1) });
+        _mockMasterService.Setup(m => m.GetGroupsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                          .ReturnsAsync(new List<string> { "Sundry Debtors" });
+        _mockMasterService.Setup(m => m.GetLedgersAsync(It.IsAny<string>(), It.IsAny<long?>(), It.IsAny<CancellationToken>()))
+                          .ReturnsAsync(new List<TallyLedgerDto>());
+
+        async IAsyncEnumerable<TallyVoucherDto> EmptyVouchers() { await Task.Yield(); yield break; }
+        _mockVoucherService.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                           .Returns(EmptyVouchers());
+
+        var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
+
+        string? loggedCompany = null;
+        syncManager.SyncLogEmitted += (s, log) =>
+        {
+            if (log.Contains("Synchronization starting for company:"))
+            {
+                loggedCompany = log;
+            }
+        };
+
+        var result = await syncManager.StartSyncAsync("Sanjiv Sinha Pvt Ltd", SyncMode.Full);
+
+        Assert.NotNull(result);
+        Assert.NotNull(loggedCompany);
+        Assert.Contains("Sanjiv Sinha Pvt Ltd", loggedCompany);
+    }
+
+    [Fact]
+    public async Task NoDemoFallback_WhenRealTallyConnected()
+    {
+        // 15. NoDemoFallback_WhenRealTallyConnected
+        _mockSettings.Setup(s => s.IsMockModeEnabledAsync()).ReturnsAsync(false);
+
+        var comp = await _companyContext.GetActiveCompanyAsync();
+        Assert.Null(comp); // Must NOT return fake or demo company
+
+        await _companyContext.SetActiveCompanyNameAsync("Sanjiv Sinha Pvt Ltd");
+        var active = await _companyContext.GetActiveCompanyAsync();
+
+        Assert.NotNull(active);
+        Assert.False(active.IsMock);
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", active.TallyCompanyName);
+    }
+
+    [Fact]
+    public async Task EndToEnd_CompanySelection_To_Synchronization_WithRealTallyArchitecture()
+    {
+        // 16. Integration: Connect -> Discover -> Select -> Context Populated -> Navigate to Sync -> Start Full Sync -> SyncManager receives company
+        var endpoint = new TallyEndpointInfo("localhost", 9000, true, "TallyPrime 4.0", null, 2, null, ConnectionFailureCause.None);
+        _mockConnection.Setup(c => c.CheckIfProcessRunningAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _mockConnection.Setup(c => c.DiscoverTallyAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                       .ReturnsAsync(endpoint);
+        _mockCompanyService.Setup(c => c.GetOpenCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                           .ReturnsAsync(new List<string> { "Sanjiv Sinha Pvt Ltd" });
+
+        _mockConnection.Setup(c => c.TestConnectionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                       .ReturnsAsync(true);
+        _mockCompanyService.Setup(c => c.GetCompanyProfileTypedAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                           .ReturnsAsync(new TallyCompanyProfile { Name = "Sanjiv Sinha Pvt Ltd", BooksBeginningFrom = new DateTime(2025, 4, 1) });
+        _mockMasterService.Setup(m => m.GetGroupsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                          .ReturnsAsync(new List<string> { "Sundry Debtors" });
+        _mockMasterService.Setup(m => m.GetLedgersAsync(It.IsAny<string>(), It.IsAny<long?>(), It.IsAny<CancellationToken>()))
+                          .ReturnsAsync(new List<TallyLedgerDto>());
+
+        async IAsyncEnumerable<TallyVoucherDto> EmptyVouchers2() { await Task.Yield(); yield break; }
+        _mockVoucherService.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                           .Returns(EmptyVouchers2());
+
+        var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
+        var syncVM = new SyncViewModel(syncManager, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
+        var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
+        var companiesVM = new CompaniesViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _mockCompanyService.Object, _navigationService);
+
+        var mainVM = new MainWindowViewModel(
+            _mockConnection.Object, _companyContext, _mockCompanyService.Object, _mockSettings.Object, _navigationService,
+            new DashboardViewModel(_mockAuditRepo.Object, _mockSettings.Object, _mockCompanyService.Object, _navigationService),
+            connVM, syncVM,
+            new SettingsViewModel(_mockSettings.Object, _companyContext, _mockAuditRepo.Object),
+            companiesVM,
+            new GstAuditViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
+            new TdsAuditViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
+            new VouchersViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
+            new LedgersViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
+            new BankAuditViewModel(_mockAuditRepo.Object, _companyContext, _navigationService),
+            new ExceptionsViewModel(_mockAuditRepo.Object, _mockSettings.Object, _companyContext, _navigationService),
+            new ReportsViewModel(_mockAuditRepo.Object, _companyContext, _mockSettings.Object, _mockCompanyService.Object),
+            new InvestigationViewModel(new Mock<IInvestigationService>().Object, _mockAuditRepo.Object, _companyContext, _navigationService)
+        );
+
+        // 1. Scan for Tally
+        await connVM.ScanForTallyCommand.ExecuteAsync(null);
+
+        // 2. Verified company selected & context updated
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", connVM.SelectedCompany);
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", _companyContext.ActiveCompanyName);
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", mainVM.ActiveCompany);
+
+        // 3. Navigate to Sync
+        mainVM.Navigate("Sync");
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", mainVM.ActiveCompany);
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", syncVM.CompanyName);
+
+        // 4. Start Full Sync
+        await syncVM.StartFullSyncCommand.ExecuteAsync(null);
+
+        // 5. Verify stage progressed and completed without "Please select a Tally company"
+        Assert.DoesNotContain("Please select a Tally company", syncVM.CurrentTaskDescription);
+        Assert.Contains("Synchronization completed successfully", syncVM.CurrentTaskDescription);
+    }
+}

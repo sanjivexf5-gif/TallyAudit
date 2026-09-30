@@ -17,6 +17,7 @@ public class ActiveCompanyContext : IActiveCompanyContext
     public event EventHandler<Company?>? ActiveCompanyChanged;
 
     public string? ActiveCompanyName => _currentCompany?.TallyCompanyName;
+    public string? TallyCompanyName => _currentCompany?.TallyCompanyName;
     public string? ActiveCompanyId => _currentCompany?.Id;
     public Company? CurrentCompany => _currentCompany;
     public FinancialPeriod? CurrentPeriod => _currentPeriod ?? (_currentCompany != null ? CreatePeriodForCompany(_currentCompany) : null);
@@ -24,10 +25,11 @@ public class ActiveCompanyContext : IActiveCompanyContext
     public string? ActiveFinancialPeriodId => CurrentPeriod?.FinancialPeriodId;
     public DateTime? ActivePeriodFrom => CurrentPeriod?.StartDate;
     public DateTime? ActivePeriodTo => CurrentPeriod?.EndDate;
+    public DateTime? BooksFrom => CurrentPeriod?.StartDate;
 
     private static FinancialPeriod CreatePeriodForCompany(Company company)
     {
-        var startDate = company.BooksFromDate != default ? company.BooksFromDate : new DateTime(2025, 4, 1);
+        var startDate = company.BooksFromDate != default ? company.BooksFromDate : new DateTime(DateTime.Today.Month < 4 ? DateTime.Today.Year - 1 : DateTime.Today.Year, 4, 1);
         var endDate = startDate.AddYears(1).AddDays(-1);
         return new FinancialPeriod
         {
@@ -86,6 +88,27 @@ public class ActiveCompanyContext : IActiveCompanyContext
                     _currentPeriod = CreatePeriodForCompany(_currentCompany);
                     return _currentCompany;
                 }
+            }
+            else if (!isMock)
+            {
+                var compObj = new Company
+                {
+                    Id = persistedName,
+                    TallyCompanyName = persistedName,
+                    FormalName = persistedName,
+                    BooksFromDate = new DateTime(DateTime.Today.Month < 4 ? DateTime.Today.Year - 1 : DateTime.Today.Year, 4, 1),
+                    IsActive = true,
+                    IsMock = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _currentCompany = compObj;
+                _currentPeriod = CreatePeriodForCompany(compObj);
+                try
+                {
+                    await _repository.EnsureCompanyAsync(compObj, cancellationToken);
+                }
+                catch { }
+                return _currentCompany;
             }
         }
 
@@ -155,10 +178,11 @@ public class ActiveCompanyContext : IActiveCompanyContext
             return;
         }
 
+        var trimmedName = companyName.Trim();
         var isMock = await _settingsService.IsMockModeEnabledAsync();
 
-        var existing = await _repository.GetCompanyByNameAsync(companyName, cancellationToken)
-                       ?? await _repository.GetCompanyByIdAsync(companyName, cancellationToken);
+        var existing = await _repository.GetCompanyByNameAsync(trimmedName, cancellationToken)
+                       ?? await _repository.GetCompanyByIdAsync(trimmedName, cancellationToken);
 
         if (existing != null)
         {
@@ -166,26 +190,57 @@ public class ActiveCompanyContext : IActiveCompanyContext
             return;
         }
 
-        var profile = await _companyService.GetCompanyProfileTypedAsync(companyName, null, cancellationToken);
         var company = new Company
         {
-            Id = profile?.Name ?? companyName,
-            TallyCompanyName = profile?.Name ?? companyName,
-            FormalName = profile?.FormalName ?? companyName,
-            GSTIN = profile?.GSTIN,
-            PAN = profile?.PAN,
-            StateName = profile?.StateName,
-            StateCode = profile?.StateCode,
-            BooksFromDate = profile?.BooksBeginningFrom ?? new DateTime(2025, 4, 1),
+            Id = trimmedName,
+            TallyCompanyName = trimmedName,
+            FormalName = trimmedName,
+            BooksFromDate = new DateTime(DateTime.Today.Month < 4 ? DateTime.Today.Year - 1 : DateTime.Today.Year, 4, 1),
             LastSyncDate = isMock ? DateTime.UtcNow : null,
-            LastAlterId = profile?.AlterId ?? 0,
+            LastAlterId = isMock ? 10042 : 0,
             IsActive = true,
             IsMock = isMock,
             CreatedAt = DateTime.UtcNow
         };
 
-        var saved = await _repository.EnsureCompanyAsync(company, cancellationToken);
-        await SetActiveCompanyAsync(saved, cancellationToken);
+        // Set active immediately so UI header and SyncViewModel are instantly populated
+        await SetActiveCompanyAsync(company, cancellationToken);
+
+        // Best-effort profile fetch and repository persistence
+        try
+        {
+            var host = await _settingsService.GetTallyHostAsync();
+            var port = await _settingsService.GetTallyPortAsync();
+            var endpointUrl = (!string.IsNullOrEmpty(host) && port > 0) ? $"http://{host}:{port}" : null;
+            var profile = await _companyService.GetCompanyProfileTypedAsync(trimmedName, endpointUrl, cancellationToken);
+            if (profile != null)
+            {
+                company.Id = profile.Name ?? trimmedName;
+                company.TallyCompanyName = profile.Name ?? trimmedName;
+                company.FormalName = profile.FormalName ?? trimmedName;
+                company.GSTIN = profile.GSTIN;
+                company.PAN = profile.PAN;
+                company.StateName = profile.StateName;
+                company.StateCode = profile.StateCode;
+                company.BooksFromDate = profile.BooksBeginningFrom;
+                company.LastAlterId = profile.AlterId;
+            }
+        }
+        catch
+        {
+            // Non-blocking profile enrichment
+        }
+
+        try
+        {
+            var saved = await _repository.EnsureCompanyAsync(company, cancellationToken);
+            _currentCompany = saved;
+            _currentPeriod = CreatePeriodForCompany(saved);
+        }
+        catch
+        {
+            // Retain memory state if database is busy
+        }
     }
 
     public async Task<Company?> EnsureAndInitializeActiveCompanyAsync(CancellationToken cancellationToken = default)
