@@ -49,7 +49,7 @@ public class TallyConnectionViewModelTests
             FailureCause: ConnectionFailureCause.None
         );
 
-        _mockConnection.Setup(c => c.CheckIfProcessRunningAsync()).ReturnsAsync(true);
+        _mockConnection.Setup(c => c.CheckIfProcessRunningAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _mockConnection.Setup(c => c.DiscoverTallyAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(endpoint);
 
