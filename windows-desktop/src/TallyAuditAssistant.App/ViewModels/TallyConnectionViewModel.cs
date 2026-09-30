@@ -10,6 +10,9 @@ using TallyAuditAssistant.Core.Domain.Tally;
 using TallyAuditAssistant.Core.Interfaces;
 using TallyAuditAssistant.TallyIntegration;
 
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace TallyAuditAssistant.App.ViewModels;
 
 public partial class TallyConnectionViewModel : ObservableObject, INavigationAware
@@ -19,6 +22,8 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
     private readonly ISettingsService _settingsService;
     private readonly TallyConnectionMonitor _connectionMonitor;
     private readonly IActiveCompanyContext _companyContext;
+    private readonly ILogger<TallyConnectionViewModel> _logger;
+    private int _companySelectionToken = 0;
 
     [ObservableProperty]
     private string _host = "localhost";
@@ -88,13 +93,15 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
         ITallyCompanyService companyService,
         ISettingsService settingsService,
         TallyConnectionMonitor connectionMonitor,
-        IActiveCompanyContext companyContext)
+        IActiveCompanyContext companyContext,
+        ILogger<TallyConnectionViewModel>? logger = null)
     {
         _tallyConnection = tallyConnection;
         _companyService = companyService;
         _settingsService = settingsService;
         _connectionMonitor = connectionMonitor;
         _companyContext = companyContext;
+        _logger = logger ?? NullLogger<TallyConnectionViewModel>.Instance;
 
         _connectionMonitor.StatusChanged += OnMonitorStatusChanged;
         _connectionMonitor.EndpointChanged += OnMonitorEndpointChanged;
@@ -192,25 +199,39 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 DetectedVersion = endpoint.ServerVersion ?? "TallyPrime";
                 DiagnosticReport = "✓ TallyPrime detected and responsive.";
 
-                var companies = await _companyService.GetOpenCompaniesAsync($"http://{Host}:{Port}");
-                AvailableCompanies.Clear();
-                foreach (var c in companies)
+                IReadOnlyList<string> companies = Array.Empty<string>();
+                string? queryError = null;
+                try
                 {
-                    AvailableCompanies.Add(c);
+                    companies = await _companyService.GetOpenCompaniesAsync($"http://{Host}:{Port}");
+                }
+                catch (Exception ex)
+                {
+                    queryError = ex.Message;
+                    _logger.LogError(ex, "Tally company query failed during discovery.");
                 }
 
-                if (companies.Count > 0)
+                await UpdateAvailableCompaniesAsync(companies);
+
+                if (queryError != null)
+                {
+                    DiagnosticReport += $"\n✗ Tally company query failed: {queryError}";
+                    StatusMessage = "Company Query Error";
+                    SelectedCompany = null;
+                }
+                else if (companies.Count > 0)
                 {
                     StatusMessage = "Tally Connected";
                     SelectedCompany = companies[0];
-                    DiagnosticReport += $"\n✓ {companies.Count} company/companies detected.";
+                    DiagnosticReport += $"\n✓ Company query completed. {companies.Count} company/companies returned.";
+                    DiagnosticReport += "\n✓ Companies loaded into the application.";
                 }
                 else
                 {
                     ActiveCompany = "—";
                     SelectedCompany = null;
                     StatusMessage = "Tally Connected (No open companies)";
-                    DiagnosticReport += "\n⚠ No companies are currently open in TallyPrime.";
+                    DiagnosticReport += "\n⚠ TallyPrime responded successfully, but no open companies were returned.";
                 }
 
                 await _settingsService.SetTallyPortAsync(Port);
@@ -230,7 +251,8 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
         catch (Exception ex)
         {
             StatusMessage = "Discovery Error";
-            DiagnosticReport = $"✗ Error during discovery: {ex.Message}";
+            DiagnosticReport = $"✗ Company discovery failed: {ex.Message}";
+            _logger.LogError(ex, "Unexpected error during Tally discovery.");
             IsConnected = false;
         }
         finally
@@ -259,21 +281,36 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 StatusMessage = "Tally Connected";
                 DiagnosticReport = "✓ Manual connection verified.";
                 
-                var companies = await _companyService.GetOpenCompaniesAsync($"http://{Host}:{Port}");
-                AvailableCompanies.Clear();
-                foreach (var c in companies)
+                IReadOnlyList<string> companies = Array.Empty<string>();
+                string? queryError = null;
+                try
                 {
-                    AvailableCompanies.Add(c);
+                    companies = await _companyService.GetOpenCompaniesAsync($"http://{Host}:{Port}");
+                }
+                catch (Exception ex)
+                {
+                    queryError = ex.Message;
+                    _logger.LogError(ex, "Tally company query failed during manual test.");
                 }
 
-                if (companies.Count > 0)
+                await UpdateAvailableCompaniesAsync(companies);
+
+                if (queryError != null)
+                {
+                    DiagnosticReport += $"\n✗ Tally company query failed: {queryError}";
+                    StatusMessage = "Company Query Error";
+                    SelectedCompany = null;
+                }
+                else if (companies.Count > 0)
                 {
                     SelectedCompany = companies[0];
+                    DiagnosticReport += $"\n✓ Company query completed. {companies.Count} company/companies returned.";
+                    DiagnosticReport += "\n✓ Companies loaded into the application.";
                 }
                 else
                 {
                     SelectedCompany = null;
-                    DiagnosticReport += "\n⚠ No companies loaded.";
+                    DiagnosticReport += "\n⚠ TallyPrime responded successfully, but no open companies were returned.";
                 }
 
                 await _settingsService.SetTallyPortAsync(Port);
@@ -293,7 +330,8 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
         catch (Exception ex)
         {
             StatusMessage = "Error";
-            DiagnosticReport = $"✗ unexpected error: {ex.Message}";
+            DiagnosticReport = $"✗ Company discovery failed: {ex.Message}";
+            _logger.LogError(ex, "Unexpected error during manual connection test.");
             IsConnected = false;
         }
         finally
@@ -302,11 +340,48 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
         }
     }
 
+    private async Task UpdateAvailableCompaniesAsync(IReadOnlyList<string> companies)
+    {
+        if (App.Current?.Dispatcher == null)
+        {
+            AvailableCompanies.Clear();
+            foreach (var company in companies)
+            {
+                AvailableCompanies.Add(company);
+            }
+            return;
+        }
+
+        await App.Current.Dispatcher.InvokeAsync(() =>
+        {
+            AvailableCompanies.Clear();
+            foreach (var company in companies)
+            {
+                AvailableCompanies.Add(company);
+            }
+        });
+    }
+
     async partial void OnSelectedCompanyChanged(string? value)
     {
         if (string.IsNullOrEmpty(value)) return;
 
-        ActiveCompany = value;
+        int currentToken = Interlocked.Increment(ref _companySelectionToken);
+
+        void UpdateActiveComp()
+        {
+            ActiveCompany = value;
+        }
+
+        if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
+        {
+            App.Current.Dispatcher.Invoke(UpdateActiveComp);
+        }
+        else
+        {
+            UpdateActiveComp();
+        }
+
         await _companyContext.SetActiveCompanyNameAsync(value);
 
         try
@@ -314,16 +389,35 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
             var host = Host;
             var port = Port;
             var profile = await _companyService.GetCompanyProfileTypedAsync(value, $"http://{host}:{port}");
+            
+            if (currentToken != Volatile.Read(ref _companySelectionToken))
+            {
+                return;
+            }
+
             if (profile != null)
             {
-                CompanyGstin = profile.GSTIN ?? "Unregistered";
-                CompanyState = profile.StateName ?? "—";
-                CompanyBooksDate = profile.BooksBeginningFrom.ToString("dd-MMM-yyyy");
+                void Update()
+                {
+                    CompanyGstin = profile.GSTIN ?? "Unregistered";
+                    CompanyState = profile.StateName ?? "—";
+                    CompanyBooksDate = profile.BooksBeginningFrom.ToString("dd-MMM-yyyy");
 
-                FromDate = profile.BooksBeginningFrom;
-                ToDate = profile.BooksBeginningFrom.AddYears(1).AddDays(-1);
+                    FromDate = profile.BooksBeginningFrom;
+                    ToDate = profile.BooksBeginningFrom.AddYears(1).AddDays(-1);
 
-                FinancialYear = $"FY {profile.BooksBeginningFrom.Year}-{(profile.BooksBeginningFrom.Year + 1) % 100:D2}";
+                    FinancialYear = $"FY {profile.BooksBeginningFrom.Year}-{(profile.BooksBeginningFrom.Year + 1) % 100:D2}";
+                }
+
+                if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
+                {
+                    App.Current.Dispatcher.Invoke(Update);
+                }
+                else
+                {
+                    Update();
+                }
+
                 await _settingsService.SetSettingAsync("FinancialYear", FinancialYear);
                 await _settingsService.SetSettingAsync("AuditPeriodFrom", FromDate.ToString("yyyy-MM-dd"));
                 await _settingsService.SetSettingAsync("AuditPeriodTo", ToDate.ToString("yyyy-MM-dd"));
@@ -331,7 +425,23 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Failed to load company profile: {ex.Message}";
+            if (currentToken != Volatile.Read(ref _companySelectionToken))
+            {
+                return;
+            }
+
+            void UpdateErr()
+            {
+                StatusMessage = $"Failed to load company profile: {ex.Message}";
+            }
+            if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
+            {
+                App.Current.Dispatcher.Invoke(UpdateErr);
+            }
+            else
+            {
+                UpdateErr();
+            }
         }
     }
 
