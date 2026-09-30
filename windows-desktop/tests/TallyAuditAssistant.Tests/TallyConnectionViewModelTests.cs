@@ -9,6 +9,7 @@ using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Domain.Tally;
 using TallyAuditAssistant.Core.Interfaces;
+using TallyAuditAssistant.TallyIntegration;
 using Xunit;
 
 namespace TallyAuditAssistant.Tests;
@@ -30,7 +31,7 @@ public class TallyConnectionViewModelTests
         _mockSettings.Setup(s => s.GetTallyHostAsync()).ReturnsAsync("localhost");
         _mockSettings.Setup(s => s.GetTallyPortAsync()).ReturnsAsync(9000);
 
-        _monitor = new TallyConnectionMonitor(_mockConnection.Object, _mockSettings.Object);
+        _monitor = new TallyConnectionMonitor(_mockConnection.Object, _mockSettings.Object, NullLogger<TallyConnectionMonitor>.Instance);
         _mockContext = new Mock<IActiveCompanyContext>();
     }
 
