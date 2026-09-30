@@ -7,6 +7,15 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      manual_version:
+        description: 'Manual version override (e.g., 1.0.17). Leave empty to auto-calculate.'
+        required: false
+        default: ''
+
+concurrency:
+  group: tally-audit-release
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -19,6 +28,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET 8 SDK
         uses: actions/setup-dotnet@v6
@@ -28,30 +39,134 @@ jobs:
       - name: Display .NET SDK Environment
         run: dotnet --info
 
-      - name: Extract Authoritative Application Version
+      - name: Calculate Automatic Application Version
         id: versioning
         shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $appVersionPath = "windows-desktop/src/TallyAuditAssistant.Core/Common/AppVersion.cs"
-          if (-not (Test-Path $appVersionPath)) {
-            throw "AppVersion.cs not found at $appVersionPath"
+          $repo = $env:GITHUB_REPOSITORY
+          $headers = @{
+            "Authorization" = "Bearer $env:GITHUB_TOKEN"
+            "Accept" = "application/vnd.github.v3+json"
+            "User-Agent" = "TallyAuditAssistant-CI"
           }
-          $content = Get-Content $appVersionPath -Raw
-          if ($content -match 'public const string Version\s*=\s*"([^"]+)";') {
+          $url = "https://api.github.com/repos/$repo/releases?per_page=100"
+          
+          # Fetch releases with retry in case of transient API error
+          $releases = $null
+          for ($i=1; $i -le 3; $i++) {
+            try {
+              $releases = Invoke-RestMethod -Uri $url -Headers $headers -ErrorAction Stop
+              break
+            } catch {
+              Write-Host "Warning: Attempt $i to fetch releases failed: $_"
+              Start-Sleep -Seconds 2
+            }
+          }
+          
+          $validVersions = @()
+          if ($releases) {
+            foreach ($r in $releases) {
+              $tag = $r.tag_name
+              if ($tag -match '^v(\d+)\.(\d+)\.(\d+)$') {
+                $verObj = [version]"$($matches[1]).$($matches[2]).$($matches[3])"
+                $validVersions += $verObj
+              }
+            }
+          }
+          
+          $ver = ""
+          $manualVer = "${{ github.event.inputs.manual_version }}".Trim()
+          
+          if ($env:GITHUB_REF -match '^refs/tags/v(\d+\.\d+\.\d+)$') {
             $ver = $matches[1]
+            Write-Host "Triggered by manual tag push: v$ver"
+          } elseif ($manualVer -ne "") {
+            $ver = $manualVer
+            Write-Host "Triggered by workflow_dispatch with manual version: $ver"
           } else {
-            throw "Could not find 'public const string Version' in $appVersionPath"
+            if ($validVersions.Count -gt 0) {
+              $latestVersion = $validVersions | Sort-Object -Descending | Select-Object -First 1
+              $major = $latestVersion.Major
+              $minor = $latestVersion.Minor
+              $patch = $latestVersion.Build + 1
+              $ver = "$major.$minor.$patch"
+              Write-Host "Calculated next patch version: $ver (based on latest release tag v$($latestVersion.ToString(3)))"
+            } else {
+              $ver = "1.0.17"
+              Write-Host "No previous release tags found. Defaulting to: $ver"
+            }
           }
+          
+          # Verify the release tag does not already exist
+          if ($validVersions.Count -gt 0 -and $validVersions -contains [version]$ver) {
+            throw "FATAL: Release for tag 'v$ver' already exists! Releases cannot be overwritten."
+          }
+          
           $tag = "v$ver"
           $installerName = "TallyAuditAssistant-Setup-$ver.exe"
+          
           Write-Host "=========================================="
-          Write-Host "AUTHORITATIVE VERSION: $ver"
+          Write-Host "AUTOMATED VERSION:     $ver"
           Write-Host "TARGET RELEASE TAG:    $tag"
           Write-Host "TARGET INSTALLER EXE:  $installerName"
           Write-Host "=========================================="
+          
           "VERSION=$ver" >> $env:GITHUB_OUTPUT
           "RELEASE_TAG=$tag" >> $env:GITHUB_OUTPUT
           "INSTALLER_NAME=$installerName" >> $env:GITHUB_OUTPUT
+
+      - name: Update Version in Source Files
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.versioning.outputs.VERSION }}"
+          
+          # 1. Update AppVersion.cs
+          $appVersionPath = "windows-desktop/src/TallyAuditAssistant.Core/Common/AppVersion.cs"
+          $content = Get-Content $appVersionPath -Raw
+          $content = $content -replace 'public const string Version\s*=\s*"[^"]+";', "public const string Version = `"$ver`";"
+          Set-Content $appVersionPath -Value $content -NoNewline
+          Write-Host "Updated version to $ver in $appVersionPath"
+          
+          # 2. Update TallyAuditAssistant.App.csproj
+          $csprojPath = "windows-desktop/src/TallyAuditAssistant.App/TallyAuditAssistant.App.csproj"
+          $content = Get-Content $csprojPath -Raw
+          $content = $content -replace '<Version>[^<]+</Version>', "<Version>$ver</Version>"
+          $content = $content -replace '<AssemblyVersion>[^<]+</AssemblyVersion>', "<AssemblyVersion>$ver.0</AssemblyVersion>"
+          $content = $content -replace '<FileVersion>[^<]+</FileVersion>', "<FileVersion>$ver.0</FileVersion>"
+          Set-Content $csprojPath -Value $content -NoNewline
+          Write-Host "Updated version to $ver inside $csprojPath"
+          
+          # 3. Update TallyAuditAssistant.iss
+          $issPath = "windows-desktop/installer/TallyAuditAssistant.iss"
+          $content = Get-Content $issPath -Raw
+          $content = $content -replace '#define MyAppVersion\s+"[^"]+"', "#define MyAppVersion `"$ver`""
+          Set-Content $issPath -Value $content -NoNewline
+          Write-Host "Updated version to $ver inside $issPath"
+
+      - name: Commit & Push Version Synchronization
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          $appVersionPath = "windows-desktop/src/TallyAuditAssistant.Core/Common/AppVersion.cs"
+          $csprojPath = "windows-desktop/src/TallyAuditAssistant.App/TallyAuditAssistant.App.csproj"
+          $issPath = "windows-desktop/installer/TallyAuditAssistant.iss"
+          
+          git add $appVersionPath $csprojPath $issPath
+          
+          # Check if there are changes to commit
+          $status = git status --porcelain
+          if ($status) {
+            git commit -m "chore: bump application version to ${{ steps.versioning.outputs.VERSION }} [skip ci]"
+            git push origin HEAD:main
+            Write-Host "Successfully pushed version bump commit to main."
+          } else {
+            Write-Host "No files changed, skipping version bump commit."
+          }
 
       - name: Verify Inno Setup Script Version Alignment
         shell: pwsh
@@ -63,37 +178,6 @@ jobs:
             throw "Inno Setup script $issPath MyAppVersion does not match authoritative version $expectedVer!"
           }
           Write-Host "Inno Setup version definition verified: $expectedVer"
-
-      - name: Check for Release Collision
-        if: github.ref == 'refs/heads/main'
-        shell: pwsh
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ steps.versioning.outputs.RELEASE_TAG }}
-        run: |
-          $repo = $env:GITHUB_REPOSITORY
-          if (-not $repo) {
-            Write-Host "GITHUB_REPOSITORY not set, skipping API collision check."
-            return
-          }
-          $url = "https://api.github.com/repos/$repo/releases/tags/$env:TAG_NAME"
-          $headers = @{
-            "Authorization" = "Bearer $env:GITHUB_TOKEN"
-            "Accept" = "application/vnd.github.v3+json"
-            "User-Agent" = "TallyAuditAssistant-CI"
-          }
-          try {
-            $resp = Invoke-RestMethod -Uri $url -Headers $headers -Method Get
-            if ($resp -and $resp.tag_name -eq $env:TAG_NAME) {
-              throw "FATAL: GitHub release for tag '$env:TAG_NAME' already exists! Releases cannot be overwritten. Increment version in AppVersion.cs to create a new release."
-            }
-          } catch {
-            if ($_.Exception.Response.StatusCode.value__ -eq 404) {
-              Write-Host "Confirmed: Release tag '$env:TAG_NAME' does not exist yet. Safe to proceed."
-            } else {
-              Write-Host "Release collision check response: $($_.Exception.Message)"
-            }
-          }
 
       - name: Restore dependencies
         run: dotnet restore windows-desktop/TallyAuditAssistant.sln
@@ -164,6 +248,7 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
+          target_commitish: main
           files: |
             ./windows-desktop/installer_output/${{ steps.versioning.outputs.INSTALLER_NAME }}
         env:
