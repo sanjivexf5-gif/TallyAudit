@@ -366,7 +366,8 @@ public class TallyConnectionViewModelTests
             .Callback<string, string, CancellationToken>((k, v, ct) => settingsDict[k] = v)
             .Returns(Task.CompletedTask);
         mockSettings.Setup(s => s.GetSettingAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string k, string def, CancellationToken ct) => settingsDict.TryGetValue(k, out var val) ? val : def);
+            .Returns((string k, string def, CancellationToken ct) => Task.FromResult(settingsDict.TryGetValue(k, out var val) ? val : def));
+        mockSettings.Setup(s => s.IsMockModeEnabledAsync()).ReturnsAsync(false);
 
         var context = new ActiveCompanyContext(new Mock<IAuditRepository>().Object, mockSettings.Object, new Mock<ITallyCompanyService>().Object);
         

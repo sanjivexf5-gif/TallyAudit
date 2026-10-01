@@ -23,12 +23,19 @@ public class SettingsRepository : ISettingsService
     public async Task SetSettingAsync(string key, string value, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        if (connection.State != System.Data.ConnectionState.Open)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        using var transaction = connection.BeginTransaction();
         const string sql = @"
             INSERT INTO Settings (Key, Value, UpdatedAt) 
             VALUES (@Key, @Value, CURRENT_TIMESTAMP)
             ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value, UpdatedAt = CURRENT_TIMESTAMP;
         ";
-        await connection.ExecuteAsync(new CommandDefinition(sql, new { Key = key, Value = value }, cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(new CommandDefinition(sql, new { Key = key, Value = value }, transaction: transaction, cancellationToken: cancellationToken));
+        transaction.Commit();
     }
 
     public async Task<int> GetTallyPortAsync()

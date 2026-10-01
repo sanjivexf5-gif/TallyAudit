@@ -889,6 +889,48 @@ public class CompanySelectionSyncFlowTests
     }
 
     [Fact]
+    public async Task SettingsRepository_SetAndGetActiveCompany_ReturnsSameValue()
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_settings_repo_{Guid.NewGuid():N}.db");
+        var sqliteFactory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(sqliteFactory, NullLogger<DatabaseInitializer>.Instance, dbPath);
+        await initializer.InitializeAsync();
+
+        var settings = new SettingsRepository(sqliteFactory);
+
+        await settings.SetSettingAsync("ActiveCompany", "SHARED COMPANY");
+        var value = await settings.GetSettingAsync("ActiveCompany", string.Empty);
+
+        Assert.Equal("SHARED COMPANY", value);
+    }
+
+    [Fact]
+    public async Task SetActiveCompanyNameAsync_PersistsAndReadsBackCompany()
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_context_persist_{Guid.NewGuid():N}.db");
+        var sqliteFactory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(sqliteFactory, NullLogger<DatabaseInitializer>.Instance, dbPath);
+        await initializer.InitializeAsync();
+
+        var auditRepo = new AuditRepository(sqliteFactory);
+        var settingsRepo = new SettingsRepository(sqliteFactory);
+        var mockCompanyService = new Mock<ITallyCompanyService>();
+
+        var context = new ActiveCompanyContext(auditRepo, settingsRepo, mockCompanyService.Object);
+
+        await context.SetActiveCompanyNameAsync("SHARED COMPANY");
+
+        Assert.Equal("SHARED COMPANY", context.ActiveCompanyName);
+        var persisted = await settingsRepo.GetSettingAsync("ActiveCompany", string.Empty);
+        Assert.Equal("SHARED COMPANY", persisted);
+
+        var savedCompany = await auditRepo.GetCompanyByNameAsync("SHARED COMPANY");
+        Assert.NotNull(savedCompany);
+        Assert.Equal("SHARED COMPANY", savedCompany.TallyCompanyName);
+        Assert.False(savedCompany.IsMock);
+    }
+
+    [Fact]
     public async Task CompanyChange_NoStaleCompanyRemains()
     {
         var dbPath = Path.Combine(Path.GetTempPath(), $"test_change_{Guid.NewGuid():N}.db");
