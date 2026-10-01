@@ -25,7 +25,6 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
     private readonly ITallyMasterService _masterService;
     private readonly ITallyVoucherService _voucherService;
     private readonly ILogger<TallyConnectionViewModel> _logger;
-    private int _companySelectionToken = 0;
 
     [ObservableProperty]
     private string _host = "localhost";

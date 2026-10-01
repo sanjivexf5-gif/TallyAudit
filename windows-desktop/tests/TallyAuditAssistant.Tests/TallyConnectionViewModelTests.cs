@@ -82,13 +82,13 @@ public class TallyConnectionViewModelTests
         // New UX: First discovered company is selected in dropdown but NOT yet committed
         Assert.Equal("Test Company A", vm.SelectedCompany);
         Assert.Equal("—", vm.ActiveCompany);
-        _mockContext.Verify(c => c.SetActiveCompanyNameAsync(It.IsAny<string>()), Times.Never);
+        _mockContext.Verify(c => c.SetActiveCompanyNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
 
         // Commit selection
         await vm.SelectAndSaveCompanyCommand.ExecuteAsync(null);
         
         Assert.Equal("Test Company A", vm.ActiveCompany);
-        _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Test Company A"), Times.Once);
+        _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Test Company A", It.IsAny<CancellationToken>()), Times.Once);
         Assert.Contains("✓ Company query completed", vm.DiagnosticReport);
     }
 
@@ -272,7 +272,7 @@ public class TallyConnectionViewModelTests
         Assert.Equal("Company 2", vm.ActiveCompany);
         Assert.Equal("GST-2", vm.CompanyGstin);
         Assert.Equal("State 2", vm.CompanyState);
-        _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Company 2"), Times.Once);
-        _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Company 1"), Times.Never);
+        _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Company 2", It.IsAny<CancellationToken>()), Times.Once);
+        _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Company 1", It.IsAny<CancellationToken>()), Times.Never);
     }
 }
