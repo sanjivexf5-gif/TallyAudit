@@ -92,13 +92,17 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             var compName = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
             if (!string.IsNullOrEmpty(compName))
             {
-                CompanyName = compName;
-                CurrentTaskDescription = $"Ready to synchronize {compName}.";
+                if (CompanyName != compName || string.IsNullOrEmpty(CurrentTaskDescription) || CurrentTaskDescription.StartsWith("Please select"))
+                {
+                    CompanyName = compName;
+                    CurrentTaskDescription = $"Ready to synchronize {compName}.";
+                }
                 _ = LoadHistoryAsync();
             }
             else
             {
                 CompanyName = string.Empty;
+                CurrentTaskDescription = "Please select a Tally company before synchronization.";
                 SyncHistory.Clear();
             }
         }
@@ -123,12 +127,16 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             if (!string.IsNullOrEmpty(compName))
             {
                 CompanyName = compName;
-                CurrentTaskDescription = $"Ready to synchronize {compName}.";
+                if (!IsSyncing && (string.IsNullOrEmpty(CurrentTaskDescription) || CurrentTaskDescription.StartsWith("Please select")))
+                {
+                    CurrentTaskDescription = $"Ready to synchronize {compName}.";
+                }
                 await LoadHistoryAsync();
             }
             else
             {
                 CompanyName = string.Empty;
+                CurrentTaskDescription = "Please select a Tally company before synchronization.";
                 SyncHistory.Clear();
             }
         }
@@ -206,13 +214,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             IsSyncing = false;
         }
 
-        await LoadInitialDataAsync();
-
-        var activeComp = await _companyContext.GetActiveCompanyAsync();
-        if (activeComp != null)
-        {
-            await _companyContext.SetActiveCompanyAsync(activeComp);
-        }
+        await LoadHistoryAsync();
     }
 
     [RelayCommand]
@@ -265,13 +267,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             IsSyncing = false;
         }
 
-        await LoadInitialDataAsync();
-
-        var activeComp = await _companyContext.GetActiveCompanyAsync();
-        if (activeComp != null)
-        {
-            await _companyContext.SetActiveCompanyAsync(activeComp);
-        }
+        await LoadHistoryAsync();
     }
 
     [RelayCommand]
@@ -314,13 +310,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             IsSyncing = false;
         }
 
-        await LoadInitialDataAsync();
-
-        var activeComp = await _companyContext.GetActiveCompanyAsync();
-        if (activeComp != null)
-        {
-            await _companyContext.SetActiveCompanyAsync(activeComp);
-        }
+        await LoadHistoryAsync();
     }
 
     [RelayCommand]
