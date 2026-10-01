@@ -24,17 +24,20 @@ public static class ApplicationServiceRegistration
         IConfiguration configuration,
         string? dbPath = null)
     {
-        dbPath ??= Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audit_assistant_data.db");
-        Log.Information("Configuring SQLite database path at: {DbPath}", dbPath);
+        var pathService = new ApplicationDataPathService(dbPath);
+        services.AddSingleton<IApplicationDataPathService>(pathService);
+
+        var actualDbPath = pathService.DatabasePath;
+        Log.Information("Configuring SQLite database path at: {DbPath}", actualDbPath);
 
         // Data layer registrations
-        var sqliteFactory = new SqliteConnectionFactory(dbPath);
+        var sqliteFactory = new SqliteConnectionFactory(actualDbPath);
         services.AddSingleton(sqliteFactory);
         services.AddSingleton<ISqliteConnectionFactory>(sqliteFactory);
         services.AddSingleton<IDatabaseInitializer>(sp => new DatabaseInitializer(
             sqliteFactory,
             sp.GetService<ILogger<DatabaseInitializer>>() ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<DatabaseInitializer>.Instance,
-            dbPath));
+            actualDbPath));
 
         services.AddSingleton<IAuditRepository, AuditRepository>();
         services.AddSingleton<ISyncRepository, SyncRepository>();

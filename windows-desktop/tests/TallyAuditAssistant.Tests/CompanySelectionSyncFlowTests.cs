@@ -1074,6 +1074,65 @@ public class CompanySelectionSyncFlowTests
     }
 
     [Fact]
+    public void ProductionDatabasePath_IsUnderLocalAppData()
+    {
+        var pathService = new ApplicationDataPathService();
+        Assert.NotNull(pathService.DatabasePath);
+        Assert.Contains("TallyAuditAssistant", pathService.DatabasePath);
+        Assert.EndsWith("audit_assistant_data.db", pathService.DatabasePath);
+        Assert.True(Directory.Exists(pathService.ApplicationDataDirectory));
+        Assert.True(Directory.Exists(pathService.LogsDirectory));
+    }
+
+    [Fact]
+    public async Task ProductionPersistence_MimicsInstalledFlow()
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_installed_flow_{Guid.NewGuid():N}.db");
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+
+        // Step 1: Application startup & DB initialization
+        var services = new ServiceCollection();
+        services.AddApplicationServices(config, dbPath);
+        using var provider = services.BuildServiceProvider();
+
+        var init = provider.GetRequiredService<IDatabaseInitializer>();
+        await init.InitializeAsync();
+
+        var context = provider.GetRequiredService<IActiveCompanyContext>();
+        await context.EnsureAndInitializeActiveCompanyAsync();
+
+        var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
+        var mainVM = provider.GetRequiredService<MainWindowViewModel>();
+        var syncVM = provider.GetRequiredService<SyncViewModel>();
+
+        // Step 2: Select & Save RAVI & CO.
+        connVM.SelectedCompany = "RAVI & CO.";
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+        // Step 3: Assertions across all consumers
+        Assert.Equal("RAVI & CO.", context.ActiveCompanyName);
+        Assert.Equal("RAVI & CO.", connVM.ActiveCompany);
+        Assert.Equal("RAVI & CO.", mainVM.ActiveCompany);
+        Assert.Equal("Verified", connVM.PersistenceStatus);
+        Assert.Equal("Verified", connVM.ContextStatus);
+
+        await syncVM.OnNavigatedToAsync();
+        Assert.Equal("RAVI & CO.", syncVM.CompanyName);
+        Assert.StartsWith("Ready to synchronize RAVI & CO.", syncVM.CurrentTaskDescription);
+
+        // Step 4: Verify physical persistence with fresh instances pointing to same path
+        var freshSettings = new SettingsRepository(new SqliteConnectionFactory(dbPath));
+        var freshAudit = new AuditRepository(new SqliteConnectionFactory(dbPath));
+        var readActiveCompany = await freshSettings.GetSettingAsync("ActiveCompany");
+        Assert.Equal("RAVI & CO.", readActiveCompany);
+
+        var savedDbRecord = await freshAudit.GetCompanyByNameAsync("RAVI & CO.");
+        Assert.NotNull(savedDbRecord);
+        Assert.Equal("RAVI & CO.", savedDbRecord.TallyCompanyName);
+        Assert.False(savedDbRecord.IsMock);
+    }
+
+    [Fact]
     public async Task CompanyChange_NoStaleCompanyRemains()
     {
         var dbPath = Path.Combine(Path.GetTempPath(), $"test_change_{Guid.NewGuid():N}.db");

@@ -25,6 +25,7 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
     private readonly ITallyMasterService _masterService;
     private readonly ITallyVoucherService _voucherService;
     private readonly ILogger<TallyConnectionViewModel> _logger;
+    private readonly IApplicationDataPathService? _pathService;
     private bool _isUpdatingSelection = false;
     private long _companyOperationGeneration;
 
@@ -108,7 +109,8 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
         IActiveCompanyContext companyContext,
         ITallyMasterService masterService,
         ITallyVoucherService voucherService,
-        ILogger<TallyConnectionViewModel>? logger = null)
+        ILogger<TallyConnectionViewModel>? logger = null,
+        IApplicationDataPathService? pathService = null)
     {
         _tallyConnection = tallyConnection;
         _companyService = companyService;
@@ -118,6 +120,7 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
         _masterService = masterService;
         _voucherService = voucherService;
         _logger = logger ?? NullLogger<TallyConnectionViewModel>.Instance;
+        _pathService = pathService;
 
         _connectionMonitor.StatusChanged += OnMonitorStatusChanged;
         _connectionMonitor.EndpointChanged += OnMonitorEndpointChanged;
@@ -710,6 +713,8 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
         StatusMessage = $"Saving and activating company: {companyToCommit}...";
         _logger.LogInformation("[Company] Committing active company: {Company}", companyToCommit);
 
+        var dbPath = _pathService?.DatabasePath ?? "audit_assistant_data.db";
+
         try
         {
             // 1. Explicitly set the active company in the context (which internally verifies persistence and memory state)
@@ -722,10 +727,11 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
             if (string.IsNullOrEmpty(verifiedName) || !string.Equals(verifiedName, companyToCommit, StringComparison.OrdinalIgnoreCase))
             {
                 StatusMessage = "Company activation failed: active company could not be verified.";
-                ValidationMessage = $"Active company verification failed. Expected '{companyToCommit}', but resolved '{verifiedName ?? "null"}'.";
+                ValidationMessage = $"Active company verification failed. Expected '{companyToCommit}', but resolved '{verifiedName ?? "null"}'. Database: {dbPath}";
                 ActiveCompany = "—";
                 PersistenceStatus = "Failed";
                 ContextStatus = "Failed";
+                DiagnosticReport += $"\n✗ Company Activation Failed\n  Selected Company: {companyToCommit}\n  Database: {dbPath}\n  Persistence: FAIL\n  Context: FAIL\n  Expected: {companyToCommit}\n  Actual: '{verifiedName ?? ""}'";
                 return false;
             }
 
@@ -774,8 +780,8 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
             ValidationMessage = string.Empty;
             StatusMessage = "Company activated successfully!";
-            DiagnosticReport += $"\n✓ Committed and activated company: {companyToCommit}\n✓ Persistence: Verified\n✓ Context: Verified";
-            _logger.LogInformation("[Company] ActiveCompanyContext verified and activated: {Company}", companyToCommit);
+            DiagnosticReport += $"\n✓ Company Activation\n  Selected Company: {companyToCommit}\n  Database: {dbPath}\n  Persistence: PASS\n  Context: PASS\n  Active Company: {verifiedName}";
+            _logger.LogInformation("[Company] ActiveCompanyContext verified and activated: {Company} (Database: {DbPath})", companyToCommit, dbPath);
             return true;
         }
         catch (OperationCanceledException)
@@ -790,6 +796,7 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
             ValidationMessage = $"Error activating company: {ex.Message}";
             PersistenceStatus = "Failed";
             ContextStatus = "Failed";
+            DiagnosticReport += $"\n✗ Company Activation Error\n  Selected Company: {companyToCommit}\n  Database: {dbPath}\n  Error: {ex.Message}";
             return false;
         }
         finally

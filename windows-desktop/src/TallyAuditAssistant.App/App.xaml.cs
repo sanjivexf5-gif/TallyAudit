@@ -1,5 +1,7 @@
+using System;
 using System.IO;
 using System.Reflection;
+using System.Threading;
 using System.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,10 +25,20 @@ namespace TallyAuditAssistant.App;
 
 public partial class App : Application
 {
+    private static Mutex? _singleInstanceMutex;
     private IHost? _host;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        const string mutexName = "Local\\TallyAuditAssistant.SingleInstance";
+        _singleInstanceMutex = new Mutex(true, mutexName, out bool isOnlyInstance);
+        if (!isOnlyInstance)
+        {
+            MessageBox.Show("Tally Audit Assistant is already running.", "Tally Audit Assistant", MessageBoxButton.OK, MessageBoxImage.Information);
+            Shutdown();
+            return;
+        }
+
         base.OnStartup(e);
 
         // Setup global unhandled exception handling
@@ -48,6 +60,8 @@ public partial class App : Application
 
         try
         {
+            var pathService = new ApplicationDataPathService();
+
             _host = Host.CreateDefaultBuilder()
                 .ConfigureAppConfiguration((context, config) =>
                 {
@@ -61,7 +75,7 @@ public partial class App : Application
                         .ReadFrom.Configuration(context.Configuration, options)
                         .Enrich.FromLogContext()
                         .WriteTo.File(
-                            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "audit_assistant_.log"),
+                            Path.Combine(pathService.LogsDirectory, "audit_assistant_.log"),
                             rollingInterval: RollingInterval.Day,
                             retainedFileCountLimit: 30);
                 })
@@ -72,6 +86,8 @@ public partial class App : Application
                 .Build();
 
             await _host.StartAsync();
+
+            Log.Information("DATABASE PATH: {DbPath}", pathService.DatabasePath);
 
             // Initialize SQLite Database schema & seeds
             var dbInitializer = _host.Services.GetRequiredService<IDatabaseInitializer>();
@@ -110,6 +126,8 @@ public partial class App : Application
             _host.Dispose();
         }
         Log.CloseAndFlush();
+        _singleInstanceMutex?.ReleaseMutex();
+        _singleInstanceMutex?.Dispose();
         base.OnExit(e);
     }
 }
