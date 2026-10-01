@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TallyAuditAssistant.Core.Domain.Companies;
@@ -11,6 +12,7 @@ public class ActiveCompanyContext : IActiveCompanyContext
     private readonly IAuditRepository _repository;
     private readonly ISettingsService _settingsService;
     private readonly ITallyCompanyService _companyService;
+    private readonly SemaphoreSlim _lock = new(1, 1);
 
     private Company? _currentCompany;
     private FinancialPeriod? _currentPeriod;
@@ -51,6 +53,19 @@ public class ActiveCompanyContext : IActiveCompanyContext
     }
 
     public async Task<Company?> GetActiveCompanyAsync(CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            return await GetActiveCompanyInternalAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private async Task<Company?> GetActiveCompanyInternalAsync(CancellationToken cancellationToken)
     {
         var isMock = await _settingsService.IsMockModeEnabledAsync();
 
@@ -121,7 +136,7 @@ public class ActiveCompanyContext : IActiveCompanyContext
 
         if (isMock)
         {
-            return await EnsureAndInitializeActiveCompanyAsync(cancellationToken);
+            return await EnsureAndInitializeActiveCompanyInternalAsync(cancellationToken);
         }
 
         return null;
@@ -143,6 +158,19 @@ public class ActiveCompanyContext : IActiveCompanyContext
 
     public async Task ClearActiveCompanyAsync(CancellationToken cancellationToken = default)
     {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await ClearActiveCompanyInternalAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private async Task ClearActiveCompanyInternalAsync(CancellationToken cancellationToken)
+    {
         _currentCompany = null;
         _currentPeriod = null;
 
@@ -157,9 +185,22 @@ public class ActiveCompanyContext : IActiveCompanyContext
 
     public async Task SetActiveCompanyAsync(Company company, CancellationToken cancellationToken = default)
     {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await SetActiveCompanyInternalAsync(company, cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private async Task SetActiveCompanyInternalAsync(Company company, CancellationToken cancellationToken)
+    {
         if (company == null)
         {
-            await ClearActiveCompanyAsync(cancellationToken);
+            await ClearActiveCompanyInternalAsync(cancellationToken);
             return;
         }
 
@@ -190,6 +231,19 @@ public class ActiveCompanyContext : IActiveCompanyContext
     }
 
     public async Task<Company> ReconcileLiveTallyCompanyAsync(string companyName, CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            return await ReconcileLiveTallyCompanyInternalAsync(companyName, cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private async Task<Company> ReconcileLiveTallyCompanyInternalAsync(string companyName, CancellationToken cancellationToken)
     {
         var trimmedName = companyName.Trim();
         var isMock = await _settingsService.IsMockModeEnabledAsync();
@@ -257,20 +311,28 @@ public class ActiveCompanyContext : IActiveCompanyContext
 
     public async Task SetActiveCompanyNameAsync(string companyName, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(companyName))
+        await _lock.WaitAsync(cancellationToken);
+        try
         {
-            await ClearActiveCompanyAsync(cancellationToken);
-            return;
+            if (string.IsNullOrWhiteSpace(companyName))
+            {
+                await ClearActiveCompanyInternalAsync(cancellationToken);
+                return;
+            }
+
+            var trimmedName = companyName.Trim();
+            var reconciledCompany = await ReconcileLiveTallyCompanyInternalAsync(trimmedName, cancellationToken);
+
+            await SetActiveCompanyInternalAsync(reconciledCompany, cancellationToken);
+            await VerifyActivationInternalAsync(trimmedName, cancellationToken);
         }
-
-        var trimmedName = companyName.Trim();
-        var reconciledCompany = await ReconcileLiveTallyCompanyAsync(trimmedName, cancellationToken);
-
-        await SetActiveCompanyAsync(reconciledCompany, cancellationToken);
-        await VerifyActivationAsync(trimmedName, cancellationToken);
+        finally
+        {
+            _lock.Release();
+        }
     }
 
-    private async Task VerifyActivationAsync(string trimmedName, CancellationToken cancellationToken)
+    private async Task VerifyActivationInternalAsync(string trimmedName, CancellationToken cancellationToken)
     {
         var persistedName = await _settingsService.GetSettingAsync("ActiveCompany", string.Empty, cancellationToken);
         if (!string.Equals(persistedName?.Trim(), trimmedName, StringComparison.OrdinalIgnoreCase))
@@ -279,7 +341,7 @@ public class ActiveCompanyContext : IActiveCompanyContext
                 $"Active company persistence verification failed. Expected '{trimmedName}', persisted '{persistedName}'.");
         }
 
-        var verified = await GetActiveCompanyAsync(cancellationToken);
+        var verified = await GetActiveCompanyInternalAsync(cancellationToken);
         if (verified == null || !string.Equals(verified.TallyCompanyName, trimmedName, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
@@ -298,6 +360,19 @@ public class ActiveCompanyContext : IActiveCompanyContext
 
     public async Task<Company?> EnsureAndInitializeActiveCompanyAsync(CancellationToken cancellationToken = default)
     {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            return await EnsureAndInitializeActiveCompanyInternalAsync(cancellationToken);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private async Task<Company?> EnsureAndInitializeActiveCompanyInternalAsync(CancellationToken cancellationToken)
+    {
         try
         {
             var isMock = await _settingsService.IsMockModeEnabledAsync();
@@ -307,20 +382,29 @@ public class ActiveCompanyContext : IActiveCompanyContext
 
             if (isMock)
             {
-                // In mock mode, resolve from DynamicTallyCompanyService (which delegates to MockTallyCompanyService)
                 targetCompanyName = await _companyService.GetActiveCompanyAsync(null, cancellationToken);
             }
             else if (!string.IsNullOrEmpty(persistedName))
             {
                 var existingPersisted = await _repository.GetCompanyByNameAsync(persistedName, cancellationToken)
                                         ?? await _repository.GetCompanyByIdAsync(persistedName, cancellationToken);
-                if (existingPersisted != null && !existingPersisted.IsMock)
+                if (existingPersisted != null)
                 {
+                    if (existingPersisted.IsMock)
+                    {
+                        existingPersisted.IsMock = false;
+                        existingPersisted.IsActive = true;
+                        try
+                        {
+                            await _repository.EnsureCompanyAsync(existingPersisted, cancellationToken);
+                        }
+                        catch { }
+                    }
                     targetCompanyName = existingPersisted.TallyCompanyName;
                 }
                 else
                 {
-                    await _settingsService.SetSettingAsync("ActiveCompany", string.Empty, cancellationToken);
+                    targetCompanyName = persistedName;
                 }
             }
 
@@ -333,31 +417,21 @@ public class ActiveCompanyContext : IActiveCompanyContext
             {
                 if (!isMock)
                 {
-                    // Check if repository has any real companies
                     var all = await _repository.GetAllCompaniesAsync(cancellationToken);
                     var realCompanies = all.Where(c => !c.IsMock).ToList();
                     if (realCompanies.Count > 0)
                     {
                         _currentCompany = realCompanies[0];
-                        await SetActiveCompanyAsync(_currentCompany, cancellationToken);
+                        await SetActiveCompanyInternalAsync(_currentCompany, cancellationToken);
                         return _currentCompany;
                     }
                     return null;
                 }
-            }
-
-            if (string.IsNullOrEmpty(targetCompanyName))
-            {
                 return null;
             }
 
             var dbCompany = await _repository.GetCompanyByNameAsync(targetCompanyName, cancellationToken)
                             ?? await _repository.GetCompanyByIdAsync(targetCompanyName, cancellationToken);
-
-            if (!isMock && dbCompany != null && dbCompany.IsMock)
-            {
-                return null;
-            }
 
             var profile = await _companyService.GetCompanyProfileTypedAsync(targetCompanyName, null, cancellationToken);
 

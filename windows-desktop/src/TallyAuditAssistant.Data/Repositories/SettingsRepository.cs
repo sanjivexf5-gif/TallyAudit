@@ -1,4 +1,6 @@
 using Dapper;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.Data.Repositories;
@@ -6,10 +8,12 @@ namespace TallyAuditAssistant.Data.Repositories;
 public class SettingsRepository : ISettingsService
 {
     private readonly SqliteConnectionFactory _connectionFactory;
+    private readonly ILogger<SettingsRepository> _logger;
 
-    public SettingsRepository(SqliteConnectionFactory connectionFactory)
+    public SettingsRepository(SqliteConnectionFactory connectionFactory, ILogger<SettingsRepository>? logger = null)
     {
         _connectionFactory = connectionFactory;
+        _logger = logger ?? NullLogger<SettingsRepository>.Instance;
     }
 
     public async Task<string> GetSettingAsync(string key, string defaultValue = "", CancellationToken cancellationToken = default)
@@ -44,7 +48,7 @@ public class SettingsRepository : ISettingsService
         }
 
         transaction.Commit();
-        Serilog.Log.Debug("[SQLite] SetSetting {Key} = {Value} verified at {Path}", key, value, _connectionFactory.DatabasePath);
+        _logger.LogDebug("[SQLite] SetSetting {Key} = {Value} verified at {Path}", key, value, _connectionFactory.DatabasePath);
     }
 
     public async Task<int> GetTallyPortAsync()

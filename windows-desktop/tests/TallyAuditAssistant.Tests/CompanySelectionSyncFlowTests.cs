@@ -1001,6 +1001,79 @@ public class CompanySelectionSyncFlowTests
     }
 
     [Fact]
+    public async Task SaveCompany_CannotBeClearedByStartupInitialization()
+    {
+        var services = new ServiceCollection();
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_startup_init_{Guid.NewGuid():N}.db");
+        services.AddApplicationServices(config, dbPath);
+
+        var provider = services.BuildServiceProvider();
+        var initializer = provider.GetRequiredService<IDatabaseInitializer>();
+        await initializer.InitializeAsync();
+
+        var ctx = provider.GetRequiredService<IActiveCompanyContext>();
+        var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
+        var settings = provider.GetRequiredService<ISettingsService>();
+
+        // 1. Commit company
+        connVM.SelectedCompany = "RAVI & CO.";
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+        // 2. Simulate startup initialization running in background
+        await ctx.EnsureAndInitializeActiveCompanyAsync();
+
+        // 3. Verify ActiveCompany was NOT wiped to empty
+        Assert.Equal("RAVI & CO.", ctx.ActiveCompanyName);
+        var persisted = await settings.GetSettingAsync("ActiveCompany");
+        Assert.Equal("RAVI & CO.", persisted);
+    }
+
+    [Fact]
+    public async Task TemporaryTallyDiscoveryFailure_DoesNotClearCommittedCompany()
+    {
+        var services = new ServiceCollection();
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_tally_fail_{Guid.NewGuid():N}.db");
+        services.AddApplicationServices(config, dbPath);
+
+        var provider = services.BuildServiceProvider();
+        var initializer = provider.GetRequiredService<IDatabaseInitializer>();
+        await initializer.InitializeAsync();
+
+        var ctx = provider.GetRequiredService<IActiveCompanyContext>();
+        var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
+        var settings = provider.GetRequiredService<ISettingsService>();
+
+        // 1. Commit company
+        connVM.SelectedCompany = "RAVI & CO.";
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+        // 2. Scan Tally when Tally is offline / scanning ports that fail
+        await connVM.ScanForTallyCommand.ExecuteAsync(null);
+
+        // 3. Verify committed company remains active and persisted
+        Assert.Equal("RAVI & CO.", ctx.ActiveCompanyName);
+        Assert.Equal("RAVI & CO.", connVM.ActiveCompany);
+        var persisted = await settings.GetSettingAsync("ActiveCompany");
+        Assert.Equal("RAVI & CO.", persisted);
+    }
+
+    [Fact]
+    public async Task SettingsWriteRead_RoundTrip()
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_roundtrip_{Guid.NewGuid():N}.db");
+        var factory = new SqliteConnectionFactory(dbPath);
+        var init = new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance, dbPath);
+        await init.InitializeAsync();
+
+        var settings = new SettingsRepository(factory);
+        await settings.SetSettingAsync("ActiveCompany", "ACME CORP");
+        var val = await settings.GetSettingAsync("ActiveCompany");
+        Assert.Equal("ACME CORP", val);
+    }
+
+    [Fact]
     public async Task CompanyChange_NoStaleCompanyRemains()
     {
         var dbPath = Path.Combine(Path.GetTempPath(), $"test_change_{Guid.NewGuid():N}.db");
