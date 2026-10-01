@@ -931,6 +931,76 @@ public class CompanySelectionSyncFlowTests
     }
 
     [Fact]
+    public async Task SettingsRepository_ActiveCompany_WritesAndReadsFromSameDatabase()
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_settings_writes_reads_{Guid.NewGuid():N}.db");
+        var sqliteFactory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(sqliteFactory, NullLogger<DatabaseInitializer>.Instance, dbPath);
+        await initializer.InitializeAsync();
+
+        var settings1 = new SettingsRepository(sqliteFactory);
+
+        // 1. Write RAVI & CO.
+        await settings1.SetSettingAsync("ActiveCompany", "RAVI & CO.");
+
+        // 2. Read back from connection
+        var read1 = await settings1.GetSettingAsync("ActiveCompany");
+        Assert.Equal("RAVI & CO.", read1);
+
+        // 3. Overwrite with COMPANY B
+        await settings1.SetSettingAsync("ActiveCompany", "COMPANY B");
+        var read2 = await settings1.GetSettingAsync("ActiveCompany");
+        Assert.Equal("COMPANY B", read2);
+
+        // 4. Read from a completely separate SettingsRepository instance using the SAME database
+        var settings2 = new SettingsRepository(new SqliteConnectionFactory(dbPath));
+        var readFromInstance2 = await settings2.GetSettingAsync("ActiveCompany");
+        Assert.Equal("COMPANY B", readFromInstance2);
+    }
+
+    [Fact]
+    public async Task ActiveCompanyContext_RealSQLite_PersistsAcrossContextInstances()
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_context_instances_{Guid.NewGuid():N}.db");
+        var sqliteFactory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(sqliteFactory, NullLogger<DatabaseInitializer>.Instance, dbPath);
+        await initializer.InitializeAsync();
+
+        var auditRepo1 = new AuditRepository(sqliteFactory);
+        var settingsRepo1 = new SettingsRepository(sqliteFactory);
+        var mockCompanyService = new Mock<ITallyCompanyService>();
+
+        // Context #1: Set Active Company
+        var ctx1 = new ActiveCompanyContext(auditRepo1, settingsRepo1, mockCompanyService.Object);
+        await ctx1.SetActiveCompanyNameAsync("RAVI & CO.");
+
+        Assert.Equal("RAVI & CO.", ctx1.ActiveCompanyName);
+
+        // Context #2: Separate instance pointing to same database
+        var auditRepo2 = new AuditRepository(new SqliteConnectionFactory(dbPath));
+        var settingsRepo2 = new SettingsRepository(new SqliteConnectionFactory(dbPath));
+        var ctx2 = new ActiveCompanyContext(auditRepo2, settingsRepo2, mockCompanyService.Object);
+
+        var restoredCompany = await ctx2.GetActiveCompanyAsync();
+        Assert.NotNull(restoredCompany);
+        Assert.Equal("RAVI & CO.", restoredCompany.TallyCompanyName);
+        Assert.Equal("RAVI & CO.", ctx2.ActiveCompanyName);
+
+        // Verify period & settings persisted
+        var activeCompanySetting = await settingsRepo2.GetSettingAsync("ActiveCompany");
+        Assert.Equal("RAVI & CO.", activeCompanySetting);
+
+        var fySetting = await settingsRepo2.GetSettingAsync("FinancialYear");
+        Assert.False(string.IsNullOrEmpty(fySetting));
+
+        var fromSetting = await settingsRepo2.GetSettingAsync("AuditPeriodFrom");
+        Assert.False(string.IsNullOrEmpty(fromSetting));
+
+        var toSetting = await settingsRepo2.GetSettingAsync("AuditPeriodTo");
+        Assert.False(string.IsNullOrEmpty(toSetting));
+    }
+
+    [Fact]
     public async Task CompanyChange_NoStaleCompanyRemains()
     {
         var dbPath = Path.Combine(Path.GetTempPath(), $"test_change_{Guid.NewGuid():N}.db");

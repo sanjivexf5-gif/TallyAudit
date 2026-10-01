@@ -8,6 +8,7 @@ namespace TallyAuditAssistant.Data;
 public class SqliteConnectionFactory : ISqliteConnectionFactory
 {
     private readonly string _connectionString;
+    public string DatabasePath { get; }
 
     static SqliteConnectionFactory()
     {
@@ -17,6 +18,7 @@ public class SqliteConnectionFactory : ISqliteConnectionFactory
 
     public SqliteConnectionFactory(string databasePath)
     {
+        DatabasePath = databasePath;
         var builder = new SqliteConnectionStringBuilder
         {
             DataSource = databasePath,

@@ -35,7 +35,16 @@ public class SettingsRepository : ISettingsService
             ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value, UpdatedAt = CURRENT_TIMESTAMP;
         ";
         await connection.ExecuteAsync(new CommandDefinition(sql, new { Key = key, Value = value }, transaction: transaction, cancellationToken: cancellationToken));
+        
+        const string verifySql = "SELECT Value FROM Settings WHERE Key = @Key LIMIT 1";
+        var persistedVal = await connection.QuerySingleOrDefaultAsync<string>(new CommandDefinition(verifySql, new { Key = key }, transaction: transaction, cancellationToken: cancellationToken));
+        if (!string.Equals(persistedVal, value, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Settings persistence verification failed for key '{key}'. Expected '{value}', persisted '{persistedVal}'. Database path: {_connectionFactory.DatabasePath}");
+        }
+
         transaction.Commit();
+        Serilog.Log.Debug("[SQLite] SetSetting {Key} = {Value} verified at {Path}", key, value, _connectionFactory.DatabasePath);
     }
 
     public async Task<int> GetTallyPortAsync()

@@ -369,7 +369,20 @@ public class TallyConnectionViewModelTests
             .Returns((string k, string def, CancellationToken ct) => Task.FromResult(settingsDict.TryGetValue(k, out var val) ? val : def));
         mockSettings.Setup(s => s.IsMockModeEnabledAsync()).ReturnsAsync(false);
 
-        var context = new ActiveCompanyContext(new Mock<IAuditRepository>().Object, mockSettings.Object, new Mock<ITallyCompanyService>().Object);
+        var mockRepo = new Mock<IAuditRepository>();
+        var companiesDict = new Dictionary<string, Company>(StringComparer.OrdinalIgnoreCase);
+        mockRepo.Setup(r => r.EnsureCompanyAsync(It.IsAny<Company>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Company c, CancellationToken ct) =>
+            {
+                companiesDict[c.TallyCompanyName] = c;
+                return c;
+            });
+        mockRepo.Setup(r => r.GetCompanyByNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string n, CancellationToken ct) => companiesDict.TryGetValue(n, out var c) ? c : null);
+        mockRepo.Setup(r => r.GetCompanyByIdAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string id, CancellationToken ct) => companiesDict.TryGetValue(id, out var c) ? c : null);
+
+        var context = new ActiveCompanyContext(mockRepo.Object, mockSettings.Object, new Mock<ITallyCompanyService>().Object);
         
         var connVM = new TallyConnectionViewModel(
             _mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _monitor, context, _mockMasterService.Object, _mockVoucherService.Object);

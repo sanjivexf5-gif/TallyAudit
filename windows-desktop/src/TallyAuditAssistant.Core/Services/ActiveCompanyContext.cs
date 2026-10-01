@@ -247,15 +247,12 @@ public class ActiveCompanyContext : IActiveCompanyContext
             // Non-blocking profile enrichment
         }
 
-        try
+        var saved = await _repository.EnsureCompanyAsync(companyToSave, cancellationToken);
+        if (saved == null)
         {
-            var saved = await _repository.EnsureCompanyAsync(companyToSave, cancellationToken);
-            return saved;
+            throw new InvalidOperationException($"Failed to persist company record for '{trimmedName}'. Repository returned null.");
         }
-        catch
-        {
-            return companyToSave;
-        }
+        return saved;
     }
 
     public async Task SetActiveCompanyNameAsync(string companyName, CancellationToken cancellationToken = default)
