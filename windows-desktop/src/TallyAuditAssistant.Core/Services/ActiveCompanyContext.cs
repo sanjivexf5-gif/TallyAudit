@@ -198,7 +198,7 @@ public class ActiveCompanyContext : IActiveCompanyContext
 
     private async Task SetActiveCompanyInternalAsync(Company company, CancellationToken cancellationToken)
     {
-        if (company == null)
+        if (company == null || string.IsNullOrWhiteSpace(company.TallyCompanyName))
         {
             await ClearActiveCompanyInternalAsync(cancellationToken);
             return;
@@ -255,7 +255,7 @@ public class ActiveCompanyContext : IActiveCompanyContext
         if (existing != null)
         {
             existing.TallyCompanyName = trimmedName;
-            existing.FormalName = string.IsNullOrEmpty(existing.FormalName) ? trimmedName : existing.FormalName;
+            existing.FormalName = string.IsNullOrWhiteSpace(existing.FormalName) ? trimmedName : existing.FormalName;
             existing.IsActive = true;
             existing.IsMock = isMock;
             companyToSave = existing;
@@ -276,18 +276,18 @@ public class ActiveCompanyContext : IActiveCompanyContext
             };
         }
 
-        // Non-blocking profile enrichment
+        // Non-blocking profile enrichment (strictly ensure non-empty profile name)
         try
         {
             var host = await _settingsService.GetTallyHostAsync();
             var port = await _settingsService.GetTallyPortAsync();
             var endpointUrl = (!string.IsNullOrEmpty(host) && port > 0) ? $"http://{host}:{port}" : null;
             var profile = await _companyService.GetCompanyProfileTypedAsync(trimmedName, endpointUrl, cancellationToken);
-            if (profile != null)
+            if (profile != null && !string.IsNullOrWhiteSpace(profile.Name))
             {
-                companyToSave.Id = profile.Name ?? trimmedName;
-                companyToSave.TallyCompanyName = profile.Name ?? trimmedName;
-                companyToSave.FormalName = profile.FormalName ?? trimmedName;
+                companyToSave.Id = profile.Name;
+                companyToSave.TallyCompanyName = profile.Name;
+                companyToSave.FormalName = string.IsNullOrWhiteSpace(profile.FormalName) ? profile.Name : profile.FormalName;
                 companyToSave.GSTIN = profile.GSTIN;
                 companyToSave.PAN = profile.PAN;
                 companyToSave.StateName = profile.StateName;
@@ -375,6 +375,11 @@ public class ActiveCompanyContext : IActiveCompanyContext
     {
         try
         {
+            if (_currentCompany != null && !string.IsNullOrWhiteSpace(_currentCompany.TallyCompanyName))
+            {
+                return _currentCompany;
+            }
+
             var isMock = await _settingsService.IsMockModeEnabledAsync();
             var persistedName = await _settingsService.GetSettingAsync("ActiveCompany", string.Empty, cancellationToken);
 

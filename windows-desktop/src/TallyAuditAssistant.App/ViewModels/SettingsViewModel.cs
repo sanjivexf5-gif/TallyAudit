@@ -160,9 +160,8 @@ public partial class SettingsViewModel : ObservableObject, INavigationAware
             else
             {
                 await _repository.ClearMockDatasetAsync();
-                await _companyContext.ClearActiveCompanyAsync();
                 await _tallyConnection.ProbePortRangeAsync(TallyHost, TallyPort, TallyPort);
-                StatusMessage = "Mock Tally Integration disabled. Demo data has been cleared and no company is currently selected.";
+                StatusMessage = "Mock Tally Integration disabled. Demo data cleared.";
             }
         }
         catch (Exception ex)

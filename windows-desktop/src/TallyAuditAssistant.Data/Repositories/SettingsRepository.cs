@@ -21,11 +21,25 @@ public class SettingsRepository : ISettingsService
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
         const string sql = "SELECT Value FROM Settings WHERE Key = @Key LIMIT 1";
         var val = await connection.QuerySingleOrDefaultAsync<string>(new CommandDefinition(sql, new { Key = key }, cancellationToken: cancellationToken));
-        return val ?? defaultValue;
+        var result = val ?? defaultValue;
+        if (key == "ActiveCompany")
+        {
+            _logger.LogInformation("[Settings] READ Key={Key} Value='{Value}' Database={Path}", key, result, _connectionFactory.DatabasePath);
+        }
+        return result;
     }
 
     public async Task SetSettingAsync(string key, string value, CancellationToken cancellationToken = default)
     {
+        if (key == "ActiveCompany")
+        {
+            _logger.LogInformation("[Settings] WRITE START Key={Key} Value='{Value}' Database={Path}", key, value, _connectionFactory.DatabasePath);
+            if (string.IsNullOrEmpty(value))
+            {
+                _logger.LogWarning("[Settings] ActiveCompany set to EMPTY string at {Path}. StackTrace:\n{StackTrace}", _connectionFactory.DatabasePath, Environment.StackTrace);
+            }
+        }
+
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
         if (connection.State != System.Data.ConnectionState.Open)
         {
@@ -48,7 +62,15 @@ public class SettingsRepository : ISettingsService
         }
 
         transaction.Commit();
-        _logger.LogDebug("[SQLite] SetSetting {Key} = {Value} verified at {Path}", key, value, _connectionFactory.DatabasePath);
+
+        if (key == "ActiveCompany")
+        {
+            _logger.LogInformation("[Settings] WRITE COMMITTED Key={Key} Value='{Value}' Database={Path}", key, value, _connectionFactory.DatabasePath);
+        }
+        else
+        {
+            _logger.LogDebug("[SQLite] SetSetting {Key} = {Value} verified at {Path}", key, value, _connectionFactory.DatabasePath);
+        }
     }
 
     public async Task<int> GetTallyPortAsync()

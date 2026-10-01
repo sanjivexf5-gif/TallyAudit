@@ -23,7 +23,7 @@ public class SqliteConnectionFactory : ISqliteConnectionFactory
         {
             DataSource = databasePath,
             Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared
+            Cache = SqliteCacheMode.Private
         };
         _connectionString = builder.ToString();
     }
