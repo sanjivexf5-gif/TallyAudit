@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using TallyAuditAssistant.App.Services;
@@ -15,6 +16,9 @@ using TallyAuditAssistant.Core.Domain.Vouchers;
 using TallyAuditAssistant.Core.Interfaces;
 using TallyAuditAssistant.Core.Services;
 using TallyAuditAssistant.Data;
+using TallyAuditAssistant.Data.Repositories;
+using TallyAuditAssistant.Engine;
+using TallyAuditAssistant.Engine.Services;
 using TallyAuditAssistant.TallyIntegration;
 using Xunit;
 
