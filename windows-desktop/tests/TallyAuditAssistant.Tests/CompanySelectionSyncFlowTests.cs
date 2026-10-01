@@ -687,6 +687,103 @@ public class CompanySelectionSyncFlowTests
     }
 
     [Fact]
+    public async Task SaveCompany_CannotBeOverwrittenByOlderRefresh()
+    {
+        var services = new ServiceCollection();
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_older_refresh_{Guid.NewGuid():N}.db");
+        services.AddApplicationServices(config, dbPath);
+
+        var provider = services.BuildServiceProvider();
+        var initializer = provider.GetRequiredService<IDatabaseInitializer>();
+        await initializer.InitializeAsync();
+
+        var ctx = provider.GetRequiredService<IActiveCompanyContext>();
+        var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
+        var mainVM = provider.GetRequiredService<MainWindowViewModel>();
+        var syncVM = provider.GetRequiredService<SyncViewModel>();
+
+        // 1. Start discovery refresh
+        var refreshTask = connVM.RefreshCompaniesCommand.ExecuteAsync(null);
+
+        // 2. User commits RAVI & CO.
+        connVM.SelectedCompany = "RAVI & CO.";
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+        // 3. Let older refresh finish
+        await refreshTask;
+
+        // 4. Verify RAVI & CO. remains intact everywhere
+        Assert.Equal("RAVI & CO.", ctx.ActiveCompanyName);
+        Assert.Equal("RAVI & CO.", connVM.ActiveCompany);
+        Assert.Equal("RAVI & CO.", mainVM.ActiveCompany);
+        Assert.Equal("Verified", connVM.PersistenceStatus);
+        Assert.Equal("Verified", connVM.ContextStatus);
+    }
+
+    [Fact]
+    public async Task SaveCompany_RemainsAfterNavigation()
+    {
+        var services = new ServiceCollection();
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_nav_{Guid.NewGuid():N}.db");
+        services.AddApplicationServices(config, dbPath);
+
+        var provider = services.BuildServiceProvider();
+        var initializer = provider.GetRequiredService<IDatabaseInitializer>();
+        await initializer.InitializeAsync();
+
+        var ctx = provider.GetRequiredService<IActiveCompanyContext>();
+        var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
+        var mainVM = provider.GetRequiredService<MainWindowViewModel>();
+        var syncVM = provider.GetRequiredService<SyncViewModel>();
+
+        // Activate
+        connVM.SelectedCompany = "RAVI & CO.";
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+        // Navigate through all sections
+        string[] sections = { "Dashboard", "GST", "TDS", "Vouchers", "Ledgers", "Bank", "Reports", "Settings", "Sync" };
+        foreach (var sec in sections)
+        {
+            mainVM.Navigate(sec);
+            Assert.Equal("RAVI & CO.", mainVM.ActiveCompany);
+        }
+
+        await syncVM.OnNavigatedToAsync();
+        Assert.Equal("RAVI & CO.", syncVM.CompanyName);
+        Assert.StartsWith("Ready to synchronize RAVI & CO.", syncVM.CurrentTaskDescription);
+    }
+
+    [Fact]
+    public async Task SaveCompany_RemainsAfterManualRefresh()
+    {
+        var services = new ServiceCollection();
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_manual_refresh_{Guid.NewGuid():N}.db");
+        services.AddApplicationServices(config, dbPath);
+
+        var provider = services.BuildServiceProvider();
+        var initializer = provider.GetRequiredService<IDatabaseInitializer>();
+        await initializer.InitializeAsync();
+
+        var ctx = provider.GetRequiredService<IActiveCompanyContext>();
+        var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
+        var mainVM = provider.GetRequiredService<MainWindowViewModel>();
+
+        // Activate
+        connVM.SelectedCompany = "RAVI & CO.";
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+        Assert.Equal("RAVI & CO.", ctx.ActiveCompanyName);
+
+        // Perform manual scan
+        await connVM.ScanForTallyCommand.ExecuteAsync(null);
+        Assert.Equal("RAVI & CO.", ctx.ActiveCompanyName);
+        Assert.Equal("RAVI & CO.", connVM.ActiveCompany);
+        Assert.Equal("RAVI & CO.", mainVM.ActiveCompany);
+    }
+
+    [Fact]
     public async Task CompanyChange_NoStaleCompanyRemains()
     {
         var dbPath = Path.Combine(Path.GetTempPath(), $"test_change_{Guid.NewGuid():N}.db");
