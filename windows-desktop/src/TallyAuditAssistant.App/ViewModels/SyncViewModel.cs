@@ -102,7 +102,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             else
             {
                 CompanyName = string.Empty;
-                CurrentTaskDescription = "Please select a Tally company before synchronization.";
+                CurrentTaskDescription = "Please select and save a Tally company before synchronization.";
                 SyncHistory.Clear();
             }
         }
@@ -136,7 +136,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             else
             {
                 CompanyName = string.Empty;
-                CurrentTaskDescription = "Please select a Tally company before synchronization.";
+                CurrentTaskDescription = "Please select and save a Tally company before synchronization.";
                 SyncHistory.Clear();
             }
         }
@@ -174,7 +174,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
 
         if (string.IsNullOrWhiteSpace(companyNameToSync))
         {
-            CurrentTaskDescription = "Please select a Tally company before synchronization.";
+            CurrentTaskDescription = "Please select and save a Tally company before synchronization.";
             return;
         }
 
@@ -238,7 +238,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
 
         if (string.IsNullOrWhiteSpace(companyNameToSync))
         {
-            CurrentTaskDescription = "Please select a Tally company before synchronization.";
+            CurrentTaskDescription = "Please select and save a Tally company before synchronization.";
             return;
         }
 

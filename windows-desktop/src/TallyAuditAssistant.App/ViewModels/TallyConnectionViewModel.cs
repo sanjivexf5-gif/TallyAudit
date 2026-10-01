@@ -234,28 +234,28 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                     DiagnosticReport += $"\n✓ Company query completed. {companies.Count} company/companies returned.";
                     DiagnosticReport += "\n✓ Companies loaded into the application.";
 
+                    var committedCompany = _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
                     string? targetCompany = null;
-                    if (!string.IsNullOrEmpty(previousSelection) && companies.Contains(previousSelection))
+                    if (!string.IsNullOrEmpty(committedCompany) && companies.Contains(committedCompany))
                     {
-                        targetCompany = previousSelection;
-                    }
-                    else if (companies.Count == 1)
-                    {
-                        targetCompany = companies[0];
-                    }
-
-                    UpdateAvailableCompanies(companies, targetCompany);
-
-                    if (targetCompany != null)
-                    {
+                        targetCompany = committedCompany;
+                        UpdateAvailableCompanies(companies, targetCompany);
                         SelectedCompany = targetCompany;
                         ActiveCompany = targetCompany;
-                        await _companyContext.SetActiveCompanyNameAsync(targetCompany);
                     }
                     else
                     {
-                        SelectedCompany = null;
+                        if (!string.IsNullOrEmpty(committedCompany))
+                        {
+                            await _companyContext.ClearActiveCompanyAsync();
+                        }
+                        targetCompany = companies.Count == 1 ? companies[0] : (companies.Count > 0 ? companies[0] : null);
+                        UpdateAvailableCompanies(companies, targetCompany);
+                        SelectedCompany = targetCompany;
                         ActiveCompany = "—";
+                        CompanyGstin = "—";
+                        CompanyState = "—";
+                        CompanyBooksDate = "—";
                     }
                 }
                 else
@@ -336,28 +336,28 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 }
                 else if (companies.Count > 0)
                 {
+                    var committedCompany = _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
                     string? targetCompany = null;
-                    if (!string.IsNullOrEmpty(previousSelection) && companies.Contains(previousSelection))
+                    if (!string.IsNullOrEmpty(committedCompany) && companies.Contains(committedCompany))
                     {
-                        targetCompany = previousSelection;
-                    }
-                    else if (companies.Count == 1)
-                    {
-                        targetCompany = companies[0];
-                    }
-
-                    UpdateAvailableCompanies(companies, targetCompany);
-
-                    if (targetCompany != null)
-                    {
+                        targetCompany = committedCompany;
+                        UpdateAvailableCompanies(companies, targetCompany);
                         SelectedCompany = targetCompany;
                         ActiveCompany = targetCompany;
-                        await _companyContext.SetActiveCompanyNameAsync(targetCompany);
                     }
                     else
                     {
-                        SelectedCompany = null;
+                        if (!string.IsNullOrEmpty(committedCompany))
+                        {
+                            await _companyContext.ClearActiveCompanyAsync();
+                        }
+                        targetCompany = companies.Count == 1 ? companies[0] : (companies.Count > 0 ? companies[0] : null);
+                        UpdateAvailableCompanies(companies, targetCompany);
+                        SelectedCompany = targetCompany;
                         ActiveCompany = "—";
+                        CompanyGstin = "—";
+                        CompanyState = "—";
+                        CompanyBooksDate = "—";
                     }
 
                     DiagnosticReport += $"\n✓ Company query completed. {companies.Count} company/companies returned.";
@@ -435,28 +435,28 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
             {
                 StatusMessage = "Tally Connected";
                 
+                var committedCompany = _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
                 string? targetCompany = null;
-                if (!string.IsNullOrEmpty(previousSelection) && companies.Contains(previousSelection))
+                if (!string.IsNullOrEmpty(committedCompany) && companies.Contains(committedCompany))
                 {
-                    targetCompany = previousSelection;
-                }
-                else if (companies.Count == 1)
-                {
-                    targetCompany = companies[0];
-                }
-
-                UpdateAvailableCompanies(companies, targetCompany);
-
-                if (targetCompany != null)
-                {
+                    targetCompany = committedCompany;
+                    UpdateAvailableCompanies(companies, targetCompany);
                     SelectedCompany = targetCompany;
                     ActiveCompany = targetCompany;
-                    await _companyContext.SetActiveCompanyNameAsync(targetCompany);
                 }
                 else
                 {
-                    SelectedCompany = null;
+                    if (!string.IsNullOrEmpty(committedCompany))
+                    {
+                        await _companyContext.ClearActiveCompanyAsync();
+                    }
+                    targetCompany = companies.Count == 1 ? companies[0] : (companies.Count > 0 ? companies[0] : null);
+                    UpdateAvailableCompanies(companies, targetCompany);
+                    SelectedCompany = targetCompany;
                     ActiveCompany = "—";
+                    CompanyGstin = "—";
+                    CompanyState = "—";
+                    CompanyBooksDate = "—";
                 }
                 
                 DiagnosticReport += $"\n✓ Company query completed. {companies.Count} company/companies returned.";
@@ -518,99 +518,65 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
     async partial void OnSelectedCompanyChanged(string? value)
     {
-        if (string.IsNullOrEmpty(value))
+        // Dropdown selection is strictly transient. Committing and profile fetching are explicitly done via SelectAndSaveCompanyAsync.
+        await Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private async Task SelectAndSaveCompanyAsync()
+    {
+        if (string.IsNullOrEmpty(SelectedCompany))
         {
-            ActiveCompany = "—";
-            CompanyGstin = "—";
-            CompanyState = "—";
-            CompanyBooksDate = "—";
+            ValidationMessage = "Please select a valid company from the dropdown before committing.";
             return;
         }
 
-        int currentToken = Interlocked.Increment(ref _companySelectionToken);
-
-        void UpdateActiveComp()
-        {
-            ActiveCompany = value;
-        }
-
-        if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
-        {
-            App.Current.Dispatcher.Invoke(UpdateActiveComp);
-        }
-        else
-        {
-            UpdateActiveComp();
-        }
+        StatusMessage = $"Saving and committing company selection: {SelectedCompany}...";
+        ValidationMessage = string.Empty;
 
         try
         {
-            await _companyContext.SetActiveCompanyNameAsync(value);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to set active company name in context for {Company}", value);
-        }
+            // Explicitly set the active company in the context
+            await _companyContext.SetActiveCompanyNameAsync(SelectedCompany);
 
-        try
-        {
+            // Fetch profile and populate UI details
             var host = Host;
             var port = Port;
             var endpoint = (!string.IsNullOrEmpty(host) && port > 0) ? $"http://{host}:{port}" : null;
-            var profile = await _companyService.GetCompanyProfileTypedAsync(value, endpoint);
-            
-            if (currentToken != Volatile.Read(ref _companySelectionToken))
-            {
-                return;
-            }
+            var profile = await _companyService.GetCompanyProfileTypedAsync(SelectedCompany, endpoint);
 
             if (profile != null)
             {
-                void Update()
-                {
-                    CompanyGstin = profile.GSTIN ?? "Unregistered";
-                    CompanyState = profile.StateName ?? "—";
-                    CompanyBooksDate = profile.BooksBeginningFrom.ToString("dd-MMM-yyyy");
+                ActiveCompany = profile.Name ?? SelectedCompany;
+                CompanyGstin = profile.GSTIN ?? "Unregistered / Not Available";
+                CompanyState = profile.StateName ?? "—";
+                CompanyBooksDate = profile.BooksBeginningFrom.ToString("dd-MMM-yyyy");
 
-                    FromDate = profile.BooksBeginningFrom;
-                    ToDate = profile.BooksBeginningFrom.AddYears(1).AddDays(-1);
+                FromDate = profile.BooksBeginningFrom;
+                ToDate = profile.BooksBeginningFrom.AddYears(1).AddDays(-1);
 
-                    FinancialYear = $"FY {profile.BooksBeginningFrom.Year}-{(profile.BooksBeginningFrom.Year + 1) % 100:D2}";
-                }
-
-                if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
-                {
-                    App.Current.Dispatcher.Invoke(Update);
-                }
-                else
-                {
-                    Update();
-                }
+                FinancialYear = $"FY {profile.BooksBeginningFrom.Year}-{(profile.BooksBeginningFrom.Year + 1) % 100:D2}";
 
                 await _settingsService.SetSettingAsync("FinancialYear", FinancialYear);
                 await _settingsService.SetSettingAsync("AuditPeriodFrom", FromDate.ToString("yyyy-MM-dd"));
                 await _settingsService.SetSettingAsync("AuditPeriodTo", ToDate.ToString("yyyy-MM-dd"));
             }
+            else
+            {
+                ActiveCompany = SelectedCompany;
+                CompanyGstin = "Unregistered / Not Available";
+                CompanyState = "—";
+                CompanyBooksDate = "—";
+            }
+
+            StatusMessage = "Company selection successfully committed!";
+            DiagnosticReport += $"\n✓ Committed active company to ActiveCompanyContext: {SelectedCompany}";
         }
         catch (Exception ex)
         {
-            if (currentToken != Volatile.Read(ref _companySelectionToken))
-            {
-                return;
-            }
-
-            void UpdateErr()
-            {
-                StatusMessage = $"Failed to load company profile: {ex.Message}";
-            }
-            if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
-            {
-                App.Current.Dispatcher.Invoke(UpdateErr);
-            }
-            else
-            {
-                UpdateErr();
-            }
+            _logger.LogError(ex, "Failed to commit active company: {Company}", SelectedCompany);
+            StatusMessage = $"Failed to commit company: {ex.Message}";
+            ValidationMessage = $"Error saving company: {ex.Message}";
         }
     }
 

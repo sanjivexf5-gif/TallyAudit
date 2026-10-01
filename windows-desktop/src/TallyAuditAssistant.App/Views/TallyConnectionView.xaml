@@ -109,7 +109,14 @@
                                 <TextBlock Grid.Column="0" Text="Select Company" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
                                 <Button Grid.Column="1" Content="🔄 Refresh" Command="{Binding RefreshCompaniesCommand}" Background="Transparent" BorderThickness="0" Foreground="#38BDF8" FontSize="11" Padding="4,0" Cursor="Hand" VerticalAlignment="Center" Margin="0,0,0,4"/>
                             </Grid>
-                            <ComboBox ItemsSource="{Binding AvailableCompanies}" SelectedItem="{Binding SelectedCompany}" Padding="8" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0" ItemsSource="{Binding AvailableCompanies}" SelectedItem="{Binding SelectedCompany}" Padding="8" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}"/>
+                                <Button Grid.Column="1" Content="✓ Select &amp; Save Company" Command="{Binding SelectAndSaveCompanyCommand}" Margin="8,0,0,0" Padding="12,8" FontWeight="SemiBold" Background="#10B981" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                            </Grid>
                         </StackPanel>
 
                         <!-- From Date -->

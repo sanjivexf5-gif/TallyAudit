@@ -196,6 +196,7 @@ public class CompanySelectionSyncFlowTests
 
         var vm = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, _mockMasterService.Object, _mockVoucherService.Object, NullLogger<TallyConnectionViewModel>.Instance);
         await vm.ScanForTallyCommand.ExecuteAsync(null);
+        await vm.SelectAndSaveCompanyCommand.ExecuteAsync(null);
 
         Assert.Equal("Sanjiv Sinha Pvt Ltd", vm.SelectedCompany);
         Assert.Equal("Sanjiv Sinha Pvt Ltd", vm.ActiveCompany);
@@ -214,6 +215,7 @@ public class CompanySelectionSyncFlowTests
 
         var vm = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, _mockMasterService.Object, _mockVoucherService.Object, NullLogger<TallyConnectionViewModel>.Instance);
         await vm.ScanForTallyCommand.ExecuteAsync(null);
+        await vm.SelectAndSaveCompanyCommand.ExecuteAsync(null);
 
         Assert.Equal("Sanjiv Sinha Pvt Ltd", _companyContext.ActiveCompanyName);
         Assert.Equal("Sanjiv Sinha Pvt Ltd", _companyContext.TallyCompanyName);
@@ -223,7 +225,7 @@ public class CompanySelectionSyncFlowTests
     public async Task SelectedCompany_UpdatesHeader()
     {
         // 4. SelectedCompany_UpdatesHeader
-        var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
+        var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance, _companyContext);
         var syncVM = new SyncViewModel(syncManager, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
         var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, _mockMasterService.Object, _mockVoucherService.Object, NullLogger<TallyConnectionViewModel>.Instance);
         var mainVM = CreateMainWindowViewModel(syncVM, connVM);
@@ -237,7 +239,7 @@ public class CompanySelectionSyncFlowTests
     public async Task SelectedCompany_SurvivesNavigation()
     {
         // 5. SelectedCompany_SurvivesNavigation
-        var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
+        var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance, _companyContext);
         var syncVM = new SyncViewModel(syncManager, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
         var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, _mockMasterService.Object, _mockVoucherService.Object, NullLogger<TallyConnectionViewModel>.Instance);
         var mainVM = CreateMainWindowViewModel(syncVM, connVM);
@@ -385,7 +387,7 @@ public class CompanySelectionSyncFlowTests
         _mockVoucherService.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                            .Returns(EmptyVouchers());
 
-        var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
+        var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance, _companyContext);
 
         string? loggedCompany = null;
         syncManager.SyncLogEmitted += (s, log) =>
@@ -464,13 +466,23 @@ public class CompanySelectionSyncFlowTests
         _mockVoucherService.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                            .Returns(MockVouchers());
 
-        var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
+        _mockSyncRepo.Setup(r => r.BatchUpsertGroupsAsync(It.IsAny<IReadOnlyList<Group>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(1);
+        _mockSyncRepo.Setup(r => r.BatchUpsertLedgersAsync(It.IsAny<IReadOnlyList<Ledger>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                     .ReturnsAsync((1, 0));
+        _mockSyncRepo.Setup(r => r.BatchUpsertVouchersAsync(It.IsAny<IReadOnlyList<Voucher>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                     .ReturnsAsync((1, 0));
+
+        var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance, _companyContext);
         var syncVM = new SyncViewModel(syncManager, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
         var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, _mockMasterService.Object, _mockVoucherService.Object, NullLogger<TallyConnectionViewModel>.Instance);
         var mainVM = CreateMainWindowViewModel(syncVM, connVM);
 
         // 1. Scan for Tally
         await connVM.ScanForTallyCommand.ExecuteAsync(null);
+
+        // 1.5 Commit company selection explicitly (WPF Select & Save Company button)
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
 
         // 2. Verified company selected & context updated
         Assert.Equal("Sanjiv Sinha Pvt Ltd", connVM.SelectedCompany);
