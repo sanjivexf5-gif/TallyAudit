@@ -288,7 +288,7 @@ public class CompanySelectionSyncFlowTests
         await syncVM.StartFullSyncCommand.ExecuteAsync(null);
 
         mockSyncManager.Verify(m => m.StartSyncAsync(It.IsAny<string>(), It.IsAny<SyncMode>(), It.IsAny<CancellationToken>()), Times.Never);
-        Assert.Contains("Please select a Tally company before synchronization", syncVM.CurrentTaskDescription);
+        Assert.Contains("Please select and save a Tally company before synchronization.", syncVM.CurrentTaskDescription);
     }
 
     [Fact]

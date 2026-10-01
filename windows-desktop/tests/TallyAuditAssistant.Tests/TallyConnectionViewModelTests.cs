@@ -78,11 +78,17 @@ public class TallyConnectionViewModelTests
         Assert.Equal(2, vm.AvailableCompanies.Count);
         Assert.Contains("Test Company A", vm.AvailableCompanies);
         Assert.Contains("Test Company B", vm.AvailableCompanies);
-        Assert.Null(vm.SelectedCompany);
-
-        vm.SelectedCompany = "Test Company A";
+        
+        // New UX: First discovered company is selected in dropdown but NOT yet committed
         Assert.Equal("Test Company A", vm.SelectedCompany);
+        Assert.Equal("—", vm.ActiveCompany);
+        _mockContext.Verify(c => c.SetActiveCompanyNameAsync(It.IsAny<string>()), Times.Never);
+
+        // Commit selection
+        await vm.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+        
         Assert.Equal("Test Company A", vm.ActiveCompany);
+        _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Test Company A"), Times.Once);
         Assert.Contains("✓ Company query completed", vm.DiagnosticReport);
     }
 
@@ -245,7 +251,7 @@ public class TallyConnectionViewModelTests
             NullLogger<TallyConnectionViewModel>.Instance
         );
 
-        // Fast sequential selections
+        // Fast sequential selections (dropdown changes)
         vm.SelectedCompany = "Company 1";
         await Task.Delay(10);
         vm.SelectedCompany = "Company 2";
@@ -253,9 +259,20 @@ public class TallyConnectionViewModelTests
         // Wait for slow load to complete
         await Task.Delay(150);
 
+        // Dropdown must reflect Company 2
+        Assert.Equal("Company 2", vm.SelectedCompany);
+        
+        // ActiveCompany must NOT have changed yet (it remains uncommitted)
+        Assert.Equal("—", vm.ActiveCompany);
+
+        // Commit selection
+        await vm.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
         // Target state must reflect Company 2, never overwritten by slow Company 1
         Assert.Equal("Company 2", vm.ActiveCompany);
         Assert.Equal("GST-2", vm.CompanyGstin);
         Assert.Equal("State 2", vm.CompanyState);
+        _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Company 2"), Times.Once);
+        _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Company 1"), Times.Never);
     }
 }
