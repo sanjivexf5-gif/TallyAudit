@@ -21,6 +21,9 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
     private string _companyName = string.Empty;
 
     [ObservableProperty]
+    private string _contextStatusText = "Context: Verified";
+
+    [ObservableProperty]
     private bool _isSyncing = false;
 
     [ObservableProperty]
@@ -92,9 +95,10 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             var compName = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
             if (!string.IsNullOrEmpty(compName))
             {
+                CompanyName = compName;
+                ContextStatusText = "Context: Verified";
                 if (CompanyName != compName || string.IsNullOrEmpty(CurrentTaskDescription) || CurrentTaskDescription.StartsWith("Please select"))
                 {
-                    CompanyName = compName;
                     CurrentTaskDescription = $"Ready to synchronize {compName}.";
                 }
                 _ = LoadHistoryAsync();
@@ -102,6 +106,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             else
             {
                 CompanyName = string.Empty;
+                ContextStatusText = "Context: Not Set";
                 CurrentTaskDescription = "Please select and save a Tally company before synchronization.";
                 SyncHistory.Clear();
             }
@@ -121,12 +126,13 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
     {
         try
         {
-            var comp = await _companyContext.GetActiveCompanyAsync();
-            var compName = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
+            var activeCompany = await _companyContext.GetActiveCompanyAsync();
+            var compName = activeCompany?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
 
             if (!string.IsNullOrEmpty(compName))
             {
                 CompanyName = compName;
+                ContextStatusText = "Context: Verified";
                 if (!IsSyncing && (string.IsNullOrEmpty(CurrentTaskDescription) || CurrentTaskDescription.StartsWith("Please select")))
                 {
                     CurrentTaskDescription = $"Ready to synchronize {compName}.";
@@ -136,6 +142,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             else
             {
                 CompanyName = string.Empty;
+                ContextStatusText = "Context: Not Set";
                 CurrentTaskDescription = "Please select and save a Tally company before synchronization.";
                 SyncHistory.Clear();
             }
@@ -178,6 +185,20 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
 
         var companyNameToSync = comp.TallyCompanyName;
         CompanyName = companyNameToSync;
+
+        // Hard verification before sync: verify context consistency
+        var propActive = _companyContext.ActiveCompanyName;
+        var propTally = _companyContext.TallyCompanyName;
+        if (!string.IsNullOrEmpty(propActive) && !string.Equals(propActive, companyNameToSync, StringComparison.OrdinalIgnoreCase))
+        {
+            CurrentTaskDescription = $"SYNC ABORTED. Context company mismatch: ActiveCompanyName ('{propActive}') != Target ('{companyNameToSync}').";
+            return;
+        }
+        if (!string.IsNullOrEmpty(propTally) && !string.Equals(propTally, companyNameToSync, StringComparison.OrdinalIgnoreCase))
+        {
+            CurrentTaskDescription = $"SYNC ABORTED. Context company mismatch: TallyCompanyName ('{propTally}') != Target ('{companyNameToSync}').";
+            return;
+        }
 
         IsSyncing = true;
         IsPaused = false;
@@ -236,6 +257,20 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
 
         var companyNameToSync = comp.TallyCompanyName;
         CompanyName = companyNameToSync;
+
+        // Hard verification before sync: verify context consistency
+        var propActive = _companyContext.ActiveCompanyName;
+        var propTally = _companyContext.TallyCompanyName;
+        if (!string.IsNullOrEmpty(propActive) && !string.Equals(propActive, companyNameToSync, StringComparison.OrdinalIgnoreCase))
+        {
+            CurrentTaskDescription = $"SYNC ABORTED. Context company mismatch: ActiveCompanyName ('{propActive}') != Target ('{companyNameToSync}').";
+            return;
+        }
+        if (!string.IsNullOrEmpty(propTally) && !string.Equals(propTally, companyNameToSync, StringComparison.OrdinalIgnoreCase))
+        {
+            CurrentTaskDescription = $"SYNC ABORTED. Context company mismatch: TallyCompanyName ('{propTally}') != Target ('{companyNameToSync}').";
+            return;
+        }
 
         IsSyncing = true;
         IsPaused = false;

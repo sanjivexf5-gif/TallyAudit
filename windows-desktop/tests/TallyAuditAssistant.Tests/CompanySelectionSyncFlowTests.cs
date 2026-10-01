@@ -48,11 +48,15 @@ public class CompanySelectionSyncFlowTests
         var dbPath = Path.Combine(Path.GetTempPath(), $"test_sync_flow_{Guid.NewGuid():N}.db");
         _sqliteConnectionFactory = new SqliteConnectionFactory(dbPath);
 
+        var settingsDict = new System.Collections.Concurrent.ConcurrentDictionary<string, string>();
         _mockSettings.Setup(s => s.GetTallyHostAsync()).ReturnsAsync("localhost");
         _mockSettings.Setup(s => s.GetTallyPortAsync()).ReturnsAsync(9000);
         _mockSettings.Setup(s => s.IsMockModeEnabledAsync()).ReturnsAsync(false);
+        _mockSettings.Setup(s => s.SetSettingAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                     .Callback<string, string, CancellationToken>((key, val, ct) => settingsDict[key] = val)
+                     .Returns(Task.CompletedTask);
         _mockSettings.Setup(s => s.GetSettingAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-                     .ReturnsAsync((string key, string def, CancellationToken ct) => def);
+                     .ReturnsAsync((string key, string def, CancellationToken ct) => settingsDict.TryGetValue(key, out var val) ? val : def);
 
         _connectionMonitor = new TallyConnectionMonitor(_mockConnection.Object, _mockSettings.Object, NullLogger<TallyConnectionMonitor>.Instance);
         _companyContext = new ActiveCompanyContext(_mockAuditRepo.Object, _mockSettings.Object, _mockCompanyService.Object);
@@ -501,5 +505,162 @@ public class CompanySelectionSyncFlowTests
         // 5. Verify stage progressed and completed without "Please select a Tally company"
         Assert.DoesNotContain("Please select a Tally company", syncVM.CurrentTaskDescription);
         Assert.Contains("SYNC SUCCESS", syncVM.CurrentTaskDescription);
+    }
+
+    [Fact]
+    public async Task RealApplication_DI_Lifetime_EndToEnd()
+    {
+        // Integration test using real DI registrations
+        var services = new ServiceCollection();
+        
+        // Setup SQLite test DB
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_di_flow_{Guid.NewGuid():N}.db");
+        var sqliteFactory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(sqliteFactory, NullLogger<DatabaseInitializer>.Instance, dbPath);
+        await initializer.InitializeAsync();
+
+        // Register production DI services
+        services.AddSingleton(sqliteFactory);
+        services.AddSingleton<ISqliteConnectionFactory>(sqliteFactory);
+        services.AddSingleton<IDatabaseInitializer>(initializer);
+        services.AddSingleton<IAuditRepository, AuditRepository>();
+        services.AddSingleton<ISyncRepository, SyncRepository>();
+        services.AddSingleton<ISettingsService, SettingsRepository>();
+        services.AddSingleton<IAuditFinalizationRepository, AuditFinalizationRepository>();
+        services.AddSingleton<IAuditFinalizationService, AuditFinalizationService>();
+        services.AddSingleton<IAuditQualityControlService, AuditQualityControlService>();
+        services.AddSingleton<IAuditTrailRepository, AuditTrailRepository>();
+        services.AddSingleton<IAuditTrailService, AuditTrailService>();
+        services.AddSingleton<IInvestigationRepository, InvestigationRepository>();
+        services.AddSingleton<IInvestigationService, InvestigationService>();
+
+        services.AddSingleton<ITallyReadOnlyPolicy, TallyReadOnlyPolicy>();
+        services.AddSingleton<ITallyRequestBuilder, TallyRequestBuilder>();
+        services.AddSingleton<ITallyResponseParser, TallyResponseParser>();
+
+        var mockCompanyService = new Mock<ITallyCompanyService>();
+        mockCompanyService.Setup(c => c.GetOpenCompaniesAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<string> { "RAVI & CO." });
+        mockCompanyService.Setup(c => c.GetCompanyProfileTypedAsync("RAVI & CO.", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TallyCompanyProfile { Name = "RAVI & CO.", GSTIN = "27AAACR1234A1Z5", StateName = "Maharashtra", BooksBeginningFrom = new DateTime(2025, 4, 1) });
+
+        var mockConn = new Mock<ITallyConnection>();
+        mockConn.Setup(c => c.CheckIfProcessRunningAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        mockConn.Setup(c => c.DiscoverTallyAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TallyEndpointInfo("localhost", 9000, true, "TallyPrime", null, 2, null, ConnectionFailureCause.None));
+
+        services.AddSingleton<ITallyCompanyService>(mockCompanyService.Object);
+        services.AddSingleton<ITallyConnection>(mockConn.Object);
+        services.AddSingleton<IActiveCompanyContext, ActiveCompanyContext>();
+        services.AddSingleton<ITallyMasterService, TallyMasterService>();
+        services.AddSingleton<ITallyVoucherService, TallyVoucherService>();
+        services.AddSingleton<ITallyQueryService, TallyQueryService>();
+        services.AddSingleton<TallyConnectionMonitor>();
+        services.AddSingleton<ISyncManager, SyncManager>();
+        services.AddAuditEngine();
+        services.AddSingleton<INavigationService, NavigationService>();
+
+        services.AddSingleton<MainWindowViewModel>();
+        services.AddSingleton<DashboardViewModel>();
+        services.AddSingleton<TallyConnectionViewModel>();
+        services.AddSingleton<SyncViewModel>();
+        services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<CompaniesViewModel>();
+        services.AddSingleton<GstAuditViewModel>();
+        services.AddSingleton<TdsAuditViewModel>();
+        services.AddSingleton<VouchersViewModel>();
+        services.AddSingleton<LedgersViewModel>();
+        services.AddSingleton<BankAuditViewModel>();
+        services.AddSingleton<InvestigationViewModel>();
+        services.AddSingleton<ExceptionsViewModel>();
+        services.AddSingleton<ReportsViewModel>();
+
+        var provider = services.BuildServiceProvider();
+
+        // 1. Verify Singleton identity of IActiveCompanyContext
+        var ctx1 = provider.GetRequiredService<IActiveCompanyContext>();
+        var ctx2 = provider.GetRequiredService<IActiveCompanyContext>();
+        Assert.Same(ctx1, ctx2);
+
+        var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
+        var mainVM = provider.GetRequiredService<MainWindowViewModel>();
+        var syncVM = provider.GetRequiredService<SyncViewModel>();
+
+        // 2. Scan and select RAVI & CO.
+        await connVM.ScanForTallyCommand.ExecuteAsync(null);
+        connVM.SelectedCompany = "RAVI & CO.";
+
+        // 3. Save & Activate
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+        // 4. Verify ActiveCompanyContext and Header
+        Assert.Equal("RAVI & CO.", ctx1.ActiveCompanyName);
+        Assert.Equal("RAVI & CO.", mainVM.ActiveCompany);
+        Assert.Equal("Verified", connVM.PersistenceStatus);
+        Assert.Equal("Verified", connVM.ContextStatus);
+
+        // 5. Navigate to Sync
+        mainVM.Navigate("Sync");
+        await syncVM.OnNavigatedToAsync();
+
+        Assert.Equal("RAVI & CO.", syncVM.CompanyName);
+        Assert.StartsWith("Ready to synchronize RAVI & CO.", syncVM.CurrentTaskDescription);
+        Assert.Equal("Context: Verified", syncVM.ContextStatusText);
+    }
+
+    [Fact]
+    public async Task PersistenceRestart_RestoresActiveCompany()
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_persistence_restart_{Guid.NewGuid():N}.db");
+        var sqliteFactory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(sqliteFactory, NullLogger<DatabaseInitializer>.Instance, dbPath);
+        await initializer.InitializeAsync();
+
+        var auditRepo = new AuditRepository(sqliteFactory);
+        var settingsRepo = new SettingsRepository(sqliteFactory);
+        var mockCompanyService = new Mock<ITallyCompanyService>();
+
+        // Session 1: Activate Company A
+        var ctx1 = new ActiveCompanyContext(auditRepo, settingsRepo, mockCompanyService.Object);
+        await ctx1.SetActiveCompanyNameAsync("Company A");
+        Assert.Equal("Company A", ctx1.ActiveCompanyName);
+
+        // Session 2: Fresh context reading from same DB
+        var ctx2 = new ActiveCompanyContext(auditRepo, settingsRepo, mockCompanyService.Object);
+        var restored = await ctx2.GetActiveCompanyAsync();
+        Assert.NotNull(restored);
+        Assert.Equal("Company A", restored.TallyCompanyName);
+
+        var syncVM = new SyncViewModel(new Mock<ISyncManager>().Object, mockCompanyService.Object, settingsRepo, ctx2);
+        await syncVM.OnNavigatedToAsync();
+        Assert.Equal("Company A", syncVM.CompanyName);
+        Assert.StartsWith("Ready to synchronize Company A", syncVM.CurrentTaskDescription);
+    }
+
+    [Fact]
+    public async Task CompanyChange_NoStaleCompanyRemains()
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_change_{Guid.NewGuid():N}.db");
+        var sqliteFactory = new SqliteConnectionFactory(dbPath);
+        var initializer = new DatabaseInitializer(sqliteFactory, NullLogger<DatabaseInitializer>.Instance, dbPath);
+        await initializer.InitializeAsync();
+
+        var auditRepo = new AuditRepository(sqliteFactory);
+        var settingsRepo = new SettingsRepository(sqliteFactory);
+        var mockCompanyService = new Mock<ITallyCompanyService>();
+        var ctx = new ActiveCompanyContext(auditRepo, settingsRepo, mockCompanyService.Object);
+        var syncVM = new SyncViewModel(new Mock<ISyncManager>().Object, mockCompanyService.Object, settingsRepo, ctx);
+
+        // 1. Activate Company A
+        await ctx.SetActiveCompanyNameAsync("Company A");
+        await syncVM.OnNavigatedToAsync();
+        Assert.Equal("Company A", syncVM.CompanyName);
+
+        // 2. Activate Company B
+        await ctx.SetActiveCompanyNameAsync("Company B");
+        await syncVM.OnNavigatedToAsync();
+        Assert.Equal("Company B", syncVM.CompanyName);
+        Assert.Equal("Company B", ctx.ActiveCompanyName);
+        Assert.DoesNotContain("Company A", syncVM.CompanyName);
     }
 }

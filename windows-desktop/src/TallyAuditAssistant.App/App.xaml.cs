@@ -97,9 +97,10 @@ public partial class App : Application
         }
     }
 
-    private static void ConfigureServices(IConfiguration configuration, IServiceCollection services)
+    internal static void ConfigureServices(IConfiguration configuration, IServiceCollection services)
     {
         var dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "audit_assistant_data.db");
+        Log.Information("Configuring SQLite database path at: {DbPath}", dbPath);
         
         // Data layer registrations
         var sqliteFactory = new SqliteConnectionFactory(dbPath);

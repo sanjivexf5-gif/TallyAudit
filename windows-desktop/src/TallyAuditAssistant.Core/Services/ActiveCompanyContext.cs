@@ -187,6 +187,7 @@ public class ActiveCompanyContext : IActiveCompanyContext
         if (existing != null)
         {
             await SetActiveCompanyAsync(existing, cancellationToken);
+            await VerifyActivationAsync(trimmedName, cancellationToken);
             return;
         }
 
@@ -240,6 +241,25 @@ public class ActiveCompanyContext : IActiveCompanyContext
         catch
         {
             // Retain memory state if database is busy
+        }
+
+        await VerifyActivationAsync(trimmedName, cancellationToken);
+    }
+
+    private async Task VerifyActivationAsync(string trimmedName, CancellationToken cancellationToken)
+    {
+        var persistedName = await _settingsService.GetSettingAsync("ActiveCompany", string.Empty, cancellationToken);
+        if (!string.Equals(persistedName?.Trim(), trimmedName, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Active company persistence verification failed. Expected '{trimmedName}', persisted '{persistedName}'.");
+        }
+
+        var verified = await GetActiveCompanyAsync(cancellationToken);
+        if (verified == null || !string.Equals(verified.TallyCompanyName, trimmedName, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"Active company verification failed. Expected '{trimmedName}', but the active company context did not resolve correctly.");
         }
     }
 

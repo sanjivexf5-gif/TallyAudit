@@ -126,41 +126,33 @@ public partial class MainWindowViewModel : ObservableObject
         _tallyConnection.StatusChanged += OnTallyStatusChanged;
         UpdateStatusDisplay(_tallyConnection.CurrentStatus);
 
-        _ = InitializeActiveCompanyAsync();
+        _ = RefreshActiveCompanyAsync();
     }
 
-    private async Task InitializeActiveCompanyAsync()
+    public async Task RefreshActiveCompanyAsync()
     {
         var comp = await _companyContext.GetActiveCompanyAsync();
         var compName = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
-        if (!string.IsNullOrEmpty(compName))
+        
+        void Update()
         {
-            ActiveCompany = compName;
+            ActiveCompany = !string.IsNullOrEmpty(compName) ? compName : "No Company Selected";
+        }
+
+        if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
+        {
+            App.Current.Dispatcher.Invoke(Update);
         }
         else
         {
-            ActiveCompany = "No Company Selected";
+            Update();
         }
     }
 
     [RelayCommand]
     public void Navigate(string section)
     {
-        var activeName = _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
-        if (!string.IsNullOrEmpty(activeName))
-        {
-            if (ActiveCompany != activeName)
-            {
-                ActiveCompany = activeName;
-            }
-        }
-        else
-        {
-            if (ActiveCompany != "No Company Selected")
-            {
-                ActiveCompany = "No Company Selected";
-            }
-        }
+        _ = RefreshActiveCompanyAsync();
 
         ObservableObject? nextVM = section switch
         {

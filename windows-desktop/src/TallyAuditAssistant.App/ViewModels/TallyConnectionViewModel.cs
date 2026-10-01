@@ -55,6 +55,12 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
     private string _activeCompany = "—";
 
     [ObservableProperty]
+    private string _persistenceStatus = "—";
+
+    [ObservableProperty]
+    private string _contextStatus = "—";
+
+    [ObservableProperty]
     private string _companyGstin = "—";
 
     [ObservableProperty]
@@ -308,17 +314,20 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                     }
                     else
                     {
-                        if (!string.IsNullOrEmpty(committedCompany))
-                        {
-                            await _companyContext.ClearActiveCompanyAsync();
-                        }
-                        targetCompany = companies.Count == 1 ? companies[0] : (companies.Count > 0 ? companies[0] : null);
+                        targetCompany = !string.IsNullOrEmpty(committedCompany) ? committedCompany : (companies.Count == 1 ? companies[0] : (companies.Count > 0 ? companies[0] : null));
                         UpdateAvailableCompanies(companies, targetCompany);
                         SelectedCompany = targetCompany;
-                        ActiveCompany = "—";
-                        CompanyGstin = "—";
-                        CompanyState = "—";
-                        CompanyBooksDate = "—";
+                        if (!string.IsNullOrEmpty(committedCompany))
+                        {
+                            ActiveCompany = committedCompany;
+                        }
+                        else
+                        {
+                            ActiveCompany = "—";
+                            CompanyGstin = "—";
+                            CompanyState = "—";
+                            CompanyBooksDate = "—";
+                        }
                     }
                     _isUpdatingSelection = false;
                 }
@@ -416,17 +425,20 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                     }
                     else
                     {
-                        if (!string.IsNullOrEmpty(committedCompany))
-                        {
-                            await _companyContext.ClearActiveCompanyAsync();
-                        }
-                        targetCompany = companies.Count == 1 ? companies[0] : (companies.Count > 0 ? companies[0] : null);
+                        targetCompany = !string.IsNullOrEmpty(committedCompany) ? committedCompany : (companies.Count == 1 ? companies[0] : (companies.Count > 0 ? companies[0] : null));
                         UpdateAvailableCompanies(companies, targetCompany);
                         SelectedCompany = targetCompany;
-                        ActiveCompany = "—";
-                        CompanyGstin = "—";
-                        CompanyState = "—";
-                        CompanyBooksDate = "—";
+                        if (!string.IsNullOrEmpty(committedCompany))
+                        {
+                            ActiveCompany = committedCompany;
+                        }
+                        else
+                        {
+                            ActiveCompany = "—";
+                            CompanyGstin = "—";
+                            CompanyState = "—";
+                            CompanyBooksDate = "—";
+                        }
                     }
                     _isUpdatingSelection = false;
 
@@ -521,17 +533,20 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 }
                 else
                 {
-                    if (!string.IsNullOrEmpty(committedCompany))
-                    {
-                        await _companyContext.ClearActiveCompanyAsync();
-                    }
-                    targetCompany = companies.Count == 1 ? companies[0] : (companies.Count > 0 ? companies[0] : null);
+                    targetCompany = !string.IsNullOrEmpty(committedCompany) ? committedCompany : (companies.Count == 1 ? companies[0] : (companies.Count > 0 ? companies[0] : null));
                     UpdateAvailableCompanies(companies, targetCompany);
                     SelectedCompany = targetCompany;
-                    ActiveCompany = "—";
-                    CompanyGstin = "—";
-                    CompanyState = "—";
-                    CompanyBooksDate = "—";
+                    if (!string.IsNullOrEmpty(committedCompany))
+                    {
+                        ActiveCompany = committedCompany;
+                    }
+                    else
+                    {
+                        ActiveCompany = "—";
+                        CompanyGstin = "—";
+                        CompanyState = "—";
+                        CompanyBooksDate = "—";
+                    }
                 }
                 _isUpdatingSelection = false;
                 
@@ -631,10 +646,29 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
         try
         {
-            // Explicitly set the active company in the context
+            // 1. Explicitly set the active company in the context (which internally verifies persistence and memory state)
             await _companyContext.SetActiveCompanyNameAsync(companyToCommit, cancellationToken);
 
-            // Fetch profile and populate UI details
+            // 2. Read active company back from ActiveCompanyContext and verify it matches
+            var verifiedCompany = await _companyContext.GetActiveCompanyAsync(cancellationToken);
+            var verifiedName = verifiedCompany?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
+
+            if (string.IsNullOrEmpty(verifiedName) || !string.Equals(verifiedName, companyToCommit, StringComparison.OrdinalIgnoreCase))
+            {
+                StatusMessage = "Company activation failed: active company could not be verified.";
+                ValidationMessage = $"Active company verification failed. Expected '{companyToCommit}', but resolved '{verifiedName ?? "null"}'.";
+                ActiveCompany = "—";
+                PersistenceStatus = "Failed";
+                ContextStatus = "Failed";
+                return false;
+            }
+
+            // 3. Only update local display properties after verified transaction
+            ActiveCompany = verifiedName;
+            PersistenceStatus = "Verified";
+            ContextStatus = "Verified";
+
+            // 4. Fetch profile and populate UI details
             var host = Host;
             var port = Port;
             var endpoint = (!string.IsNullOrEmpty(host) && port > 0) ? $"http://{host}:{port}" : null;
@@ -642,7 +676,6 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
             if (profile != null)
             {
-                ActiveCompany = profile.Name ?? companyToCommit;
                 CompanyGstin = profile.GSTIN ?? "Unregistered / Not Available";
                 CompanyState = profile.StateName ?? "—";
                 CompanyBooksDate = profile.BooksBeginningFrom.ToString("dd-MMM-yyyy");
@@ -658,7 +691,6 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
             }
             else
             {
-                ActiveCompany = companyToCommit;
                 CompanyGstin = "Unregistered / Not Available";
                 CompanyState = "—";
                 CompanyBooksDate = "—";
@@ -666,8 +698,8 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
             ValidationMessage = string.Empty;
             StatusMessage = "Company activated successfully!";
-            DiagnosticReport += $"\n✓ Committed and activated company: {companyToCommit}";
-            _logger.LogInformation("[Company] ActiveCompanyContext updated and company activated: {Company}", companyToCommit);
+            DiagnosticReport += $"\n✓ Committed and activated company: {companyToCommit}\n✓ Persistence: Verified\n✓ Context: Verified";
+            _logger.LogInformation("[Company] ActiveCompanyContext verified and activated: {Company}", companyToCommit);
             return true;
         }
         catch (OperationCanceledException)
@@ -678,8 +710,10 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to commit active company: {Company}", companyToCommit);
-            StatusMessage = $"Failed to activate company: {ex.Message}";
+            StatusMessage = "Company activation failed: active company could not be verified.";
             ValidationMessage = $"Error activating company: {ex.Message}";
+            PersistenceStatus = "Failed";
+            ContextStatus = "Failed";
             return false;
         }
         finally

@@ -38,6 +38,29 @@ public class TallyConnectionViewModelTests
 
         _monitor = new TallyConnectionMonitor(_mockConnection.Object, _mockSettings.Object, NullLogger<TallyConnectionMonitor>.Instance);
         _mockContext = new Mock<IActiveCompanyContext>();
+
+        string? activeName = null;
+        _mockContext.Setup(c => c.SetActiveCompanyNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, CancellationToken>((name, ct) =>
+            {
+                activeName = name;
+                _mockContext.SetupGet(c => c.ActiveCompanyName).Returns(name);
+                _mockContext.SetupGet(c => c.TallyCompanyName).Returns(name);
+                _mockContext.Setup(c => c.GetActiveCompanyAsync(It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(new Company { Id = name, TallyCompanyName = name, FormalName = name });
+            })
+            .Returns(Task.CompletedTask);
+
+        _mockContext.Setup(c => c.ClearActiveCompanyAsync(It.IsAny<CancellationToken>()))
+            .Callback(() =>
+            {
+                activeName = null;
+                _mockContext.SetupGet(c => c.ActiveCompanyName).Returns((string?)null);
+                _mockContext.SetupGet(c => c.TallyCompanyName).Returns((string?)null);
+                _mockContext.Setup(c => c.GetActiveCompanyAsync(It.IsAny<CancellationToken>()))
+                    .ReturnsAsync((Company?)null);
+            })
+            .Returns(Task.CompletedTask);
     }
 
     [Fact]
@@ -337,7 +360,15 @@ public class TallyConnectionViewModelTests
     public async Task ActiveCompanyContext_IsSharedAsSingleton()
     {
         // This test verifies the design requirement that IActiveCompanyContext is shared
-        var context = new ActiveCompanyContext(new Mock<IAuditRepository>().Object, new Mock<ISettingsService>().Object, new Mock<ITallyCompanyService>().Object);
+        var mockSettings = new Mock<ISettingsService>();
+        var settingsDict = new Dictionary<string, string>();
+        mockSettings.Setup(s => s.SetSettingAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<string, string, CancellationToken>((k, v, ct) => settingsDict[k] = v)
+            .Returns(Task.CompletedTask);
+        mockSettings.Setup(s => s.GetSettingAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((string k, string def, CancellationToken ct) => settingsDict.TryGetValue(k, out var val) ? val : def);
+
+        var context = new ActiveCompanyContext(new Mock<IAuditRepository>().Object, mockSettings.Object, new Mock<ITallyCompanyService>().Object);
         
         var connVM = new TallyConnectionViewModel(
             _mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _monitor, context, _mockMasterService.Object, _mockVoucherService.Object);
