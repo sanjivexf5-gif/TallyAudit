@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using TallyAuditAssistant.Core.Common;
 using TallyAuditAssistant.Core.Domain.Tally;
 using TallyAuditAssistant.Core.Interfaces;
 
@@ -48,11 +49,35 @@ public class TallyCompanyService : ITallyCompanyService
         var rawResponse = await _client.SendAsync(url, requestXml, TallyRequestFormat.Xml, cancellationToken);
         if (!rawResponse.IsSuccess)
         {
-            _logger.LogWarning("Failed to query open company list from {Url}: {Error}", url, rawResponse.ErrorMessage);
-            return Array.Empty<string>();
+            var msg = rawResponse.ErrorMessage ?? $"HTTP {rawResponse.HttpStatusCode}";
+            _logger.LogWarning("Failed to query open company list from {Url}: {Error}", url, msg);
+            throw new TallySynchronizationException(
+                "CompanyDiscovery",
+                string.Empty,
+                url,
+                $"Failed to query open company list from TallyPrime at {url}: {msg}",
+                rawResponse.HttpStatusCode,
+                rawResponse.ErrorMessage,
+                isEmptyResponse: string.IsNullOrWhiteSpace(rawResponse.Content));
         }
 
-        return _parser.ParseCompanyList(rawResponse.Content, TallyRequestFormat.Xml);
+        try
+        {
+            return _parser.ParseCompanyList(rawResponse.Content, TallyRequestFormat.Xml);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse open company list from TallyPrime at {Url}", url);
+            throw new TallySynchronizationException(
+                "CompanyDiscovery",
+                string.Empty,
+                url,
+                $"Failed to parse open company list from TallyPrime: {ex.Message}",
+                rawResponse.HttpStatusCode,
+                ex.Message,
+                isXmlParseFailure: true,
+                innerException: ex);
+        }
     }
 
     public async Task<string?> GetActiveCompanyAsync(string? endpointUrl = null, CancellationToken cancellationToken = default)

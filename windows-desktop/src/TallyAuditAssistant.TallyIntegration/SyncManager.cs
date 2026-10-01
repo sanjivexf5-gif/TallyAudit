@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Domain.Ledgers;
 using TallyAuditAssistant.Core.Domain.Sync;
+using TallyAuditAssistant.Core.Domain.Tally;
 using TallyAuditAssistant.Core.Domain.Vouchers;
 using TallyAuditAssistant.Core.Interfaces;
 

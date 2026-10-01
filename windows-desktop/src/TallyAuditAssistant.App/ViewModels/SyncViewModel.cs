@@ -197,17 +197,28 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             {
                 if (result.IsSuccess)
                 {
-                    CurrentTaskDescription = $"Synchronization completed successfully. Processed {result.TotalProcessed} records ({result.Inserted} inserted, {result.Updated} updated).";
+                    if (result.TotalProcessed == 0)
+                    {
+                        CurrentTaskDescription = $"SYNC COMPLETED WITH ZERO RECORDS. Company: {CompanyName}. Verified successful connectivity, but no records were found.";
+                    }
+                    else if (result.Errors > 0)
+                    {
+                        CurrentTaskDescription = $"SYNC COMPLETED WITH WARNINGS. Company: {CompanyName}. Processed {result.TotalProcessed} records ({result.Inserted} inserted, {result.Updated} updated) with {result.Errors} warnings.";
+                    }
+                    else
+                    {
+                        CurrentTaskDescription = $"SYNC SUCCESS. Company: {CompanyName}. Processed {result.TotalProcessed} records ({result.Inserted} inserted, {result.Updated} updated).";
+                    }
                 }
                 else
                 {
-                    CurrentTaskDescription = $"Synchronization failed: {result.ErrorMessage ?? "Unknown error occurred"}";
+                    CurrentTaskDescription = $"SYNC FAILED. Stage: {_syncManager.CurrentMetrics.CurrentStage}. Company: {CompanyName}. Reason: {result.ErrorMessage ?? "Unknown error occurred"}";
                 }
             }
         }
         catch (Exception ex)
         {
-            CurrentTaskDescription = $"Synchronization failed: {ex.Message}";
+            CurrentTaskDescription = $"SYNC FAILED. Company: {CompanyName}. Exception: {ex.Message}";
         }
         finally
         {
@@ -250,17 +261,28 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             {
                 if (result.IsSuccess)
                 {
-                    CurrentTaskDescription = $"Incremental synchronization completed successfully. Processed {result.TotalProcessed} records ({result.Inserted} inserted, {result.Updated} updated).";
+                    if (result.TotalProcessed == 0)
+                    {
+                        CurrentTaskDescription = $"SYNC COMPLETED WITH ZERO RECORDS. Company: {CompanyName}. Verified successful connectivity, but no new records were found.";
+                    }
+                    else if (result.Errors > 0)
+                    {
+                        CurrentTaskDescription = $"SYNC COMPLETED WITH WARNINGS. Company: {CompanyName}. Processed {result.TotalProcessed} records ({result.Inserted} inserted, {result.Updated} updated) with {result.Errors} warnings.";
+                    }
+                    else
+                    {
+                        CurrentTaskDescription = $"SYNC SUCCESS. Company: {CompanyName}. Processed {result.TotalProcessed} records ({result.Inserted} inserted, {result.Updated} updated).";
+                    }
                 }
                 else
                 {
-                    CurrentTaskDescription = $"Synchronization failed: {result.ErrorMessage ?? "Unknown error occurred"}";
+                    CurrentTaskDescription = $"SYNC FAILED. Stage: {_syncManager.CurrentMetrics.CurrentStage}. Company: {CompanyName}. Reason: {result.ErrorMessage ?? "Unknown error occurred"}";
                 }
             }
         }
         catch (Exception ex)
         {
-            CurrentTaskDescription = $"Synchronization failed: {ex.Message}";
+            CurrentTaskDescription = $"SYNC FAILED. Company: {CompanyName}. Exception: {ex.Message}";
         }
         finally
         {
@@ -293,17 +315,28 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             {
                 if (result.IsSuccess)
                 {
-                    CurrentTaskDescription = $"Synchronization retry completed successfully. Processed {result.TotalProcessed} records.";
+                    if (result.TotalProcessed == 0)
+                    {
+                        CurrentTaskDescription = $"SYNC COMPLETED WITH ZERO RECORDS. Company: {CompanyName}. Verified successful connectivity, but no records were found.";
+                    }
+                    else if (result.Errors > 0)
+                    {
+                        CurrentTaskDescription = $"SYNC COMPLETED WITH WARNINGS. Company: {CompanyName}. Processed {result.TotalProcessed} records ({result.Inserted} inserted, {result.Updated} updated) with {result.Errors} warnings.";
+                    }
+                    else
+                    {
+                        CurrentTaskDescription = $"SYNC SUCCESS. Company: {CompanyName}. Processed {result.TotalProcessed} records ({result.Inserted} inserted, {result.Updated} updated).";
+                    }
                 }
                 else
                 {
-                    CurrentTaskDescription = $"Synchronization retry failed: {result.ErrorMessage ?? "Unknown error occurred"}";
+                    CurrentTaskDescription = $"SYNC FAILED. Stage: {_syncManager.CurrentMetrics.CurrentStage}. Company: {CompanyName}. Reason: {result.ErrorMessage ?? "Unknown error occurred"}";
                 }
             }
         }
         catch (Exception ex)
         {
-            CurrentTaskDescription = $"Synchronization retry failed: {ex.Message}";
+            CurrentTaskDescription = $"SYNC FAILED. Company: {CompanyName}. Exception: {ex.Message}";
         }
         finally
         {

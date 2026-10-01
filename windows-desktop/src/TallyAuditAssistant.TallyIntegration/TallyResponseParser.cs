@@ -101,7 +101,7 @@ public class TallyResponseParser : ITallyResponseParser
         if (hasError)
         {
             _logger.LogWarning("Cannot parse company list due to Tally error: {Error}", error);
-            return Array.Empty<string>();
+            throw new InvalidOperationException($"Tally error in company list response: {error}");
         }
 
         var results = new List<string>();

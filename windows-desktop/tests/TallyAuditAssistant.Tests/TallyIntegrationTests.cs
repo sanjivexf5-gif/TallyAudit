@@ -151,11 +151,10 @@ public class TallyIntegrationTests
 
         var companyService = new TallyCompanyService(mockClient.Object, builder, parser, mockSettings.Object, _companyServiceLogger);
 
-        // Act
-        var companies = await companyService.GetOpenCompaniesAsync("http://localhost:9000");
-
-        // Assert
-        Assert.Empty(companies); // Handled gracefully with zero unhandled exceptions
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<TallySynchronizationException>(() => 
+            companyService.GetOpenCompaniesAsync("http://localhost:9000"));
+        Assert.Equal(408, ex.HttpStatusCode);
     }
 
     [Fact]

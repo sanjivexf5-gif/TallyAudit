@@ -164,7 +164,10 @@
                             <TextBlock Text="Integration Test Suite (5 Test Scenarios)" FontWeight="Bold" FontSize="15" Foreground="White"/>
                             <TextBlock Text="Verifies connection, company detection, error handling, timeout recovery, and unavailable state." Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,2,0,0"/>
                         </StackPanel>
-                        <Button Grid.Column="1" Content="▶ Run Integration Test Suite" Command="{Binding RunIntegrationTestSuiteCommand}" Padding="16,8"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button Content="▶ Run Integration Test Suite" Command="{Binding RunIntegrationTestSuiteCommand}" Padding="16,8" Margin="0,0,10,0"/>
+                            <Button Content="🔍 Test Tally Synchronization" Command="{Binding TestTallySynchronizationCommand}" Padding="16,8"/>
+                        </StackPanel>
                     </Grid>
                     <TextBox Text="{Binding TestRunnerOutput, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" 
                              Background="#070B14" Foreground="#10B981" FontFamily="Consolas, Courier New" FontSize="11" 
