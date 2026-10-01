@@ -175,7 +175,7 @@ public class CompanySelectionSyncFlowTests
         _mockCompanyService.Setup(c => c.GetOpenCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                            .ReturnsAsync(new List<string> { "Sanjiv Sinha Pvt Ltd" });
 
-        var vm = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
+        var vm = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, _mockMasterService.Object, _mockVoucherService.Object, NullLogger<TallyConnectionViewModel>.Instance);
         await vm.ScanForTallyCommand.ExecuteAsync(null);
 
         Assert.True(vm.IsConnected);
@@ -194,7 +194,7 @@ public class CompanySelectionSyncFlowTests
         _mockCompanyService.Setup(c => c.GetOpenCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                            .ReturnsAsync(new List<string> { "Sanjiv Sinha Pvt Ltd" });
 
-        var vm = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
+        var vm = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, _mockMasterService.Object, _mockVoucherService.Object, NullLogger<TallyConnectionViewModel>.Instance);
         await vm.ScanForTallyCommand.ExecuteAsync(null);
 
         Assert.Equal("Sanjiv Sinha Pvt Ltd", vm.SelectedCompany);
@@ -212,7 +212,7 @@ public class CompanySelectionSyncFlowTests
         _mockCompanyService.Setup(c => c.GetOpenCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                            .ReturnsAsync(new List<string> { "Sanjiv Sinha Pvt Ltd" });
 
-        var vm = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
+        var vm = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, _mockMasterService.Object, _mockVoucherService.Object, NullLogger<TallyConnectionViewModel>.Instance);
         await vm.ScanForTallyCommand.ExecuteAsync(null);
 
         Assert.Equal("Sanjiv Sinha Pvt Ltd", _companyContext.ActiveCompanyName);
@@ -225,7 +225,7 @@ public class CompanySelectionSyncFlowTests
         // 4. SelectedCompany_UpdatesHeader
         var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
         var syncVM = new SyncViewModel(syncManager, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
-        var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
+        var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, _mockMasterService.Object, _mockVoucherService.Object, NullLogger<TallyConnectionViewModel>.Instance);
         var mainVM = CreateMainWindowViewModel(syncVM, connVM);
 
         await _companyContext.SetActiveCompanyNameAsync("Sanjiv Sinha Pvt Ltd");
@@ -239,7 +239,7 @@ public class CompanySelectionSyncFlowTests
         // 5. SelectedCompany_SurvivesNavigation
         var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
         var syncVM = new SyncViewModel(syncManager, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
-        var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
+        var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, _mockMasterService.Object, _mockVoucherService.Object, NullLogger<TallyConnectionViewModel>.Instance);
         var mainVM = CreateMainWindowViewModel(syncVM, connVM);
 
         await _companyContext.SetActiveCompanyNameAsync("Sanjiv Sinha Pvt Ltd");
@@ -446,7 +446,7 @@ public class CompanySelectionSyncFlowTests
 
         var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
         var syncVM = new SyncViewModel(syncManager, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
-        var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, NullLogger<TallyConnectionViewModel>.Instance);
+        var connVM = new TallyConnectionViewModel(_mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _connectionMonitor, _companyContext, _mockMasterService.Object, _mockVoucherService.Object, NullLogger<TallyConnectionViewModel>.Instance);
         var mainVM = CreateMainWindowViewModel(syncVM, connVM);
 
         // 1. Scan for Tally

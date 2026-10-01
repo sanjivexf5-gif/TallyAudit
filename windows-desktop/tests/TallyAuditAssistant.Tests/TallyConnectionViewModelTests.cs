@@ -21,12 +21,16 @@ public class TallyConnectionViewModelTests
     private readonly Mock<ISettingsService> _mockSettings;
     private readonly TallyConnectionMonitor _monitor;
     private readonly Mock<IActiveCompanyContext> _mockContext;
+    private readonly Mock<ITallyMasterService> _mockMasterService;
+    private readonly Mock<ITallyVoucherService> _mockVoucherService;
 
     public TallyConnectionViewModelTests()
     {
         _mockConnection = new Mock<ITallyConnection>();
         _mockCompanyService = new Mock<ITallyCompanyService>();
         _mockSettings = new Mock<ISettingsService>();
+        _mockMasterService = new Mock<ITallyMasterService>();
+        _mockVoucherService = new Mock<ITallyVoucherService>();
 
         _mockSettings.Setup(s => s.GetTallyHostAsync()).ReturnsAsync("localhost");
         _mockSettings.Setup(s => s.GetTallyPortAsync()).ReturnsAsync(9000);
@@ -63,6 +67,8 @@ public class TallyConnectionViewModelTests
             _mockSettings.Object,
             _monitor,
             _mockContext.Object,
+            _mockMasterService.Object,
+            _mockVoucherService.Object,
             NullLogger<TallyConnectionViewModel>.Instance
         );
 
@@ -107,6 +113,8 @@ public class TallyConnectionViewModelTests
             _mockSettings.Object,
             _monitor,
             _mockContext.Object,
+            _mockMasterService.Object,
+            _mockVoucherService.Object,
             NullLogger<TallyConnectionViewModel>.Instance
         );
 
@@ -144,6 +152,8 @@ public class TallyConnectionViewModelTests
             _mockSettings.Object,
             _monitor,
             _mockContext.Object,
+            _mockMasterService.Object,
+            _mockVoucherService.Object,
             NullLogger<TallyConnectionViewModel>.Instance
         );
 
@@ -181,6 +191,8 @@ public class TallyConnectionViewModelTests
             _mockSettings.Object,
             _monitor,
             _mockContext.Object,
+            _mockMasterService.Object,
+            _mockVoucherService.Object,
             NullLogger<TallyConnectionViewModel>.Instance
         );
 
@@ -228,6 +240,8 @@ public class TallyConnectionViewModelTests
             _mockSettings.Object,
             _monitor,
             _mockContext.Object,
+            _mockMasterService.Object,
+            _mockVoucherService.Object,
             NullLogger<TallyConnectionViewModel>.Instance
         );
 
