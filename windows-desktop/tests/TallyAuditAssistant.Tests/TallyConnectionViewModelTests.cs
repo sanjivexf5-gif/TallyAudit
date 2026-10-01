@@ -54,7 +54,7 @@ public class TallyConnectionViewModelTests
             .ReturnsAsync(endpoint);
 
         var companyList = new List<string> { "Test Company A", "Test Company B" };
-        _mockCompanyService.Setup(s => s.GetOpenCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _mockCompanyService.Setup(s => s.GetOpenCompaniesAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(companyList);
 
         var vm = new TallyConnectionViewModel(
@@ -72,7 +72,11 @@ public class TallyConnectionViewModelTests
         Assert.Equal(2, vm.AvailableCompanies.Count);
         Assert.Contains("Test Company A", vm.AvailableCompanies);
         Assert.Contains("Test Company B", vm.AvailableCompanies);
+        Assert.Null(vm.SelectedCompany);
+
+        vm.SelectedCompany = "Test Company A";
         Assert.Equal("Test Company A", vm.SelectedCompany);
+        Assert.Equal("Test Company A", vm.ActiveCompany);
         Assert.Contains("✓ Company query completed", vm.DiagnosticReport);
     }
 
