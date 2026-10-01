@@ -9,6 +9,7 @@ using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Domain.Tally;
 using TallyAuditAssistant.Core.Interfaces;
+using TallyAuditAssistant.Core.Services;
 using TallyAuditAssistant.TallyIntegration;
 using Xunit;
 
@@ -87,6 +88,7 @@ public class TallyConnectionViewModelTests
 
         // User interaction: Changing selection manually (simulated by property set) MUST auto-commit
         vm.SelectedCompany = "Test Company B";
+        await Task.Delay(100);
         
         Assert.Equal("Test Company B", vm.ActiveCompany);
         _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Test Company B", It.IsAny<CancellationToken>()), Times.Once);
@@ -275,7 +277,7 @@ public class TallyConnectionViewModelTests
     }
 
     [Fact]
-    public void ActiveCompanyContext_IsSharedAsSingleton()
+    public async Task ActiveCompanyContext_IsSharedAsSingleton()
     {
         // This test verifies the design requirement that IActiveCompanyContext is shared
         var context = new ActiveCompanyContext(new Mock<IAuditRepository>().Object, new Mock<ISettingsService>().Object, new Mock<ITallyCompanyService>().Object);
@@ -289,7 +291,7 @@ public class TallyConnectionViewModelTests
         syncVM.PropertyChanged += (s, e) => { if (e.PropertyName == nameof(syncVM.CompanyName)) syncNotified = true; };
         
         // Act: Change company in Connection VM
-        context.SetActiveCompanyNameAsync("SHARED COMPANY");
+        await context.SetActiveCompanyNameAsync("SHARED COMPANY");
         
         // Assert: Both see the same state
         Assert.Equal("SHARED COMPANY", connVM.ActiveCompany);

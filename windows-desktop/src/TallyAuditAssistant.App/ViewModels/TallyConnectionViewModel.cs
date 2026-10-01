@@ -26,6 +26,9 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
     private readonly ITallyVoucherService _voucherService;
     private readonly ILogger<TallyConnectionViewModel> _logger;
     private bool _isUpdatingSelection = false;
+    private int _companySelectionVersion = 0;
+    private CancellationTokenSource? _companyCommitCts;
+
     [ObservableProperty]
     private bool _isCommitting = false;
 
@@ -122,13 +125,29 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                     ActiveCompany = comp.TallyCompanyName;
                     if (SelectedCompany != comp.TallyCompanyName)
                     {
-                        SelectedCompany = comp.TallyCompanyName;
+                        _isUpdatingSelection = true;
+                        try
+                        {
+                            SelectedCompany = comp.TallyCompanyName;
+                        }
+                        finally
+                        {
+                            _isUpdatingSelection = false;
+                        }
                     }
                 }
                 else
                 {
                     ActiveCompany = "—";
-                    SelectedCompany = null;
+                    _isUpdatingSelection = true;
+                    try
+                    {
+                        SelectedCompany = null;
+                    }
+                    finally
+                    {
+                        _isUpdatingSelection = false;
+                    }
                 }
             }
 
@@ -539,12 +558,12 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
     async partial void OnSelectedCompanyChanged(string? value)
     {
-        if (_isUpdatingSelection || _isCommitting) return;
+        if (_isUpdatingSelection) return;
 
         if (!string.IsNullOrEmpty(value))
         {
             _logger.LogInformation("[Company] User selected company from ComboBox: {Company}", value);
-            await CommitSelectedCompanyAsync();
+            await CommitSelectedCompanyAsync(value);
         }
     }
 
@@ -554,32 +573,58 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
         await CommitSelectedCompanyAsync();
     }
 
-    private async Task<bool> CommitSelectedCompanyAsync(CancellationToken cancellationToken = default)
+    private async Task<bool> CommitSelectedCompanyAsync(string? targetCompanyName = null, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(SelectedCompany))
+        var companyToCommit = (targetCompanyName ?? SelectedCompany)?.Trim();
+        if (string.IsNullOrWhiteSpace(companyToCommit))
         {
             ValidationMessage = "Please select a valid company from the dropdown before committing.";
             return false;
         }
 
-        if (_isCommitting) return false;
-        _isCommitting = true;
+        if (AvailableCompanies.Count > 0 && !AvailableCompanies.Contains(companyToCommit))
+        {
+            ValidationMessage = $"Selected company '{companyToCommit}' is not in the list of available open companies.";
+            return false;
+        }
 
-        var companyToCommit = SelectedCompany.Trim();
-        StatusMessage = $"Saving and activating company: {companyToCommit}...";
-        ValidationMessage = string.Empty;
-        _logger.LogInformation("[Company] Committing active company: {Company}", companyToCommit);
+        var version = Interlocked.Increment(ref _companySelectionVersion);
 
         try
         {
+            _companyCommitCts?.Cancel();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Error cancelling previous company commit CTS.");
+        }
+
+        _companyCommitCts = cancellationToken.CanBeCanceled
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+            : new CancellationTokenSource();
+        var ct = _companyCommitCts.Token;
+
+        IsCommitting = true;
+        StatusMessage = $"Saving and activating company: {companyToCommit}...";
+        ValidationMessage = string.Empty;
+        _logger.LogInformation("[Company] Committing active company (version {Version}): {Company}", version, companyToCommit);
+
+        try
+        {
+            if (version != _companySelectionVersion || ct.IsCancellationRequested) return false;
+
             // Explicitly set the active company in the context
-            await _companyContext.SetActiveCompanyNameAsync(companyToCommit, cancellationToken);
+            await _companyContext.SetActiveCompanyNameAsync(companyToCommit, ct);
+
+            if (version != _companySelectionVersion || ct.IsCancellationRequested) return false;
 
             // Fetch profile and populate UI details
             var host = Host;
             var port = Port;
             var endpoint = (!string.IsNullOrEmpty(host) && port > 0) ? $"http://{host}:{port}" : null;
-            var profile = await _companyService.GetCompanyProfileTypedAsync(companyToCommit, endpoint, cancellationToken);
+            var profile = await _companyService.GetCompanyProfileTypedAsync(companyToCommit, endpoint, ct);
+
+            if (version != _companySelectionVersion || ct.IsCancellationRequested) return false;
 
             if (profile != null)
             {
@@ -593,9 +638,9 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
                 FinancialYear = $"FY {profile.BooksBeginningFrom.Year}-{(profile.BooksBeginningFrom.Year + 1) % 100:D2}";
 
-                await _settingsService.SetSettingAsync("FinancialYear", FinancialYear, cancellationToken);
-                await _settingsService.SetSettingAsync("AuditPeriodFrom", FromDate.ToString("yyyy-MM-dd"), cancellationToken);
-                await _settingsService.SetSettingAsync("AuditPeriodTo", ToDate.ToString("yyyy-MM-dd"), cancellationToken);
+                await _settingsService.SetSettingAsync("FinancialYear", FinancialYear, ct);
+                await _settingsService.SetSettingAsync("AuditPeriodFrom", FromDate.ToString("yyyy-MM-dd"), ct);
+                await _settingsService.SetSettingAsync("AuditPeriodTo", ToDate.ToString("yyyy-MM-dd"), ct);
             }
             else
             {
@@ -605,21 +650,34 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 CompanyBooksDate = "—";
             }
 
+            if (version != _companySelectionVersion || ct.IsCancellationRequested) return false;
+
             StatusMessage = "Company activated successfully!";
             DiagnosticReport += $"\n✓ Committed and activated company: {companyToCommit}";
-            _logger.LogInformation("[Company] ActiveCompanyContext updated and company activated: {Company}", companyToCommit);
+            _logger.LogInformation("[Company] ActiveCompanyContext updated and company activated (version {Version}): {Company}", version, companyToCommit);
             return true;
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogDebug("[Company] Commit for {Company} (version {Version}) was superseded or cancelled.", companyToCommit, version);
+            return false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to commit active company: {Company}", companyToCommit);
-            StatusMessage = $"Failed to activate company: {ex.Message}";
-            ValidationMessage = $"Error activating company: {ex.Message}";
+            if (version == _companySelectionVersion)
+            {
+                _logger.LogError(ex, "Failed to commit active company: {Company}", companyToCommit);
+                StatusMessage = $"Failed to activate company: {ex.Message}";
+                ValidationMessage = $"Error activating company: {ex.Message}";
+            }
             return false;
         }
         finally
         {
-            _isCommitting = false;
+            if (version == _companySelectionVersion)
+            {
+                IsCommitting = false;
+            }
         }
     }
 
