@@ -438,11 +438,31 @@ public class CompanySelectionSyncFlowTests
         _mockMasterService.Setup(m => m.GetGroupsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                           .ReturnsAsync(new List<string> { "Sundry Debtors" });
         _mockMasterService.Setup(m => m.GetLedgersAsync(It.IsAny<string>(), It.IsAny<long?>(), It.IsAny<CancellationToken>()))
-                          .ReturnsAsync(new List<TallyLedgerDto>());
+                          .ReturnsAsync(new List<TallyLedgerDto>
+                          {
+                              new TallyLedgerDto { Name = "Customer A", ParentGroup = "Sundry Debtors", OpeningBalance = 0, ClosingBalance = 10000 }
+                          });
 
-        async IAsyncEnumerable<TallyVoucherDto> EmptyVouchers2() { await Task.Yield(); yield break; }
+        async IAsyncEnumerable<TallyVoucherDto> MockVouchers()
+        {
+            await Task.Yield();
+            yield return new TallyVoucherDto
+            {
+                Guid = "V-101",
+                VoucherNumber = "V-101",
+                VoucherType = "Sales",
+                VoucherDate = new DateTime(2025, 4, 15),
+                PartyLedgerName = "Customer A",
+                TotalAmount = 10000,
+                Entries = new List<TallyVoucherEntryDto>
+                {
+                    new TallyVoucherEntryDto { LedgerName = "Customer A", Amount = 10000, IsDebit = true },
+                    new TallyVoucherEntryDto { LedgerName = "Sales", Amount = -10000, IsDebit = false }
+                }
+            };
+        }
         _mockVoucherService.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-                           .Returns(EmptyVouchers2());
+                           .Returns(MockVouchers());
 
         var syncManager = new SyncManager(_mockConnection.Object, _mockCompanyService.Object, _mockMasterService.Object, _mockVoucherService.Object, _mockSyncRepo.Object, _mockAuditRepo.Object, _mockSettings.Object, NullLogger<SyncManager>.Instance);
         var syncVM = new SyncViewModel(syncManager, _mockCompanyService.Object, _mockSettings.Object, _companyContext);
@@ -467,6 +487,6 @@ public class CompanySelectionSyncFlowTests
 
         // 5. Verify stage progressed and completed without "Please select a Tally company"
         Assert.DoesNotContain("Please select a Tally company", syncVM.CurrentTaskDescription);
-        Assert.Contains("Synchronization completed successfully", syncVM.CurrentTaskDescription);
+        Assert.Contains("SYNC SUCCESS", syncVM.CurrentTaskDescription);
     }
 }
