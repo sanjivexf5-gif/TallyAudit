@@ -166,34 +166,108 @@ public class CompanyActivationPersistenceRaceTests
         var dbPath = GetTempDbPath();
         var config = new ConfigurationBuilder().Build();
 
-        var services1 = new ServiceCollection();
-        services1.AddApplicationServices(config, dbPath);
-        using var provider1 = services1.BuildServiceProvider();
+        // SESSION 1
+        {
+            var services1 = new ServiceCollection();
+            services1.AddApplicationServices(config, dbPath);
 
-        var init1 = provider1.GetRequiredService<IDatabaseInitializer>();
-        await init1.InitializeAsync();
+            using var provider1 = services1.BuildServiceProvider();
 
-        var connVM1 = provider1.GetRequiredService<TallyConnectionViewModel>();
+            var init1 = provider1.GetRequiredService<IDatabaseInitializer>();
+            await init1.InitializeAsync();
+
+            var connVM1 = provider1.GetRequiredService<TallyConnectionViewModel>();
+
+            connVM1.SelectedCompany = "Company A";
+            await connVM1.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+            connVM1.SelectedCompany = "Company B";
+            await connVM1.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+            var settings1 = provider1.GetRequiredService<ISettingsService>();
+            var persisted1 = await settings1.GetSettingAsync("ActiveCompany");
+
+            Assert.Equal("Company B", persisted1);
+        }
+
+        // SESSION 2 = real application restart
+        {
+            var services2 = new ServiceCollection();
+            services2.AddApplicationServices(config, dbPath);
+
+            using var provider2 = services2.BuildServiceProvider();
+
+            var init2 = provider2.GetRequiredService<IDatabaseInitializer>();
+            await init2.InitializeAsync();
+
+            var context2 = provider2.GetRequiredService<IActiveCompanyContext>();
+
+            var restored = await context2.EnsureAndInitializeActiveCompanyAsync();
+
+            Assert.NotNull(restored);
+            Assert.Equal("Company B", context2.ActiveCompanyName);
+
+            var settings2 = provider2.GetRequiredService<ISettingsService>();
+            var persisted2 = await settings2.GetSettingAsync("ActiveCompany");
+
+            Assert.Equal("Company B", persisted2);
+        }
+    }
+
+    [Fact]
+    public async Task MultiCompany_CommitLatestCompany_PersistsImmediately()
+    {
+        var dbPath = GetTempDbPath();
+        var config = new ConfigurationBuilder().Build();
+
+        var services = new ServiceCollection();
+        services.AddApplicationServices(config, dbPath);
+        using var provider = services.BuildServiceProvider();
+
+        var init = provider.GetRequiredService<IDatabaseInitializer>();
+        await init.InitializeAsync();
+
+        var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
+        var settings = provider.GetRequiredService<ISettingsService>();
+        var context = provider.GetRequiredService<IActiveCompanyContext>();
 
         // 1. Commit Company A
-        connVM1.SelectedCompany = "Company A";
-        await connVM1.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+        connVM.SelectedCompany = "Company A";
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+        var valA = await settings.GetSettingAsync("ActiveCompany");
+        Assert.Equal("Company A", valA);
 
         // 2. Commit Company B
-        connVM1.SelectedCompany = "Company B";
-        await connVM1.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+        connVM.SelectedCompany = "Company B";
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
 
-        // 3. Restart app
-        var services2 = new ServiceCollection();
-        services2.AddApplicationServices(config, dbPath);
-        using var provider2 = services2.BuildServiceProvider();
+        var valB = await settings.GetSettingAsync("ActiveCompany");
+        Assert.Equal("Company B", valB);
+        Assert.Equal("Company B", context.ActiveCompanyName);
+    }
 
-        var init2 = provider2.GetRequiredService<IDatabaseInitializer>();
-        await init2.InitializeAsync();
+    [Fact]
+    public async Task SetActiveCompanyNameAsync_MustVerifyPersistenceImmediately()
+    {
+        var dbPath = GetTempDbPath();
+        var config = new ConfigurationBuilder().Build();
 
-        var context2 = provider2.GetRequiredService<IActiveCompanyContext>();
-        await context2.EnsureAndInitializeActiveCompanyAsync();
+        var services = new ServiceCollection();
+        services.AddApplicationServices(config, dbPath);
+        using var provider = services.BuildServiceProvider();
 
-        Assert.Equal("Company B", context2.ActiveCompanyName);
+        var init = provider.GetRequiredService<IDatabaseInitializer>();
+        await init.InitializeAsync();
+
+        var context = provider.GetRequiredService<IActiveCompanyContext>();
+        var settings = provider.GetRequiredService<ISettingsService>();
+
+        const string expectedCompany = "Sanjiv Sinha Pvt Ltd";
+        await context.SetActiveCompanyNameAsync(expectedCompany);
+
+        var persistedVal = await settings.GetSettingAsync("ActiveCompany");
+        Assert.Equal(expectedCompany, persistedVal);
+        Assert.Equal(expectedCompany, context.ActiveCompanyName);
     }
 }

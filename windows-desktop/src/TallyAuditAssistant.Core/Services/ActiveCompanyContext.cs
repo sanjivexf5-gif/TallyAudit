@@ -438,7 +438,18 @@ public class ActiveCompanyContext : IActiveCompanyContext
             var dbCompany = await _repository.GetCompanyByNameAsync(targetCompanyName, cancellationToken)
                             ?? await _repository.GetCompanyByIdAsync(targetCompanyName, cancellationToken);
 
-            var profile = await _companyService.GetCompanyProfileTypedAsync(targetCompanyName, null, cancellationToken);
+            TallyCompanyProfile? profile = null;
+            try
+            {
+                var host = await _settingsService.GetTallyHostAsync();
+                var port = await _settingsService.GetTallyPortAsync();
+                var endpointUrl = (!string.IsNullOrEmpty(host) && port > 0) ? $"http://{host}:{port}" : null;
+                profile = await _companyService.GetCompanyProfileTypedAsync(targetCompanyName, endpointUrl, cancellationToken);
+            }
+            catch
+            {
+                // Non-blocking profile enrichment during startup initialization
+            }
 
             var companyToEnsure = new Company
             {
@@ -449,7 +460,7 @@ public class ActiveCompanyContext : IActiveCompanyContext
                 PAN = profile?.PAN ?? dbCompany?.PAN,
                 StateName = profile?.StateName ?? dbCompany?.StateName,
                 StateCode = profile?.StateCode ?? dbCompany?.StateCode,
-                BooksFromDate = profile?.BooksBeginningFrom ?? dbCompany?.BooksFromDate ?? new DateTime(2025, 4, 1),
+                BooksFromDate = profile?.BooksBeginningFrom ?? dbCompany?.BooksFromDate ?? new DateTime(DateTime.Today.Month < 4 ? DateTime.Today.Year - 1 : DateTime.Today.Year, 4, 1),
                 LastSyncDate = dbCompany?.LastSyncDate ?? (isMock ? DateTime.UtcNow : null),
                 LastAlterId = profile?.AlterId ?? dbCompany?.LastAlterId ?? (isMock ? 10042 : 0),
                 IsActive = true,
@@ -458,8 +469,8 @@ public class ActiveCompanyContext : IActiveCompanyContext
             };
 
             var saved = await _repository.EnsureCompanyAsync(companyToEnsure, cancellationToken);
-            _currentCompany = saved;
-            _currentPeriod = CreatePeriodForCompany(saved);
+            _currentCompany = saved ?? companyToEnsure;
+            _currentPeriod = CreatePeriodForCompany(_currentCompany);
 
             await _settingsService.SetSettingAsync("ActiveCompany", saved.TallyCompanyName, cancellationToken);
             var fy = _currentPeriod.FinancialYear;
