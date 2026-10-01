@@ -31,7 +31,8 @@ public class TallyVoucherService : ITallyVoucherService
     {
         var host = await _settingsService.GetTallyHostAsync();
         var port = await _settingsService.GetTallyPortAsync();
-        return $"http://{host}:{port}";
+        var (cleanHost, cleanPort, scheme) = TallyEndpointNormalization.Normalize(host, port <= 0 ? 9000 : port);
+        return $"{scheme}://{cleanHost}:{cleanPort}";
     }
 
     public async Task<IReadOnlyList<TallyVoucherDto>> GetVouchersAsync(
@@ -48,13 +49,41 @@ public class TallyVoucherService : ITallyVoucherService
         var rawResponse = await _client.SendAsync(url, requestXml, TallyRequestFormat.Xml, cancellationToken);
         if (!rawResponse.IsSuccess)
         {
-            _logger.LogError("Failed to query vouchers from Tally: {Error}", rawResponse.ErrorMessage);
-            return Array.Empty<TallyVoucherDto>();
+            var msg = rawResponse.ErrorMessage ?? $"HTTP {rawResponse.HttpStatusCode}";
+            _logger.LogError("Failed to query vouchers from Tally: {Error}", msg);
+            throw new TallySynchronizationException(
+                "READ VOUCHERS",
+                companyName,
+                url,
+                $"Failed to read vouchers from TallyPrime: {msg}",
+                rawResponse.HttpStatusCode,
+                rawResponse.ErrorMessage,
+                isEmptyResponse: string.IsNullOrWhiteSpace(rawResponse.Content));
         }
 
-        var vouchers = _parser.ParseVouchers(rawResponse.Content, TallyRequestFormat.Xml);
-        _logger.LogInformation("Successfully retrieved {Count} vouchers from TallyPrime", vouchers.Count);
-        return vouchers;
+        try
+        {
+            var vouchers = _parser.ParseVouchers(rawResponse.Content, TallyRequestFormat.Xml);
+            _logger.LogInformation("Successfully retrieved {Count} vouchers from TallyPrime", vouchers.Count);
+            return vouchers;
+        }
+        catch (TallySynchronizationException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse vouchers XML for {Company}", companyName);
+            throw new TallySynchronizationException(
+                "READ VOUCHERS",
+                companyName,
+                url,
+                $"Failed to parse vouchers from TallyPrime: {ex.Message}",
+                rawResponse.HttpStatusCode,
+                ex.Message,
+                isXmlParseFailure: true,
+                innerException: ex);
+        }
     }
 
     public async IAsyncEnumerable<TallyVoucherDto> StreamVouchersChunkedAsync(

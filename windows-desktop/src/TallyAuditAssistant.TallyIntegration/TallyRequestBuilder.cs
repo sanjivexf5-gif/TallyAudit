@@ -76,12 +76,13 @@ public class TallyRequestBuilder : ITallyRequestBuilder
       <STATICVARIABLES>
         <SVEXPORTFORMAT>{formatSysName}</SVEXPORTFORMAT>
         <SVCurrentCompany>{EscapeXml(companyName)}</SVCurrentCompany>
+        <SVCURRENTCOMPANY>{EscapeXml(companyName)}</SVCURRENTCOMPANY>
       </STATICVARIABLES>
       <TDL>
         <TDLMESSAGE>
           <COLLECTION NAME=""CompanyProfileCollection"">
             <TYPE>Company</TYPE>
-            <FETCH>Name, FormalName, GSTIN, PAN, StateName, StateCode, BooksBeginningFrom, StartingFrom, BasicCurrencySymbol, AlterId</FETCH>
+            <FETCH>Name, FormalName, BasicCompanyFormalName, GSTIN, PartyGSTIN, PAN, IncomeTaxNumber, StateName, StateCode, BooksBeginningFrom, StartingFrom, BasicCurrencySymbol, AlterId</FETCH>
             <FILTER>SelectedCompanyOnly</FILTER>
           </COLLECTION>
           <SYSTEM TYPE=""Formulae"" NAME=""SelectedCompanyOnly"">$Name = ""{EscapeXml(companyName)}""</SYSTEM>
@@ -95,11 +96,13 @@ public class TallyRequestBuilder : ITallyRequestBuilder
     public string BuildLedgerCollectionRequest(string companyName, long? fromAlterId = null, TallyRequestFormat format = TallyRequestFormat.Xml)
     {
         var formatSysName = format == TallyRequestFormat.Json ? "$$SysName:JSON" : "$$SysName:XML";
-        var filterXml = fromAlterId.HasValue && fromAlterId.Value > 0
-            ? $@"<FILTER>DeltaAlterIdFilter</FILTER>
-                </COLLECTION>
-                <SYSTEM TYPE=""Formulae"" NAME=""DeltaAlterIdFilter"">$AlterId > {fromAlterId.Value}</SYSTEM>"
-            : "</COLLECTION>";
+        var filterElement = fromAlterId.HasValue && fromAlterId.Value > 0
+            ? "\n            <FILTER>DeltaAlterIdFilter</FILTER>"
+            : string.Empty;
+
+        var systemElement = fromAlterId.HasValue && fromAlterId.Value > 0
+            ? $"\n          <SYSTEM TYPE=\"Formulae\" NAME=\"DeltaAlterIdFilter\">$AlterId > {fromAlterId.Value}</SYSTEM>"
+            : string.Empty;
 
         return $@"<ENVELOPE>
   <HEADER>
@@ -113,13 +116,14 @@ public class TallyRequestBuilder : ITallyRequestBuilder
       <STATICVARIABLES>
         <SVEXPORTFORMAT>{formatSysName}</SVEXPORTFORMAT>
         <SVCurrentCompany>{EscapeXml(companyName)}</SVCurrentCompany>
+        <SVCURRENTCOMPANY>{EscapeXml(companyName)}</SVCURRENTCOMPANY>
       </STATICVARIABLES>
       <TDL>
         <TDLMESSAGE>
           <COLLECTION NAME=""AuditLedgerCollection"">
             <TYPE>Ledger</TYPE>
-            <FETCH>Name, Parent, GSTIN, IncomeTaxNumber, StateName, OpeningBalance, ClosingBalance, TaxType, HSNCode, GSTRate, AlterId</FETCH>
-            {filterXml}
+            <FETCH>Name, Parent, GSTIN, IncomeTaxNumber, StateName, OpeningBalance, ClosingBalance, TaxType, HSNCode, GSTRate, AlterId</FETCH>{filterElement}
+          </COLLECTION>{systemElement}
         </TDLMESSAGE>
       </TDL>
     </DESC>
@@ -142,6 +146,7 @@ public class TallyRequestBuilder : ITallyRequestBuilder
       <STATICVARIABLES>
         <SVEXPORTFORMAT>{formatSysName}</SVEXPORTFORMAT>
         <SVCurrentCompany>{EscapeXml(companyName)}</SVCurrentCompany>
+        <SVCURRENTCOMPANY>{EscapeXml(companyName)}</SVCURRENTCOMPANY>
       </STATICVARIABLES>
       <TDL>
         <TDLMESSAGE>
@@ -162,11 +167,13 @@ public class TallyRequestBuilder : ITallyRequestBuilder
         var dateFromStr = fromDate.ToString("yyyyMMdd");
         var dateToStr = toDate.ToString("yyyyMMdd");
 
-        var filterXml = fromAlterId.HasValue && fromAlterId.Value > 0
-            ? $@"<FILTER>DeltaAlterIdFilter</FILTER>
-                </COLLECTION>
-                <SYSTEM TYPE=""Formulae"" NAME=""DeltaAlterIdFilter"">$AlterId > {fromAlterId.Value}</SYSTEM>"
-            : "</COLLECTION>";
+        var filterElement = fromAlterId.HasValue && fromAlterId.Value > 0
+            ? "\n            <FILTER>DeltaAlterIdFilter</FILTER>"
+            : string.Empty;
+
+        var systemElement = fromAlterId.HasValue && fromAlterId.Value > 0
+            ? $"\n          <SYSTEM TYPE=\"Formulae\" NAME=\"DeltaAlterIdFilter\">$AlterId > {fromAlterId.Value}</SYSTEM>"
+            : string.Empty;
 
         return $@"<ENVELOPE>
   <HEADER>
@@ -180,6 +187,7 @@ public class TallyRequestBuilder : ITallyRequestBuilder
       <STATICVARIABLES>
         <SVEXPORTFORMAT>{formatSysName}</SVEXPORTFORMAT>
         <SVCurrentCompany>{EscapeXml(companyName)}</SVCurrentCompany>
+        <SVCURRENTCOMPANY>{EscapeXml(companyName)}</SVCURRENTCOMPANY>
         <SVFROMDATE>{dateFromStr}</SVFROMDATE>
         <SVTODATE>{dateToStr}</SVTODATE>
       </STATICVARIABLES>
@@ -187,8 +195,8 @@ public class TallyRequestBuilder : ITallyRequestBuilder
         <TDLMESSAGE>
           <COLLECTION NAME=""AuditVoucherCollection"">
             <TYPE>Voucher</TYPE>
-            <FETCH>GUID, VoucherNumber, Reference, VoucherTypeName, Date, EffectiveDate, Narration, Amount, PartyLedgerName, IsCancelled, IsOptional, AlterId, AllLedgerEntries.List.*</FETCH>
-            {filterXml}
+            <FETCH>GUID, VoucherNumber, Reference, VoucherTypeName, Date, EffectiveDate, Narration, Amount, PartyLedgerName, IsCancelled, IsOptional, AlterId, AllLedgerEntries.*, LedgerEntries.*</FETCH>{filterElement}
+          </COLLECTION>{systemElement}
         </TDLMESSAGE>
       </TDL>
     </DESC>

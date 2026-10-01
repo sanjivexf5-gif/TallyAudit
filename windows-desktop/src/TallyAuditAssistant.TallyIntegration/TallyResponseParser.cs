@@ -48,6 +48,13 @@ public class TallyResponseParser : ITallyResponseParser
         // XML error checks
         try
         {
+            var trimmed = responseContent.TrimStart();
+            if (trimmed.StartsWith("<html", StringComparison.OrdinalIgnoreCase) || 
+                trimmed.StartsWith("<!doctype html", StringComparison.OrdinalIgnoreCase))
+            {
+                return (true, "Endpoint returned HTML instead of Tally XML. Verify the Tally port.");
+            }
+
             if (responseContent.Contains("<LINEERROR>", StringComparison.OrdinalIgnoreCase))
             {
                 var match = Regex.Match(responseContent, @"<LINEERROR>(.*?)</LINEERROR>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
@@ -60,9 +67,23 @@ public class TallyResponseParser : ITallyResponseParser
                 return (true, match.Success ? match.Groups[1].Value.Trim() : "Tally XML parse syntax error.");
             }
 
-            if (responseContent.Contains("<STATUS>0</STATUS>", StringComparison.OrdinalIgnoreCase))
+            if (responseContent.Contains("<SYNTAXERROR>", StringComparison.OrdinalIgnoreCase))
             {
-                return (true, "Tally returned Status 0 (Command failed or unsupported request).");
+                var match = Regex.Match(responseContent, @"<SYNTAXERROR>(.*?)</SYNTAXERROR>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                return (true, match.Success ? match.Groups[1].Value.Trim() : "Tally XML syntax error.");
+            }
+
+            if (Regex.IsMatch(responseContent, @"<STATUS>\s*0\s*</STATUS>", RegexOptions.IgnoreCase))
+            {
+                var errorMatch = Regex.Match(responseContent, @"<(?:ERROR|ERRORMESSAGE|LINEERROR|DESCRIPTION)>(.*?)</(?:ERROR|ERRORMESSAGE|LINEERROR|DESCRIPTION)>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                var errDetail = errorMatch.Success ? errorMatch.Groups[1].Value.Trim() : "Command failed or unsupported request.";
+                return (true, $"Tally returned Status 0: {errDetail}");
+            }
+
+            var errMatch = Regex.Match(responseContent, @"<(?:ERROR|ERRORMESSAGE|EXCEPTION|FATALERROR)>(.*?)</(?:ERROR|ERRORMESSAGE|EXCEPTION|FATALERROR)>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            if (errMatch.Success && !string.IsNullOrWhiteSpace(errMatch.Groups[1].Value))
+            {
+                return (true, $"Tally error: {errMatch.Groups[1].Value.Trim()}");
             }
 
             return (false, null);
@@ -70,7 +91,7 @@ public class TallyResponseParser : ITallyResponseParser
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Error while inspecting Tally response for errors.");
-            return (false, null);
+            return (true, $"Failed to inspect Tally response: {ex.Message}");
         }
     }
 
@@ -237,8 +258,11 @@ public class TallyResponseParser : ITallyResponseParser
 
     public TallyCompanyProfile? ParseCompanyProfile(string responseContent, TallyRequestFormat format = TallyRequestFormat.Xml)
     {
-        var (hasError, _) = CheckForTallyErrors(responseContent, format);
-        if (hasError) return null;
+        var (hasError, errMsg) = CheckForTallyErrors(responseContent, format);
+        if (hasError)
+        {
+            throw new InvalidOperationException($"Tally error in company profile response: {errMsg}");
+        }
 
         try
         {
@@ -246,24 +270,45 @@ public class TallyResponseParser : ITallyResponseParser
             var doc = new XmlDocument();
             doc.LoadXml(sanitizedXml);
 
-            var companyNode = doc.SelectSingleNode("//COMPANY");
-            if (companyNode == null) return null;
+            var companyNodes = doc.SelectNodes("//COMPANY");
+            if (companyNodes == null || companyNodes.Count == 0) return null;
+
+            XmlNode companyNode = companyNodes[0]!;
+
+            string name = companyNode.Attributes?["NAME"]?.Value?.Trim()
+                          ?? companyNode.SelectSingleNode("NAME")?.InnerText?.Trim()
+                          ?? companyNode.SelectSingleNode("NAME.LIST/NAME")?.InnerText?.Trim()
+                          ?? string.Empty;
 
             var profile = new TallyCompanyProfile
             {
-                Name = companyNode.SelectSingleNode("NAME")?.InnerText?.Trim() ?? string.Empty,
-                FormalName = companyNode.SelectSingleNode("FORMALNAME")?.InnerText?.Trim(),
-                GSTIN = companyNode.SelectSingleNode("GSTIN")?.InnerText?.Trim(),
-                PAN = companyNode.SelectSingleNode("PAN")?.InnerText?.Trim(),
+                Name = name,
+                FormalName = companyNode.SelectSingleNode("FORMALNAME")?.InnerText?.Trim()
+                             ?? companyNode.SelectSingleNode("BASICCOMPANYFORMALNAME")?.InnerText?.Trim()
+                             ?? name,
+                GSTIN = companyNode.SelectSingleNode("GSTIN")?.InnerText?.Trim()
+                        ?? companyNode.SelectSingleNode("PARTYGSTIN")?.InnerText?.Trim(),
+                PAN = companyNode.SelectSingleNode("PAN")?.InnerText?.Trim()
+                      ?? companyNode.SelectSingleNode("INCOMETAXNUMBER")?.InnerText?.Trim(),
                 StateName = companyNode.SelectSingleNode("STATENAME")?.InnerText?.Trim(),
                 StateCode = companyNode.SelectSingleNode("STATECODE")?.InnerText?.Trim(),
                 BaseCurrencySymbol = companyNode.SelectSingleNode("BASICCURRENCYSYMBOL")?.InnerText?.Trim() ?? "₹"
             };
 
-            var dateStr = companyNode.SelectSingleNode("BOOKSBEGINNINGFROM")?.InnerText?.Trim();
-            if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParseExact(dateStr, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var booksFrom))
+            var dateStr = companyNode.SelectSingleNode("BOOKSBEGINNINGFROM")?.InnerText?.Trim()
+                          ?? companyNode.SelectSingleNode("STARTINGFROM")?.InnerText?.Trim();
+            if (!string.IsNullOrEmpty(dateStr))
             {
-                profile.BooksBeginningFrom = booksFrom;
+                string[] dateFormats = new[] { "yyyyMMdd", "yyyy-MM-dd", "dd-MMM-yyyy", "dd-MM-yyyy", "d-MMM-yyyy", "yyyy/MM/dd" };
+                if (DateTime.TryParseExact(dateStr, dateFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var booksFrom) ||
+                    DateTime.TryParse(dateStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out booksFrom))
+                {
+                    profile.BooksBeginningFrom = booksFrom;
+                }
+                else
+                {
+                    profile.BooksBeginningFrom = new DateTime(DateTime.Now.Year, 4, 1);
+                }
             }
             else
             {
@@ -277,19 +322,27 @@ public class TallyResponseParser : ITallyResponseParser
 
             return profile;
         }
-        catch (Exception ex)
+        catch (XmlException ex)
         {
             _logger.LogError(ex, "Failed to parse Tally company profile XML");
-            return null;
+            throw new InvalidOperationException($"Malformed XML received for company profile: {ex.Message}", ex);
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            _logger.LogError(ex, "Failed to parse Tally company profile XML");
+            throw new InvalidOperationException($"Failed to parse company profile XML: {ex.Message}", ex);
         }
     }
 
     public IReadOnlyList<TallyLedgerDto> ParseLedgers(string responseContent, TallyRequestFormat format = TallyRequestFormat.Xml)
     {
-        var results = new List<TallyLedgerDto>();
-        var (hasError, _) = CheckForTallyErrors(responseContent, format);
-        if (hasError) return results;
+        var (hasError, errMsg) = CheckForTallyErrors(responseContent, format);
+        if (hasError)
+        {
+            throw new InvalidOperationException($"Tally error in ledger collection response: {errMsg}");
+        }
 
+        var results = new List<TallyLedgerDto>();
         try
         {
             var sanitized = SanitizeXmlContent(responseContent);
@@ -301,15 +354,27 @@ public class TallyResponseParser : ITallyResponseParser
 
             foreach (XmlNode node in ledgerNodes)
             {
-                var name = node.SelectSingleNode("NAME")?.InnerText?.Trim();
+                string? name = node.Attributes?["NAME"]?.Value?.Trim();
+                if (string.IsNullOrEmpty(name))
+                {
+                    name = node.SelectSingleNode("NAME")?.InnerText?.Trim();
+                }
+                if (string.IsNullOrEmpty(name))
+                {
+                    name = node.SelectSingleNode("NAME.LIST/NAME")?.InnerText?.Trim();
+                }
                 if (string.IsNullOrEmpty(name)) continue;
+
+                string parent = node.SelectSingleNode("PARENT")?.InnerText?.Trim()
+                                ?? node.Attributes?["PARENT"]?.Value?.Trim()
+                                ?? "Sundry Debtors";
 
                 var ledger = new TallyLedgerDto
                 {
                     Name = name,
-                    ParentGroup = node.SelectSingleNode("PARENT")?.InnerText?.Trim() ?? "Sundry Debtors",
-                    GSTIN = node.SelectSingleNode("GSTIN")?.InnerText?.Trim(),
-                    PAN = node.SelectSingleNode("INCOMETAXNUMBER")?.InnerText?.Trim(),
+                    ParentGroup = parent,
+                    GSTIN = node.SelectSingleNode("GSTIN")?.InnerText?.Trim() ?? node.SelectSingleNode("PARTYGSTIN")?.InnerText?.Trim(),
+                    PAN = node.SelectSingleNode("INCOMETAXNUMBER")?.InnerText?.Trim() ?? node.SelectSingleNode("PAN")?.InnerText?.Trim(),
                     StateName = node.SelectSingleNode("STATENAME")?.InnerText?.Trim(),
                     TaxType = node.SelectSingleNode("TAXTYPE")?.InnerText?.Trim(),
                     HsnCode = node.SelectSingleNode("HSNCODE")?.InnerText?.Trim()
@@ -338,9 +403,15 @@ public class TallyResponseParser : ITallyResponseParser
                 results.Add(ledger);
             }
         }
-        catch (Exception ex)
+        catch (XmlException ex)
         {
             _logger.LogError(ex, "Failed to parse Tally ledgers collection XML");
+            throw new InvalidOperationException($"Malformed XML received for ledgers: {ex.Message}", ex);
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            _logger.LogError(ex, "Failed to parse Tally ledgers collection XML");
+            throw new InvalidOperationException($"Failed to parse ledgers XML: {ex.Message}", ex);
         }
 
         return results;
@@ -348,31 +419,53 @@ public class TallyResponseParser : ITallyResponseParser
 
     public IReadOnlyList<string> ParseGroups(string responseContent, TallyRequestFormat format = TallyRequestFormat.Xml)
     {
-        var results = new List<string>();
-        var (hasError, _) = CheckForTallyErrors(responseContent, format);
-        if (hasError) return results;
+        var (hasError, errMsg) = CheckForTallyErrors(responseContent, format);
+        if (hasError)
+        {
+            throw new InvalidOperationException($"Tally error in group collection response: {errMsg}");
+        }
 
+        var results = new List<string>();
         try
         {
             var sanitized = SanitizeXmlContent(responseContent);
             var doc = new XmlDocument();
             doc.LoadXml(sanitized);
 
-            var groupNodes = doc.SelectNodes("//GROUP/NAME | //GROUP");
+            var groupNodes = doc.SelectNodes("//GROUP");
             if (groupNodes == null) return results;
 
             foreach (XmlNode node in groupNodes)
             {
-                var name = node.InnerText?.Trim();
+                string? name = node.Attributes?["NAME"]?.Value?.Trim();
+                if (string.IsNullOrEmpty(name))
+                {
+                    name = node.SelectSingleNode("NAME")?.InnerText?.Trim();
+                }
+                if (string.IsNullOrEmpty(name))
+                {
+                    name = node.SelectSingleNode("NAME.LIST/NAME")?.InnerText?.Trim();
+                }
+                if (string.IsNullOrEmpty(name) && !node.HasChildNodes)
+                {
+                    name = node.InnerText?.Trim();
+                }
+
                 if (!string.IsNullOrEmpty(name) && !results.Contains(name))
                 {
                     results.Add(name);
                 }
             }
         }
-        catch (Exception ex)
+        catch (XmlException ex)
         {
             _logger.LogError(ex, "Failed to parse Tally groups XML");
+            throw new InvalidOperationException($"Malformed XML received for groups: {ex.Message}", ex);
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            _logger.LogError(ex, "Failed to parse Tally groups XML");
+            throw new InvalidOperationException($"Failed to parse groups XML: {ex.Message}", ex);
         }
 
         return results;
@@ -380,10 +473,13 @@ public class TallyResponseParser : ITallyResponseParser
 
     public IReadOnlyList<TallyVoucherDto> ParseVouchers(string responseContent, TallyRequestFormat format = TallyRequestFormat.Xml)
     {
-        var results = new List<TallyVoucherDto>();
-        var (hasError, _) = CheckForTallyErrors(responseContent, format);
-        if (hasError) return results;
+        var (hasError, errMsg) = CheckForTallyErrors(responseContent, format);
+        if (hasError)
+        {
+            throw new InvalidOperationException($"Tally error in voucher collection response: {errMsg}");
+        }
 
+        var results = new List<TallyVoucherDto>();
         try
         {
             var sanitized = SanitizeXmlContent(responseContent);
@@ -393,22 +489,33 @@ public class TallyResponseParser : ITallyResponseParser
             var voucherNodes = doc.SelectNodes("//VOUCHER");
             if (voucherNodes == null) return results;
 
+            string[] dateFormats = new[] { "yyyyMMdd", "yyyy-MM-dd", "dd-MMM-yyyy", "dd-MM-yyyy", "d-MMM-yyyy", "yyyy/MM/dd" };
+
             foreach (XmlNode node in voucherNodes)
             {
+                var guid = node.SelectSingleNode("GUID")?.InnerText?.Trim()
+                           ?? node.Attributes?["GUID"]?.Value?.Trim()
+                           ?? Guid.NewGuid().ToString();
+
+                var vNumber = node.SelectSingleNode("VOUCHERNUMBER")?.InnerText?.Trim()
+                              ?? node.Attributes?["VOUCHERNUMBER"]?.Value?.Trim()
+                              ?? string.Empty;
+
                 var voucher = new TallyVoucherDto
                 {
-                    Guid = node.SelectSingleNode("GUID")?.InnerText?.Trim() ?? Guid.NewGuid().ToString(),
-                    VoucherNumber = node.SelectSingleNode("VOUCHERNUMBER")?.InnerText?.Trim() ?? string.Empty,
+                    Guid = guid,
+                    VoucherNumber = vNumber,
                     ReferenceNumber = node.SelectSingleNode("REFERENCE")?.InnerText?.Trim(),
                     VoucherType = node.SelectSingleNode("VOUCHERTYPENAME")?.InnerText?.Trim() ?? "Journal",
                     Narration = node.SelectSingleNode("NARRATION")?.InnerText?.Trim(),
                     PartyLedgerName = node.SelectSingleNode("PARTYLEDGERNAME")?.InnerText?.Trim(),
-                    IsCancelled = node.SelectSingleNode("ISCANCELLED")?.InnerText?.Trim() == "Yes",
-                    IsOptional = node.SelectSingleNode("ISOPTIONAL")?.InnerText?.Trim() == "Yes"
+                    IsCancelled = node.SelectSingleNode("ISCANCELLED")?.InnerText?.Trim()?.Equals("Yes", StringComparison.OrdinalIgnoreCase) == true,
+                    IsOptional = node.SelectSingleNode("ISOPTIONAL")?.InnerText?.Trim()?.Equals("Yes", StringComparison.OrdinalIgnoreCase) == true
                 };
 
                 var dateStr = node.SelectSingleNode("DATE")?.InnerText?.Trim();
-                if (!string.IsNullOrEmpty(dateStr) && DateTime.TryParseExact(dateStr, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var vDate))
+                if (!string.IsNullOrEmpty(dateStr) && (DateTime.TryParseExact(dateStr, dateFormats, CultureInfo.InvariantCulture, DateTimeStyles.None, out var vDate) ||
+                                                       DateTime.TryParse(dateStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out vDate)))
                 {
                     voucher.VoucherDate = vDate;
                 }
@@ -427,22 +534,41 @@ public class TallyResponseParser : ITallyResponseParser
                     voucher.AlterId = alterId;
                 }
 
-                // Extract ledger entries
-                var entryNodes = node.SelectNodes(".//ALLLEDGERENTRIES.LIST");
+                // Extract ledger entries - prefer .LIST nodes to avoid duplicating parent/child matches
+                var entryNodes = node.SelectNodes(".//ALLLEDGERENTRIES.LIST | .//LEDGERENTRIES.LIST");
+                if (entryNodes == null || entryNodes.Count == 0)
+                {
+                    entryNodes = node.SelectNodes(".//ALLLEDGERENTRIES | .//LEDGERENTRIES");
+                }
+
                 if (entryNodes != null)
                 {
                     foreach (XmlNode entryNode in entryNodes)
                     {
+                        var ledgerName = entryNode.SelectSingleNode("LEDGERNAME")?.InnerText?.Trim()
+                                         ?? entryNode.Attributes?["LEDGERNAME"]?.Value?.Trim()
+                                         ?? entryNode.SelectSingleNode("NAME")?.InnerText?.Trim()
+                                         ?? string.Empty;
+
                         var entry = new TallyVoucherEntryDto
                         {
-                            LedgerName = entryNode.SelectSingleNode("LEDGERNAME")?.InnerText?.Trim() ?? string.Empty
+                            LedgerName = ledgerName
                         };
 
                         if (decimal.TryParse(entryNode.SelectSingleNode("AMOUNT")?.InnerText?.Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var entryAmt))
                         {
-                            // In Tally, negative amount indicates Credit, positive indicates Debit
                             entry.Amount = entryAmt;
-                            entry.IsDebit = entryAmt > 0;
+
+                            var deemedPositive = entryNode.SelectSingleNode("ISDEEMEDPOSITIVE")?.InnerText?.Trim();
+                            if (!string.IsNullOrEmpty(deemedPositive))
+                            {
+                                entry.IsDebit = deemedPositive.Equals("Yes", StringComparison.OrdinalIgnoreCase);
+                            }
+                            else
+                            {
+                                // In standard Tally, positive amount indicates Debit, negative indicates Credit
+                                entry.IsDebit = entryAmt > 0;
+                            }
                         }
 
                         entry.BillRefType = entryNode.SelectSingleNode("BILLTYPE")?.InnerText?.Trim();
@@ -455,12 +581,38 @@ public class TallyResponseParser : ITallyResponseParser
                     }
                 }
 
+                // If TotalAmount was absent on VOUCHER node, calculate from entries
+                if (voucher.TotalAmount == 0 && voucher.Entries.Count > 0)
+                {
+                    var debitSum = voucher.Entries.Where(e => e.IsDebit).Sum(e => Math.Abs(e.Amount));
+                    voucher.TotalAmount = debitSum > 0 ? debitSum : voucher.Entries.Sum(e => Math.Abs(e.Amount)) / 2.0m;
+                }
+
+                // If PartyLedgerName was absent on VOUCHER node, infer from entries
+                if (string.IsNullOrEmpty(voucher.PartyLedgerName) && voucher.Entries.Count > 0)
+                {
+                    var partyEntry = voucher.Entries.FirstOrDefault(e => !e.LedgerName.Contains("Sales", StringComparison.OrdinalIgnoreCase) &&
+                                                                         !e.LedgerName.Contains("Purchase", StringComparison.OrdinalIgnoreCase) &&
+                                                                         !e.LedgerName.Contains("GST", StringComparison.OrdinalIgnoreCase) &&
+                                                                         !e.LedgerName.Contains("Tax", StringComparison.OrdinalIgnoreCase));
+                    if (partyEntry != null)
+                    {
+                        voucher.PartyLedgerName = partyEntry.LedgerName;
+                    }
+                }
+
                 results.Add(voucher);
             }
         }
-        catch (Exception ex)
+        catch (XmlException ex)
         {
             _logger.LogError(ex, "Failed to parse Tally vouchers XML");
+            throw new InvalidOperationException($"Malformed XML received for vouchers: {ex.Message}", ex);
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            _logger.LogError(ex, "Failed to parse Tally vouchers XML");
+            throw new InvalidOperationException($"Failed to parse vouchers XML: {ex.Message}", ex);
         }
 
         return results;
@@ -470,8 +622,11 @@ public class TallyResponseParser : ITallyResponseParser
     {
         if (string.IsNullOrEmpty(rawXml)) return string.Empty;
 
+        // Strip non-printable invalid XML control characters except tab, LF, CR
+        var cleaned = Regex.Replace(rawXml, @"[\x00-\x08\x0B\x0C\x0E-\x1F]", string.Empty);
+
         // Escape raw unescaped ampersands common in Indian ledger names (e.g. "M/S RAM & SHYAM CO")
-        var sanitized = Regex.Replace(rawXml, @"&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)", "&amp;");
+        var sanitized = Regex.Replace(cleaned, @"&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)", "&amp;");
         return sanitized;
     }
 }

@@ -68,3 +68,35 @@ public record TallyRawResponse(
     long LatencyMs,
     string? ErrorMessage = null,
     string? TallyErrorCode = null);
+
+public class TallySynchronizationException : Exception
+{
+    public string Stage { get; }
+    public string CompanyName { get; }
+    public string? Endpoint { get; }
+    public int? HttpStatusCode { get; }
+    public string? TallyError { get; }
+    public bool IsEmptyResponse { get; }
+    public bool IsXmlParseFailure { get; }
+
+    public TallySynchronizationException(
+        string stage,
+        string companyName,
+        string? endpoint,
+        string message,
+        int? httpStatusCode = null,
+        string? tallyError = null,
+        bool isEmptyResponse = false,
+        bool isXmlParseFailure = false,
+        Exception? innerException = null)
+        : base(message, innerException)
+    {
+        Stage = stage;
+        CompanyName = companyName;
+        Endpoint = endpoint;
+        HttpStatusCode = httpStatusCode;
+        TallyError = tallyError;
+        IsEmptyResponse = isEmptyResponse;
+        IsXmlParseFailure = isXmlParseFailure;
+    }
+}

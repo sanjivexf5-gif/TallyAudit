@@ -17,6 +17,7 @@ public class SyncManager : ISyncManager
     private readonly ISyncRepository _syncRepository;
     private readonly IAuditRepository _auditRepository;
     private readonly ISettingsService _settingsService;
+    private readonly IActiveCompanyContext? _companyContext;
     private readonly ILogger<SyncManager> _logger;
 
     private readonly SemaphoreSlim _pauseSemaphore = new(1, 1);
@@ -41,7 +42,8 @@ public class SyncManager : ISyncManager
         ISyncRepository syncRepository,
         IAuditRepository auditRepository,
         ISettingsService settingsService,
-        ILogger<SyncManager> logger)
+        ILogger<SyncManager> logger,
+        IActiveCompanyContext? companyContext = null)
     {
         _connection = connection;
         _companyService = companyService;
@@ -51,6 +53,7 @@ public class SyncManager : ISyncManager
         _auditRepository = auditRepository;
         _settingsService = settingsService;
         _logger = logger;
+        _companyContext = companyContext;
     }
 
     public async Task<SyncResult> StartSyncAsync(string companyName, SyncMode mode, CancellationToken cancellationToken = default)
@@ -110,10 +113,20 @@ public class SyncManager : ISyncManager
             var profile = await _companyService.GetCompanyProfileTypedAsync(companyName, null, ct);
             if (profile != null)
             {
-                companyId = profile.Name; // Consistent ID
+                companyId = !string.IsNullOrWhiteSpace(profile.Name) ? profile.Name : companyName; // Consistent ID
             }
             else
             {
+                var isMockMode = await _settingsService.IsMockModeEnabledAsync();
+                if (!isMockMode)
+                {
+                    throw new TallySynchronizationException(
+                        "SELECT COMPANY",
+                        companyName,
+                        null,
+                        $"Could not load company profile for '{companyName}' from TallyPrime. Verify company is open in TallyPrime.");
+                }
+
                 profile = new Core.Domain.Tally.TallyCompanyProfile
                 {
                     Name = companyName,
@@ -153,9 +166,9 @@ public class SyncManager : ISyncManager
 
             await CheckPauseAsync(ct);
 
-            // PIPELINE STAGE 3: READ MASTERS
-            SetStage(SyncStage.ReadMasters, "Fetching Chart of Accounts, Groups, and Ledgers...");
-            EmitLog("Reading master groups and account ledgers...");
+            // PIPELINE STAGE 3: READ GROUPS
+            SetStage(SyncStage.ReadGroups, $"Reading master groups from TallyPrime for '{companyName}'...");
+            EmitLog("Reading master groups...");
 
             var rawGroups = await _masterService.GetGroupsAsync(companyName, ct);
             var groups = rawGroups.Select(g => new Group
@@ -165,6 +178,10 @@ public class SyncManager : ISyncManager
                 ParentName = "Primary"
             }).ToList();
             await _syncRepository.BatchUpsertGroupsAsync(groups, companyId, ct);
+
+            // PIPELINE STAGE 4: READ LEDGERS
+            SetStage(SyncStage.ReadLedgers, $"Reading account ledgers from TallyPrime for '{companyName}'...");
+            EmitLog($"Reading account ledgers (fromAlterId: {fromAlterId?.ToString() ?? "0 (Full)"})...");
 
             var rawLedgers = await _masterService.GetLedgersAsync(companyName, fromAlterId, ct);
             CurrentMetrics.RecordsDiscovered += rawLedgers.Count;
@@ -194,14 +211,15 @@ public class SyncManager : ISyncManager
 
             await CheckPauseAsync(ct);
 
-            // PIPELINE STAGE 4: READ TRANSACTIONS
-            SetStage(SyncStage.ReadTransactions, "Streaming transaction vouchers in chunked date batches...");
+            // PIPELINE STAGE 5: READ VOUCHERS
+            SetStage(SyncStage.ReadVouchers, $"Streaming transaction vouchers from TallyPrime for '{companyName}'...");
             EmitLog("Streaming voucher transactions (Low-RAM chunking active)...");
 
             var booksFrom = profile.BooksBeginningFrom != default ? profile.BooksBeginningFrom : new DateTime(2025, 4, 1);
             var fromDate = booksFrom;
             var toDate = booksFrom.AddYears(1).AddDays(-1);
 
+            // Look up custom overridden audit period from settings if configured by the user
             var fromDateStr = await _settingsService.GetSettingAsync("AuditPeriodFrom", "");
             var toDateStr = await _settingsService.GetSettingAsync("AuditPeriodTo", "");
 
@@ -209,9 +227,25 @@ public class SyncManager : ISyncManager
             {
                 fromDate = fD;
             }
+            else if (_companyContext?.ActivePeriodFrom != null)
+            {
+                fromDate = _companyContext.ActivePeriodFrom.Value;
+            }
+
             if (DateTime.TryParseExact(toDateStr, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var tD))
             {
                 toDate = tD;
+            }
+            else if (_companyContext?.ActivePeriodTo != null)
+            {
+                toDate = _companyContext.ActivePeriodTo.Value;
+            }
+
+            if (fromDate > toDate)
+            {
+                var temp = fromDate;
+                fromDate = toDate;
+                toDate = temp;
             }
 
             EmitLog($"Syncing period: {fromDate:dd-MMM-yyyy} to {toDate:dd-MMM-yyyy}");

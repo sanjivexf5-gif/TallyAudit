@@ -6,7 +6,10 @@ public enum SyncStage
     Connect,
     SelectCompany,
     ReadMasters,
+    ReadGroups,
+    ReadLedgers,
     ReadTransactions,
+    ReadVouchers,
     Validate,
     Store,
     Index,
@@ -70,4 +73,5 @@ public record SyncResult(
     int Skipped,
     int Errors,
     TimeSpan Duration,
-    string? ErrorMessage = null);
+    string? ErrorMessage = null,
+    string? FailedStage = null);
