@@ -514,70 +514,12 @@ public class CompanySelectionSyncFlowTests
     [Fact]
     public async Task RealApplication_DI_Lifetime_EndToEnd()
     {
-        // Integration test using real DI registrations
+        // Integration test using real DI registrations via ApplicationServiceRegistration
         var services = new ServiceCollection();
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
         
-        // Setup SQLite test DB
         var dbPath = Path.Combine(Path.GetTempPath(), $"test_di_flow_{Guid.NewGuid():N}.db");
-        var sqliteFactory = new SqliteConnectionFactory(dbPath);
-        var initializer = new DatabaseInitializer(sqliteFactory, NullLogger<DatabaseInitializer>.Instance, dbPath);
-        await initializer.InitializeAsync();
-
-        // Register production DI services
-        services.AddSingleton(sqliteFactory);
-        services.AddSingleton<ISqliteConnectionFactory>(sqliteFactory);
-        services.AddSingleton<IDatabaseInitializer>(initializer);
-        services.AddSingleton<IAuditRepository, AuditRepository>();
-        services.AddSingleton<ISyncRepository, SyncRepository>();
-        services.AddSingleton<ISettingsService, SettingsRepository>();
-        services.AddSingleton<IAuditFinalizationRepository, AuditFinalizationRepository>();
-        services.AddSingleton<IAuditFinalizationService, AuditFinalizationService>();
-        services.AddSingleton<IAuditQualityControlService, AuditQualityControlService>();
-        services.AddSingleton<IAuditTrailRepository, AuditTrailRepository>();
-        services.AddSingleton<IAuditTrailService, AuditTrailService>();
-        services.AddSingleton<IInvestigationRepository, InvestigationRepository>();
-        services.AddSingleton<IInvestigationService, InvestigationService>();
-
-        services.AddSingleton<ITallyReadOnlyPolicy, TallyReadOnlyPolicy>();
-        services.AddSingleton<ITallyRequestBuilder, TallyRequestBuilder>();
-        services.AddSingleton<ITallyResponseParser, TallyResponseParser>();
-
-        var mockCompanyService = new Mock<ITallyCompanyService>();
-        mockCompanyService.Setup(c => c.GetOpenCompaniesAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<string> { "RAVI & CO." });
-        mockCompanyService.Setup(c => c.GetCompanyProfileTypedAsync("RAVI & CO.", It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TallyCompanyProfile { Name = "RAVI & CO.", GSTIN = "27AAACR1234A1Z5", StateName = "Maharashtra", BooksBeginningFrom = new DateTime(2025, 4, 1) });
-
-        var mockConn = new Mock<ITallyConnection>();
-        mockConn.Setup(c => c.CheckIfProcessRunningAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
-        mockConn.Setup(c => c.DiscoverTallyAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new TallyEndpointInfo("localhost", 9000, true, "TallyPrime", null, 2, null, ConnectionFailureCause.None));
-
-        services.AddSingleton<ITallyCompanyService>(mockCompanyService.Object);
-        services.AddSingleton<ITallyConnection>(mockConn.Object);
-        services.AddSingleton<IActiveCompanyContext, ActiveCompanyContext>();
-        services.AddSingleton<ITallyMasterService, TallyMasterService>();
-        services.AddSingleton<ITallyVoucherService, TallyVoucherService>();
-        services.AddSingleton<ITallyQueryService, TallyQueryService>();
-        services.AddSingleton<TallyConnectionMonitor>();
-        services.AddSingleton<ISyncManager, SyncManager>();
-        services.AddAuditEngine();
-        services.AddSingleton<INavigationService, NavigationService>();
-
-        services.AddSingleton<MainWindowViewModel>();
-        services.AddSingleton<DashboardViewModel>();
-        services.AddSingleton<TallyConnectionViewModel>();
-        services.AddSingleton<SyncViewModel>();
-        services.AddSingleton<SettingsViewModel>();
-        services.AddSingleton<CompaniesViewModel>();
-        services.AddSingleton<GstAuditViewModel>();
-        services.AddSingleton<TdsAuditViewModel>();
-        services.AddSingleton<VouchersViewModel>();
-        services.AddSingleton<LedgersViewModel>();
-        services.AddSingleton<BankAuditViewModel>();
-        services.AddSingleton<InvestigationViewModel>();
-        services.AddSingleton<ExceptionsViewModel>();
-        services.AddSingleton<ReportsViewModel>();
+        services.AddApplicationServices(config, dbPath);
 
         var provider = services.BuildServiceProvider();
 
@@ -586,12 +528,18 @@ public class CompanySelectionSyncFlowTests
         var ctx2 = provider.GetRequiredService<IActiveCompanyContext>();
         Assert.Same(ctx1, ctx2);
 
+        // Verify key services resolve cleanly
+        Assert.NotNull(provider.GetRequiredService<ITallyClient>());
+        Assert.NotNull(provider.GetRequiredService<ITallyCompanyService>());
+        Assert.NotNull(provider.GetRequiredService<ITallyMasterService>());
+        Assert.NotNull(provider.GetRequiredService<ITallyVoucherService>());
+        Assert.NotNull(provider.GetRequiredService<ISyncManager>());
+
         var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
         var mainVM = provider.GetRequiredService<MainWindowViewModel>();
         var syncVM = provider.GetRequiredService<SyncViewModel>();
 
-        // 2. Scan and select RAVI & CO.
-        await connVM.ScanForTallyCommand.ExecuteAsync(null);
+        // 2. Select RAVI & CO.
         connVM.SelectedCompany = "RAVI & CO.";
 
         // 3. Save & Activate

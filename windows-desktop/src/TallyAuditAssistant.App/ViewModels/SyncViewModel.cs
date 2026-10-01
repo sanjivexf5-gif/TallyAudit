@@ -33,7 +33,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
     private string _currentStageText = "Idle";
 
     [ObservableProperty]
-    private string _currentTaskDescription = "Ready to start synchronization.";
+    private string _currentTaskDescription = "Please select and save a Tally company before synchronization.";
 
     [ObservableProperty]
     private int _recordsDiscovered = 0;
@@ -90,6 +90,9 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
 
     private void OnActiveCompanyChanged(object? sender, Company? comp)
     {
+        Serilog.Log.Information("[SyncViewModel] SYNC VM RECEIVED COMPANY CHANGE: {Company} on context #{HashCode}",
+            comp?.TallyCompanyName, System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(_companyContext));
+
         void Update()
         {
             var compName = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
@@ -97,7 +100,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             {
                 CompanyName = compName;
                 ContextStatusText = "Context: Verified";
-                if (CompanyName != compName || string.IsNullOrEmpty(CurrentTaskDescription) || CurrentTaskDescription.StartsWith("Please select"))
+                if (!IsSyncing)
                 {
                     CurrentTaskDescription = $"Ready to synchronize {compName}.";
                 }
@@ -133,7 +136,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
             {
                 CompanyName = compName;
                 ContextStatusText = "Context: Verified";
-                if (!IsSyncing && (string.IsNullOrEmpty(CurrentTaskDescription) || CurrentTaskDescription.StartsWith("Please select")))
+                if (!IsSyncing)
                 {
                     CurrentTaskDescription = $"Ready to synchronize {compName}.";
                 }
