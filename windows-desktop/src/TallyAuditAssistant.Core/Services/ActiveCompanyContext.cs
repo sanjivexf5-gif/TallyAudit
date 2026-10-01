@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using TallyAuditAssistant.Core.Domain.Companies;
+using TallyAuditAssistant.Core.Domain.Tally;
 using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.Core.Services;

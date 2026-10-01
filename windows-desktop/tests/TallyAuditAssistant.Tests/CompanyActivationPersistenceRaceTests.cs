@@ -270,4 +270,38 @@ public class CompanyActivationPersistenceRaceTests
         Assert.Equal(expectedCompany, persistedVal);
         Assert.Equal(expectedCompany, context.ActiveCompanyName);
     }
+
+    [Fact]
+    public void DatabasePathConsistency_AllServicesUseSameDatabasePath()
+    {
+        var dbPath = GetTempDbPath();
+        var config = new ConfigurationBuilder().Build();
+
+        var services = new ServiceCollection();
+        services.AddApplicationServices(config, dbPath);
+        using var provider = services.BuildServiceProvider();
+
+        var pathService = provider.GetRequiredService<IApplicationDataPathService>();
+        var factory = provider.GetRequiredService<ISqliteConnectionFactory>();
+        var init = provider.GetRequiredService<IDatabaseInitializer>();
+
+        Assert.Equal(Path.GetFullPath(dbPath), Path.GetFullPath(pathService.DatabasePath));
+        Assert.Equal(Path.GetFullPath(dbPath), Path.GetFullPath(factory.DatabasePath));
+        Assert.Equal(Path.GetFullPath(dbPath), Path.GetFullPath(init.DatabasePath));
+    }
+
+    [Fact]
+    public async Task SettingsRepository_ActiveCompanyWriteRead_IsAtomic()
+    {
+        var dbPath = GetTempDbPath();
+        var factory = new SqliteConnectionFactory(dbPath);
+        var init = new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance, dbPath);
+        await init.InitializeAsync();
+
+        var settings = new SettingsRepository(factory);
+        await settings.SetSettingAsync("ActiveCompany", "Sanjiv Sinha Pvt Ltd");
+
+        var readVal = await settings.GetSettingAsync("ActiveCompany");
+        Assert.Equal("Sanjiv Sinha Pvt Ltd", readVal);
+    }
 }
