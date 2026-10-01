@@ -784,6 +784,111 @@ public class CompanySelectionSyncFlowTests
     }
 
     [Fact]
+    public async Task RealTallyCompany_ReconcilesExistingMockRecord()
+    {
+        var services = new ServiceCollection();
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_reconcile_{Guid.NewGuid():N}.db");
+        services.AddApplicationServices(config, dbPath);
+
+        var provider = services.BuildServiceProvider();
+        var initializer = provider.GetRequiredService<IDatabaseInitializer>();
+        await initializer.InitializeAsync();
+
+        var auditRepo = provider.GetRequiredService<IAuditRepository>();
+        var settingsRepo = provider.GetRequiredService<ISettingsService>();
+
+        // Pre-seed an existing mock record for RAVI & CO.
+        await settingsRepo.SetSettingAsync("MockModeEnabled", "false");
+        var mockRecord = new Company
+        {
+            Id = "RAVI & CO.",
+            TallyCompanyName = "RAVI & CO.",
+            FormalName = "RAVI & CO.",
+            IsMock = true,
+            IsActive = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        await auditRepo.EnsureCompanyAsync(mockRecord);
+
+        // Verify pre-seeded state
+        var preCheck = await auditRepo.GetCompanyByNameAsync("RAVI & CO.");
+        Assert.NotNull(preCheck);
+        Assert.True(preCheck.IsMock);
+
+        var ctx = provider.GetRequiredService<IActiveCompanyContext>();
+        var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
+        var mainVM = provider.GetRequiredService<MainWindowViewModel>();
+        var syncVM = provider.GetRequiredService<SyncViewModel>();
+
+        // 1. Discover/Select RAVI & CO.
+        connVM.SelectedCompany = "RAVI & CO.";
+
+        // 2. Save & Activate Company
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+        // 3. Assertions
+        Assert.Equal("Verified", connVM.PersistenceStatus);
+        Assert.Equal("Verified", connVM.ContextStatus);
+        Assert.Equal("RAVI & CO.", ctx.ActiveCompanyName);
+        
+        var settingVal = await settingsRepo.GetSettingAsync("ActiveCompany", string.Empty);
+        Assert.Equal("RAVI & CO.", settingVal);
+
+        var postCheck = await auditRepo.GetCompanyByNameAsync("RAVI & CO.");
+        Assert.NotNull(postCheck);
+        Assert.False(postCheck.IsMock);
+        Assert.True(postCheck.IsActive);
+
+        Assert.Equal("RAVI & CO.", mainVM.ActiveCompany);
+
+        await syncVM.OnNavigatedToAsync();
+        Assert.Equal("RAVI & CO.", syncVM.CompanyName);
+        Assert.StartsWith("Ready to synchronize RAVI & CO.", syncVM.CurrentTaskDescription);
+    }
+
+    [Fact]
+    public async Task RealTallyCompany_PersistsAcrossRestart()
+    {
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_restart_reconcile_{Guid.NewGuid():N}.db");
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+
+        // Session 1: Seed real company and activate
+        {
+            var services1 = new ServiceCollection();
+            services1.AddApplicationServices(config, dbPath);
+            using var provider1 = services1.BuildServiceProvider();
+
+            var initializer1 = provider1.GetRequiredService<IDatabaseInitializer>();
+            await initializer1.InitializeAsync();
+
+            var connVM1 = provider1.GetRequiredService<TallyConnectionViewModel>();
+            connVM1.SelectedCompany = "RAVI & CO.";
+            await connVM1.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+            Assert.Equal("Verified", connVM1.PersistenceStatus);
+        }
+
+        // Session 2: New ServiceProvider on same DB
+        {
+            var services2 = new ServiceCollection();
+            services2.AddApplicationServices(config, dbPath);
+            using var provider2 = services2.BuildServiceProvider();
+
+            var initializer2 = provider2.GetRequiredService<IDatabaseInitializer>();
+            await initializer2.InitializeAsync();
+
+            var ctx2 = provider2.GetRequiredService<IActiveCompanyContext>();
+            var company = await ctx2.GetActiveCompanyAsync();
+
+            Assert.NotNull(company);
+            Assert.Equal("RAVI & CO.", company.TallyCompanyName);
+            Assert.False(company.IsMock);
+            Assert.Equal("RAVI & CO.", ctx2.ActiveCompanyName);
+        }
+    }
+
+    [Fact]
     public async Task CompanyChange_NoStaleCompanyRemains()
     {
         var dbPath = Path.Combine(Path.GetTempPath(), $"test_change_{Guid.NewGuid():N}.db");
