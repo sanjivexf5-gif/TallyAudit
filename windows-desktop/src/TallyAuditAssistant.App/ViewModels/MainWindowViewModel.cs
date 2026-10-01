@@ -147,9 +147,19 @@ public partial class MainWindowViewModel : ObservableObject
     public void Navigate(string section)
     {
         var activeName = _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
-        if (!string.IsNullOrEmpty(activeName) && ActiveCompany != activeName)
+        if (!string.IsNullOrEmpty(activeName))
         {
-            ActiveCompany = activeName;
+            if (ActiveCompany != activeName)
+            {
+                ActiveCompany = activeName;
+            }
+        }
+        else
+        {
+            if (ActiveCompany != "No Company Selected")
+            {
+                ActiveCompany = "No Company Selected";
+            }
         }
 
         ObservableObject? nextVM = section switch

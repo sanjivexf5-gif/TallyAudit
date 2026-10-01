@@ -172,7 +172,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
         var comp = await _companyContext.GetActiveCompanyAsync();
         if (comp == null || string.IsNullOrWhiteSpace(comp.TallyCompanyName))
         {
-            CurrentTaskDescription = "Please select a Tally company before synchronization.";
+            CurrentTaskDescription = "Please select and save a Tally company before synchronization.";
             return;
         }
 
@@ -230,7 +230,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
         var comp = await _companyContext.GetActiveCompanyAsync();
         if (comp == null || string.IsNullOrWhiteSpace(comp.TallyCompanyName))
         {
-            CurrentTaskDescription = "Please select a Tally company before synchronization.";
+            CurrentTaskDescription = "Please select and save a Tally company before synchronization.";
             return;
         }
 

@@ -86,12 +86,17 @@ public class TallyConnectionViewModelTests
         Assert.Equal("—", vm.ActiveCompany);
         _mockContext.Verify(c => c.SetActiveCompanyNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
 
-        // User interaction: Changing selection manually (simulated by property set) MUST auto-commit
+        // User interaction: Changing selection in ComboBox does NOT commit it
         vm.SelectedCompany = "Test Company B";
-        await Task.Delay(100);
-        
+        Assert.Equal("Test Company B", vm.SelectedCompany);
+        Assert.Equal("—", vm.ActiveCompany);
+        _mockContext.Verify(c => c.SetActiveCompanyNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        // Explicit Save & Activate commits the selected company
+        await vm.SelectAndSaveCompanyCommand.ExecuteAsync(null);
         Assert.Equal("Test Company B", vm.ActiveCompany);
         _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Test Company B", It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(string.Empty, vm.ValidationMessage);
         Assert.Contains("✓ Company query completed", vm.DiagnosticReport);
     }
 
@@ -214,7 +219,7 @@ public class TallyConnectionViewModelTests
     }
 
     [Fact]
-    public async Task OnSelectedCompanyChanged_RapidSelection_GuardsAgainstStaleDataRace()
+    public async Task OnSelectedCompanyChanged_RapidSelection_DoesNotCommitUntilSaved()
     {
         var profile1 = new TallyCompanyProfile
         {
@@ -232,13 +237,8 @@ public class TallyConnectionViewModelTests
             BooksBeginningFrom = new DateTime(2026, 4, 1)
         };
 
-        // Delay company 1 load to simulate a slow network call that finishes late
         _mockCompanyService.Setup(s => s.GetCompanyProfileTypedAsync("Company 1", It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(async () =>
-            {
-                await Task.Delay(100);
-                return profile1;
-            });
+            .ReturnsAsync(profile1);
 
         _mockCompanyService.Setup(s => s.GetCompanyProfileTypedAsync("Company 2", It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(profile2);
@@ -255,25 +255,82 @@ public class TallyConnectionViewModelTests
         );
 
         // Fast sequential selections (dropdown changes)
-        // These simulate user clicks which should trigger commits
+        // These simulate user clicks which should NOT trigger commits
         vm.SelectedCompany = "Company 1";
         vm.SelectedCompany = "Company 2";
 
-        // Wait for asynchronous profile/context operations
-        await Task.Delay(200);
-
-        // Dropdown must reflect Company 2
+        // Dropdown reflects Company 2, but ActiveCompany remains uncommitted
         Assert.Equal("Company 2", vm.SelectedCompany);
-        
-        // ActiveCompany must reflect Company 2 (auto-committed)
-        Assert.Equal("Company 2", vm.ActiveCompany);
+        Assert.Equal("—", vm.ActiveCompany);
+        _mockContext.Verify(c => c.SetActiveCompanyNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
 
-        // Target state must reflect Company 2, never overwritten by slow Company 1
+        // User clicks Save & Activate
+        await vm.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+        // Target state must reflect Company 2
         Assert.Equal("Company 2", vm.ActiveCompany);
         Assert.Equal("GST-2", vm.CompanyGstin);
         Assert.Equal("State 2", vm.CompanyState);
         _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Company 2", It.IsAny<CancellationToken>()), Times.Once);
-        // Company 1 might have been called depending on timing, but Company 2 must be the final one.
+        Assert.Equal(string.Empty, vm.ValidationMessage);
+    }
+
+    [Fact]
+    public async Task SelectAndSaveCompany_WhenEmptySelection_SetsValidationMessage()
+    {
+        var vm = new TallyConnectionViewModel(
+            _mockConnection.Object,
+            _mockCompanyService.Object,
+            _mockSettings.Object,
+            _monitor,
+            _mockContext.Object,
+            _mockMasterService.Object,
+            _mockVoucherService.Object,
+            NullLogger<TallyConnectionViewModel>.Instance
+        );
+
+        vm.SelectedCompany = null;
+        await vm.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+        Assert.Equal("Please select a valid company from the dropdown before committing.", vm.ValidationMessage);
+        Assert.Equal("—", vm.ActiveCompany);
+        _mockContext.Verify(c => c.SetActiveCompanyNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        // Selecting a company must immediately clear the validation message
+        vm.SelectedCompany = "RAVI & CO.";
+        Assert.Equal(string.Empty, vm.ValidationMessage);
+    }
+
+    [Fact]
+    public async Task SelectAndSaveCompany_WhenCalledConcurrently_PreventsDuplicateCommit()
+    {
+        _mockCompanyService.Setup(s => s.GetCompanyProfileTypedAsync("RAVI & CO.", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                await Task.Delay(50);
+                return new TallyCompanyProfile { Name = "RAVI & CO.", BooksBeginningFrom = new DateTime(2025, 4, 1) };
+            });
+
+        var vm = new TallyConnectionViewModel(
+            _mockConnection.Object,
+            _mockCompanyService.Object,
+            _mockSettings.Object,
+            _monitor,
+            _mockContext.Object,
+            _mockMasterService.Object,
+            _mockVoucherService.Object,
+            NullLogger<TallyConnectionViewModel>.Instance
+        );
+
+        vm.SelectedCompany = "RAVI & CO.";
+
+        var task1 = vm.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+        var task2 = vm.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+        await Task.WhenAll(task1, task2);
+
+        _mockContext.Verify(c => c.SetActiveCompanyNameAsync("RAVI & CO.", It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("RAVI & CO.", vm.ActiveCompany);
+        Assert.Equal(string.Empty, vm.ValidationMessage);
     }
 
     [Fact]

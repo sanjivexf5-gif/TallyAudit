@@ -26,8 +26,6 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
     private readonly ITallyVoucherService _voucherService;
     private readonly ILogger<TallyConnectionViewModel> _logger;
     private bool _isUpdatingSelection = false;
-    private int _companySelectionVersion = 0;
-    private CancellationTokenSource? _companyCommitCts;
 
     [ObservableProperty]
     private bool _isCommitting = false;
@@ -166,7 +164,7 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
     private void OnMonitorStatusChanged(object? sender, ConnectionStatus status)
     {
-        App.Current.Dispatcher.Invoke(() =>
+        void Update()
         {
             IsConnected = status == ConnectionStatus.Connected;
             if (status == ConnectionStatus.Connected && _tallyConnection.ActiveEndpoint != null)
@@ -174,19 +172,37 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 Latency = $"{_tallyConnection.ActiveEndpoint.LatencyMs} ms";
                 Port = _tallyConnection.ActiveEndpoint.Port;
             }
-        });
+        }
+
+        if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
+        {
+            App.Current.Dispatcher.Invoke(Update);
+        }
+        else
+        {
+            Update();
+        }
     }
 
     private void OnMonitorEndpointChanged(object? sender, TallyEndpointInfo? endpoint)
     {
         if (endpoint != null)
         {
-            App.Current.Dispatcher.Invoke(() =>
+            void Update()
             {
                 Port = endpoint.Port;
                 Latency = $"{endpoint.LatencyMs} ms";
                 DetectedVersion = endpoint.ServerVersion ?? "TallyPrime XML Server";
-            });
+            }
+
+            if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
+            {
+                App.Current.Dispatcher.Invoke(Update);
+            }
+            else
+            {
+                Update();
+            }
         }
     }
 
@@ -556,15 +572,10 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
         }
     }
 
-    async partial void OnSelectedCompanyChanged(string? value)
+    partial void OnSelectedCompanyChanged(string? value)
     {
-        if (_isUpdatingSelection) return;
-
-        if (!string.IsNullOrEmpty(value))
-        {
-            _logger.LogInformation("[Company] User selected company from ComboBox: {Company}", value);
-            await CommitSelectedCompanyAsync(value);
-        }
+        // Dropdown selection is strictly transient. Committing and profile fetching are explicitly done via SelectAndSaveCompanyAsync.
+        ValidationMessage = string.Empty;
     }
 
     [RelayCommand]
@@ -573,58 +584,38 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
         await CommitSelectedCompanyAsync();
     }
 
-    private async Task<bool> CommitSelectedCompanyAsync(string? targetCompanyName = null, CancellationToken cancellationToken = default)
+    private async Task<bool> CommitSelectedCompanyAsync(CancellationToken cancellationToken = default)
     {
-        var companyToCommit = (targetCompanyName ?? SelectedCompany)?.Trim();
-        if (string.IsNullOrWhiteSpace(companyToCommit))
+        if (IsCommitting) return false;
+
+        if (string.IsNullOrWhiteSpace(SelectedCompany))
         {
             ValidationMessage = "Please select a valid company from the dropdown before committing.";
             return false;
         }
 
+        var companyToCommit = SelectedCompany.Trim();
         if (AvailableCompanies.Count > 0 && !AvailableCompanies.Contains(companyToCommit))
         {
             ValidationMessage = $"Selected company '{companyToCommit}' is not in the list of available open companies.";
             return false;
         }
 
-        var version = Interlocked.Increment(ref _companySelectionVersion);
-
-        try
-        {
-            _companyCommitCts?.Cancel();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "Error cancelling previous company commit CTS.");
-        }
-
-        _companyCommitCts = cancellationToken.CanBeCanceled
-            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
-            : new CancellationTokenSource();
-        var ct = _companyCommitCts.Token;
-
+        ValidationMessage = string.Empty;
         IsCommitting = true;
         StatusMessage = $"Saving and activating company: {companyToCommit}...";
-        ValidationMessage = string.Empty;
-        _logger.LogInformation("[Company] Committing active company (version {Version}): {Company}", version, companyToCommit);
+        _logger.LogInformation("[Company] Committing active company: {Company}", companyToCommit);
 
         try
         {
-            if (version != _companySelectionVersion || ct.IsCancellationRequested) return false;
-
             // Explicitly set the active company in the context
-            await _companyContext.SetActiveCompanyNameAsync(companyToCommit, ct);
-
-            if (version != _companySelectionVersion || ct.IsCancellationRequested) return false;
+            await _companyContext.SetActiveCompanyNameAsync(companyToCommit, cancellationToken);
 
             // Fetch profile and populate UI details
             var host = Host;
             var port = Port;
             var endpoint = (!string.IsNullOrEmpty(host) && port > 0) ? $"http://{host}:{port}" : null;
-            var profile = await _companyService.GetCompanyProfileTypedAsync(companyToCommit, endpoint, ct);
-
-            if (version != _companySelectionVersion || ct.IsCancellationRequested) return false;
+            var profile = await _companyService.GetCompanyProfileTypedAsync(companyToCommit, endpoint, cancellationToken);
 
             if (profile != null)
             {
@@ -638,9 +629,9 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
                 FinancialYear = $"FY {profile.BooksBeginningFrom.Year}-{(profile.BooksBeginningFrom.Year + 1) % 100:D2}";
 
-                await _settingsService.SetSettingAsync("FinancialYear", FinancialYear, ct);
-                await _settingsService.SetSettingAsync("AuditPeriodFrom", FromDate.ToString("yyyy-MM-dd"), ct);
-                await _settingsService.SetSettingAsync("AuditPeriodTo", ToDate.ToString("yyyy-MM-dd"), ct);
+                await _settingsService.SetSettingAsync("FinancialYear", FinancialYear, cancellationToken);
+                await _settingsService.SetSettingAsync("AuditPeriodFrom", FromDate.ToString("yyyy-MM-dd"), cancellationToken);
+                await _settingsService.SetSettingAsync("AuditPeriodTo", ToDate.ToString("yyyy-MM-dd"), cancellationToken);
             }
             else
             {
@@ -650,34 +641,27 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 CompanyBooksDate = "—";
             }
 
-            if (version != _companySelectionVersion || ct.IsCancellationRequested) return false;
-
+            ValidationMessage = string.Empty;
             StatusMessage = "Company activated successfully!";
             DiagnosticReport += $"\n✓ Committed and activated company: {companyToCommit}";
-            _logger.LogInformation("[Company] ActiveCompanyContext updated and company activated (version {Version}): {Company}", version, companyToCommit);
+            _logger.LogInformation("[Company] ActiveCompanyContext updated and company activated: {Company}", companyToCommit);
             return true;
         }
         catch (OperationCanceledException)
         {
-            _logger.LogDebug("[Company] Commit for {Company} (version {Version}) was superseded or cancelled.", companyToCommit, version);
+            _logger.LogDebug("[Company] Commit for {Company} was cancelled.", companyToCommit);
             return false;
         }
         catch (Exception ex)
         {
-            if (version == _companySelectionVersion)
-            {
-                _logger.LogError(ex, "Failed to commit active company: {Company}", companyToCommit);
-                StatusMessage = $"Failed to activate company: {ex.Message}";
-                ValidationMessage = $"Error activating company: {ex.Message}";
-            }
+            _logger.LogError(ex, "Failed to commit active company: {Company}", companyToCommit);
+            StatusMessage = $"Failed to activate company: {ex.Message}";
+            ValidationMessage = $"Error activating company: {ex.Message}";
             return false;
         }
         finally
         {
-            if (version == _companySelectionVersion)
-            {
-                IsCommitting = false;
-            }
+            IsCommitting = false;
         }
     }
 
