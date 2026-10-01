@@ -83,10 +83,8 @@
                     <StackPanel>
                         <TextBlock Text="ACTIVE COMPANY" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextMutedBrush}"/>
                         <TextBlock Text="{Binding ActiveCompany}" FontSize="14" FontWeight="Bold" Foreground="White" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/>
-                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                            <TextBlock Text="GSTIN: " Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
-                            <TextBlock Text="{Binding CompanyGstin}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextTrimming="CharacterEllipsis"/>
-                        </StackPanel>
+                        <TextBlock Text="GSTIN:" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,4,0,0"/>
+                        <TextBlock Text="{Binding CompanyGstin}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
                 </Border>
             </Grid>

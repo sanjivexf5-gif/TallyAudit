@@ -121,6 +121,25 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 if (comp != null && !string.IsNullOrEmpty(comp.TallyCompanyName))
                 {
                     ActiveCompany = comp.TallyCompanyName;
+                    if (!string.IsNullOrEmpty(comp.GSTIN))
+                    {
+                        CompanyGstin = comp.GSTIN;
+                    }
+                    else if (CompanyGstin == "—" || string.IsNullOrEmpty(CompanyGstin))
+                    {
+                        CompanyGstin = "Unregistered / Not Available";
+                    }
+
+                    if (!string.IsNullOrEmpty(comp.StateName))
+                    {
+                        CompanyState = comp.StateName;
+                    }
+
+                    if (comp.BooksFromDate != default)
+                    {
+                        CompanyBooksDate = comp.BooksFromDate.ToString("dd-MMM-yyyy");
+                    }
+
                     if (SelectedCompany != comp.TallyCompanyName)
                     {
                         _isUpdatingSelection = true;
@@ -137,6 +156,9 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 else
                 {
                     ActiveCompany = "—";
+                    CompanyGstin = "—";
+                    CompanyState = "—";
+                    CompanyBooksDate = "—";
                     _isUpdatingSelection = true;
                     try
                     {
@@ -581,6 +603,7 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
     [RelayCommand]
     private async Task SelectAndSaveCompanyAsync()
     {
+        if (IsCommitting) return;
         await CommitSelectedCompanyAsync();
     }
 
@@ -639,6 +662,12 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 CompanyGstin = "Unregistered / Not Available";
                 CompanyState = "—";
                 CompanyBooksDate = "—";
+            }
+
+            // Ensure ActiveCompanyContext contains the committed company
+            if (_companyContext.ActiveCompanyName != companyToCommit && _companyContext.TallyCompanyName != companyToCommit)
+            {
+                await _companyContext.SetActiveCompanyNameAsync(companyToCommit, cancellationToken);
             }
 
             ValidationMessage = string.Empty;
