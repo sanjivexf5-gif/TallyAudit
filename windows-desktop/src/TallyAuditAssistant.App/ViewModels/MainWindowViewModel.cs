@@ -16,6 +16,7 @@ public partial class MainWindowViewModel : ObservableObject
     private readonly ITallyCompanyService _companyService;
     private readonly ISettingsService _settingsService;
     private readonly INavigationService _navigationService;
+    private long _companyRefreshGeneration;
 
     [ObservableProperty]
     private string _title = "Tally Audit Assistant — Auditor Edition";
@@ -109,6 +110,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     private void OnActiveCompanyChanged(object? sender, Company? company)
     {
+        Interlocked.Increment(ref _companyRefreshGeneration);
         var companyName = company?.TallyCompanyName
                           ?? _companyContext.TallyCompanyName
                           ?? _companyContext.ActiveCompanyName;
@@ -132,19 +134,28 @@ public partial class MainWindowViewModel : ObservableObject
 
     public async Task RefreshActiveCompanyAsync()
     {
+        var generation = Interlocked.Increment(ref _companyRefreshGeneration);
         var comp = await _companyContext.GetActiveCompanyAsync();
-        var compName = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
-        
+
+        if (generation != Volatile.Read(ref _companyRefreshGeneration))
+        {
+            return;
+        }
+
+        var current = _companyContext.CurrentCompany;
+        var currentName = current?.TallyCompanyName
+                          ?? _companyContext.TallyCompanyName
+                          ?? _companyContext.ActiveCompanyName;
+
+        var resolved = !string.IsNullOrWhiteSpace(currentName) ? currentName : comp?.TallyCompanyName;
+
         void Update()
         {
-            var currentContextName = _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
-            var resolved = !string.IsNullOrWhiteSpace(compName) ? compName : currentContextName;
-
             if (!string.IsNullOrWhiteSpace(resolved))
             {
                 ActiveCompany = resolved;
             }
-            else
+            else if (generation == Volatile.Read(ref _companyRefreshGeneration))
             {
                 ActiveCompany = "No Company Selected";
             }
@@ -163,7 +174,11 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     public void Navigate(string section)
     {
-        _ = RefreshActiveCompanyAsync();
+        var currentName = _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
+        if (!string.IsNullOrWhiteSpace(currentName))
+        {
+            ActiveCompany = currentName;
+        }
 
         ObservableObject? nextVM = section switch
         {

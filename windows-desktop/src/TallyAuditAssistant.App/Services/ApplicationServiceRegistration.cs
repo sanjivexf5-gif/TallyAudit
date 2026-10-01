@@ -32,8 +32,8 @@ public static class ApplicationServiceRegistration
         services.AddSingleton(sqliteFactory);
         services.AddSingleton<ISqliteConnectionFactory>(sqliteFactory);
         services.AddSingleton<IDatabaseInitializer>(sp => new DatabaseInitializer(
-            sp.GetRequiredService<SqliteConnectionFactory>(),
-            sp.GetRequiredService<ILogger<DatabaseInitializer>>(),
+            sqliteFactory,
+            sp.GetService<ILogger<DatabaseInitializer>>() ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<DatabaseInitializer>.Instance,
             dbPath));
 
         services.AddSingleton<IAuditRepository, AuditRepository>();

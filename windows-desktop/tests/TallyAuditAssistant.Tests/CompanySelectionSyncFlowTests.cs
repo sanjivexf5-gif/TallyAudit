@@ -522,6 +522,8 @@ public class CompanySelectionSyncFlowTests
         services.AddApplicationServices(config, dbPath);
 
         var provider = services.BuildServiceProvider();
+        var initializer = provider.GetRequiredService<IDatabaseInitializer>();
+        await initializer.InitializeAsync();
 
         // 1. Verify Singleton identity of IActiveCompanyContext
         var ctx1 = provider.GetRequiredService<IActiveCompanyContext>();
@@ -598,6 +600,9 @@ public class CompanySelectionSyncFlowTests
         services.AddApplicationServices(config, dbPath);
 
         var provider = services.BuildServiceProvider();
+        var initializer = provider.GetRequiredService<IDatabaseInitializer>();
+        await initializer.InitializeAsync();
+
         var ctx = provider.GetRequiredService<IActiveCompanyContext>();
         var mainVM = provider.GetRequiredService<MainWindowViewModel>();
         var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
@@ -615,6 +620,70 @@ public class CompanySelectionSyncFlowTests
         // Verify it was not overwritten with "No Company Selected"
         Assert.Equal("RAVI & CO.", mainVM.ActiveCompany);
         Assert.Equal("RAVI & CO.", ctx.ActiveCompanyName);
+    }
+
+    [Fact]
+    public async Task MainWindow_StaleRefresh_CannotOverwriteCommittedCompany()
+    {
+        var services = new ServiceCollection();
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_stale_main_{Guid.NewGuid():N}.db");
+        services.AddApplicationServices(config, dbPath);
+
+        var provider = services.BuildServiceProvider();
+        var initializer = provider.GetRequiredService<IDatabaseInitializer>();
+        await initializer.InitializeAsync();
+
+        var ctx = provider.GetRequiredService<IActiveCompanyContext>();
+        var mainVM = provider.GetRequiredService<MainWindowViewModel>();
+        var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
+
+        // 1. Start refresh when DB has no company yet
+        var refreshTask = mainVM.RefreshActiveCompanyAsync();
+
+        // 2. Commit company concurrently
+        connVM.SelectedCompany = "RAVI & CO.";
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+        // 3. Let initial refresh finish
+        await refreshTask;
+
+        // 4. Verify ActiveCompany never reverted to "No Company Selected"
+        Assert.Equal("RAVI & CO.", mainVM.ActiveCompany);
+        Assert.Equal("RAVI & CO.", ctx.ActiveCompanyName);
+    }
+
+    [Fact]
+    public async Task SyncViewModel_StaleInitialLoad_CannotOverwriteCommittedCompany()
+    {
+        var services = new ServiceCollection();
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_stale_sync_{Guid.NewGuid():N}.db");
+        services.AddApplicationServices(config, dbPath);
+
+        var provider = services.BuildServiceProvider();
+        var initializer = provider.GetRequiredService<IDatabaseInitializer>();
+        await initializer.InitializeAsync();
+
+        var ctx = provider.GetRequiredService<IActiveCompanyContext>();
+        var syncVM = provider.GetRequiredService<SyncViewModel>();
+        var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
+
+        // 1. Trigger initial load in background
+        var loadTask = syncVM.OnNavigatedToAsync();
+
+        // 2. Commit company concurrently
+        connVM.SelectedCompany = "RAVI & CO.";
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+        // 3. Await load
+        await loadTask;
+
+        // 4. Assert
+        Assert.Equal("RAVI & CO.", syncVM.CompanyName);
+        Assert.Equal("RAVI & CO.", ctx.ActiveCompanyName);
+        Assert.StartsWith("Ready to synchronize RAVI & CO.", syncVM.CurrentTaskDescription);
+        Assert.Equal("Context: Verified", syncVM.ContextStatusText);
     }
 
     [Fact]

@@ -16,6 +16,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
     private readonly ITallyCompanyService _companyService;
     private readonly ISettingsService _settingsService;
     private readonly IActiveCompanyContext _companyContext;
+    private long _loadGeneration;
 
     [ObservableProperty]
     private string _companyName = string.Empty;
@@ -90,6 +91,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
 
     private void OnActiveCompanyChanged(object? sender, Company? comp)
     {
+        Interlocked.Increment(ref _loadGeneration);
         Serilog.Log.Information("[SyncViewModel] SYNC VM RECEIVED COMPANY CHANGE: {Company} on context #{HashCode}",
             comp?.TallyCompanyName, System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(_companyContext));
 
@@ -127,27 +129,51 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
 
     private async Task LoadInitialDataAsync()
     {
+        var generation = Interlocked.Increment(ref _loadGeneration);
         try
         {
             var activeCompany = await _companyContext.GetActiveCompanyAsync();
-            var compName = activeCompany?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
 
-            if (!string.IsNullOrEmpty(compName))
+            if (generation != Volatile.Read(ref _loadGeneration))
             {
-                CompanyName = compName;
-                ContextStatusText = "Context: Verified";
-                if (!IsSyncing)
+                return;
+            }
+
+            var current = _companyContext.CurrentCompany;
+            var currentName = current?.TallyCompanyName
+                              ?? _companyContext.TallyCompanyName
+                              ?? _companyContext.ActiveCompanyName;
+
+            var resolved = !string.IsNullOrWhiteSpace(currentName) ? currentName : activeCompany?.TallyCompanyName;
+
+            void Update()
+            {
+                if (!string.IsNullOrEmpty(resolved))
                 {
-                    CurrentTaskDescription = $"Ready to synchronize {compName}.";
+                    CompanyName = resolved;
+                    ContextStatusText = "Context: Verified";
+                    if (!IsSyncing)
+                    {
+                        CurrentTaskDescription = $"Ready to synchronize {resolved}.";
+                    }
+                    _ = LoadHistoryAsync();
                 }
-                await LoadHistoryAsync();
+                else if (generation == Volatile.Read(ref _loadGeneration))
+                {
+                    CompanyName = string.Empty;
+                    ContextStatusText = "Context: Not Set";
+                    CurrentTaskDescription = "Please select and save a Tally company before synchronization.";
+                    SyncHistory.Clear();
+                }
+            }
+
+            if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
+            {
+                App.Current.Dispatcher.Invoke(Update);
             }
             else
             {
-                CompanyName = string.Empty;
-                ContextStatusText = "Context: Not Set";
-                CurrentTaskDescription = "Please select and save a Tally company before synchronization.";
-                SyncHistory.Clear();
+                Update();
             }
         }
         catch
