@@ -170,20 +170,14 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
         if (IsSyncing) return;
 
         var comp = await _companyContext.GetActiveCompanyAsync();
-        var companyNameToSync = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName ?? CompanyName;
-
-        if (string.IsNullOrWhiteSpace(companyNameToSync))
+        if (comp == null || string.IsNullOrWhiteSpace(comp.TallyCompanyName))
         {
-            CurrentTaskDescription = "Please select and save a Tally company before synchronization.";
+            CurrentTaskDescription = "Please select a Tally company before synchronization.";
             return;
         }
 
+        var companyNameToSync = comp.TallyCompanyName;
         CompanyName = companyNameToSync;
-        if (comp == null)
-        {
-            await _companyContext.SetActiveCompanyNameAsync(companyNameToSync);
-            comp = await _companyContext.GetActiveCompanyAsync();
-        }
 
         IsSyncing = true;
         IsPaused = false;
@@ -234,20 +228,14 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
         if (IsSyncing) return;
 
         var comp = await _companyContext.GetActiveCompanyAsync();
-        var companyNameToSync = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName ?? CompanyName;
-
-        if (string.IsNullOrWhiteSpace(companyNameToSync))
+        if (comp == null || string.IsNullOrWhiteSpace(comp.TallyCompanyName))
         {
-            CurrentTaskDescription = "Please select and save a Tally company before synchronization.";
+            CurrentTaskDescription = "Please select a Tally company before synchronization.";
             return;
         }
 
+        var companyNameToSync = comp.TallyCompanyName;
         CompanyName = companyNameToSync;
-        if (comp == null)
-        {
-            await _companyContext.SetActiveCompanyNameAsync(companyNameToSync);
-            comp = await _companyContext.GetActiveCompanyAsync();
-        }
 
         IsSyncing = true;
         IsPaused = false;
@@ -297,13 +285,14 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
     {
         if (IsSyncing) return;
 
-        if (string.IsNullOrEmpty(CompanyName))
+        var comp = await _companyContext.GetActiveCompanyAsync();
+        if (comp == null || string.IsNullOrWhiteSpace(comp.TallyCompanyName))
         {
-            var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            CompanyName = comp?.TallyCompanyName ?? await _companyService.GetActiveCompanyAsync() ?? string.Empty;
+            CurrentTaskDescription = "Please select a Tally company before synchronization.";
+            return;
         }
 
-        if (string.IsNullOrEmpty(CompanyName)) return;
+        CompanyName = comp.TallyCompanyName;
 
         IsSyncing = true;
         IsPaused = false;

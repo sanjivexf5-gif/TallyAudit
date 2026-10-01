@@ -25,6 +25,9 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
     private readonly ITallyMasterService _masterService;
     private readonly ITallyVoucherService _voucherService;
     private readonly ILogger<TallyConnectionViewModel> _logger;
+    private bool _isUpdatingSelection = false;
+    [ObservableProperty]
+    private bool _isCommitting = false;
 
     [ObservableProperty]
     private string _host = "localhost";
@@ -225,7 +228,9 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 {
                     StatusMessage = "Connected to TallyPrime, but the company list could not be read.";
                     DiagnosticReport += $"\n✗ Connected to TallyPrime, but the company list could not be read.\nRetry Company Discovery\nView Diagnostic Details\nError: {queryError}";
+                    _isUpdatingSelection = true;
                     UpdateAvailableCompanies(companies, null);
+                    _isUpdatingSelection = false;
                 }
                 else if (companies.Count > 0)
                 {
@@ -235,12 +240,14 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
                     var committedCompany = _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
                     string? targetCompany = null;
+                    _isUpdatingSelection = true;
                     if (!string.IsNullOrEmpty(committedCompany) && companies.Contains(committedCompany))
                     {
                         targetCompany = committedCompany;
                         UpdateAvailableCompanies(companies, targetCompany);
                         SelectedCompany = targetCompany;
                         ActiveCompany = targetCompany;
+                        // Already committed, no need to re-commit unless user manually triggers
                     }
                     else
                     {
@@ -256,10 +263,13 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                         CompanyState = "—";
                         CompanyBooksDate = "—";
                     }
+                    _isUpdatingSelection = false;
                 }
                 else
                 {
+                    _isUpdatingSelection = true;
                     UpdateAvailableCompanies(companies, null);
+                    _isUpdatingSelection = false;
                     ActiveCompany = "—";
                     SelectedCompany = null;
                     StatusMessage = "Tally Connected (No open companies)";
@@ -331,12 +341,15 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 {
                     StatusMessage = "Connected to TallyPrime, but the company list could not be read.";
                     DiagnosticReport += $"\n✗ Connected to TallyPrime, but the company list could not be read.\nRetry Company Discovery\nView Diagnostic Details\nError: {queryError}";
+                    _isUpdatingSelection = true;
                     UpdateAvailableCompanies(companies, null);
+                    _isUpdatingSelection = false;
                 }
                 else if (companies.Count > 0)
                 {
                     var committedCompany = _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
                     string? targetCompany = null;
+                    _isUpdatingSelection = true;
                     if (!string.IsNullOrEmpty(committedCompany) && companies.Contains(committedCompany))
                     {
                         targetCompany = committedCompany;
@@ -358,13 +371,16 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                         CompanyState = "—";
                         CompanyBooksDate = "—";
                     }
+                    _isUpdatingSelection = false;
 
                     DiagnosticReport += $"\n✓ Company query completed. {companies.Count} company/companies returned.";
                     DiagnosticReport += "\n✓ Companies loaded into the application.";
                 }
                 else
                 {
+                    _isUpdatingSelection = true;
                     UpdateAvailableCompanies(companies, null);
+                    _isUpdatingSelection = false;
                     ActiveCompany = "—";
                     SelectedCompany = null;
                     StatusMessage = "Tally Connected (No open companies)";
@@ -428,7 +444,9 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
             {
                 StatusMessage = "Connected to TallyPrime, but the company list could not be read.";
                 DiagnosticReport += $"\n✗ Connected to TallyPrime, but the company list could not be read.\nRetry Company Discovery\nView Diagnostic Details\nError: {queryError}";
+                _isUpdatingSelection = true;
                 UpdateAvailableCompanies(companies, null);
+                _isUpdatingSelection = false;
             }
             else if (companies.Count > 0)
             {
@@ -436,6 +454,7 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 
                 var committedCompany = _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
                 string? targetCompany = null;
+                _isUpdatingSelection = true;
                 if (!string.IsNullOrEmpty(committedCompany) && companies.Contains(committedCompany))
                 {
                     targetCompany = committedCompany;
@@ -457,13 +476,16 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                     CompanyState = "—";
                     CompanyBooksDate = "—";
                 }
+                _isUpdatingSelection = false;
                 
                 DiagnosticReport += $"\n✓ Company query completed. {companies.Count} company/companies returned.";
                 DiagnosticReport += "\n✓ Companies loaded into the application.";
             }
             else
             {
+                _isUpdatingSelection = true;
                 UpdateAvailableCompanies(companies, null);
+                _isUpdatingSelection = false;
                 ActiveCompany = "—";
                 SelectedCompany = null;
                 StatusMessage = "Tally Connected (No open companies)";
@@ -517,36 +539,51 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
     async partial void OnSelectedCompanyChanged(string? value)
     {
-        // Dropdown selection is strictly transient. Committing and profile fetching are explicitly done via SelectAndSaveCompanyAsync.
-        await Task.CompletedTask;
+        if (_isUpdatingSelection || _isCommitting) return;
+
+        if (!string.IsNullOrEmpty(value))
+        {
+            _logger.LogInformation("[Company] User selected company from ComboBox: {Company}", value);
+            await CommitSelectedCompanyAsync();
+        }
     }
 
     [RelayCommand]
     private async Task SelectAndSaveCompanyAsync()
     {
+        await CommitSelectedCompanyAsync();
+    }
+
+    private async Task<bool> CommitSelectedCompanyAsync(CancellationToken cancellationToken = default)
+    {
         if (string.IsNullOrEmpty(SelectedCompany))
         {
             ValidationMessage = "Please select a valid company from the dropdown before committing.";
-            return;
+            return false;
         }
 
-        StatusMessage = $"Saving and committing company selection: {SelectedCompany}...";
+        if (_isCommitting) return false;
+        _isCommitting = true;
+
+        var companyToCommit = SelectedCompany.Trim();
+        StatusMessage = $"Saving and activating company: {companyToCommit}...";
         ValidationMessage = string.Empty;
+        _logger.LogInformation("[Company] Committing active company: {Company}", companyToCommit);
 
         try
         {
             // Explicitly set the active company in the context
-            await _companyContext.SetActiveCompanyNameAsync(SelectedCompany);
+            await _companyContext.SetActiveCompanyNameAsync(companyToCommit, cancellationToken);
 
             // Fetch profile and populate UI details
             var host = Host;
             var port = Port;
             var endpoint = (!string.IsNullOrEmpty(host) && port > 0) ? $"http://{host}:{port}" : null;
-            var profile = await _companyService.GetCompanyProfileTypedAsync(SelectedCompany, endpoint);
+            var profile = await _companyService.GetCompanyProfileTypedAsync(companyToCommit, endpoint, cancellationToken);
 
             if (profile != null)
             {
-                ActiveCompany = profile.Name ?? SelectedCompany;
+                ActiveCompany = profile.Name ?? companyToCommit;
                 CompanyGstin = profile.GSTIN ?? "Unregistered / Not Available";
                 CompanyState = profile.StateName ?? "—";
                 CompanyBooksDate = profile.BooksBeginningFrom.ToString("dd-MMM-yyyy");
@@ -556,26 +593,33 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
 
                 FinancialYear = $"FY {profile.BooksBeginningFrom.Year}-{(profile.BooksBeginningFrom.Year + 1) % 100:D2}";
 
-                await _settingsService.SetSettingAsync("FinancialYear", FinancialYear);
-                await _settingsService.SetSettingAsync("AuditPeriodFrom", FromDate.ToString("yyyy-MM-dd"));
-                await _settingsService.SetSettingAsync("AuditPeriodTo", ToDate.ToString("yyyy-MM-dd"));
+                await _settingsService.SetSettingAsync("FinancialYear", FinancialYear, cancellationToken);
+                await _settingsService.SetSettingAsync("AuditPeriodFrom", FromDate.ToString("yyyy-MM-dd"), cancellationToken);
+                await _settingsService.SetSettingAsync("AuditPeriodTo", ToDate.ToString("yyyy-MM-dd"), cancellationToken);
             }
             else
             {
-                ActiveCompany = SelectedCompany;
+                ActiveCompany = companyToCommit;
                 CompanyGstin = "Unregistered / Not Available";
                 CompanyState = "—";
                 CompanyBooksDate = "—";
             }
 
-            StatusMessage = "Company selection successfully committed!";
-            DiagnosticReport += $"\n✓ Committed active company to ActiveCompanyContext: {SelectedCompany}";
+            StatusMessage = "Company activated successfully!";
+            DiagnosticReport += $"\n✓ Committed and activated company: {companyToCommit}";
+            _logger.LogInformation("[Company] ActiveCompanyContext updated and company activated: {Company}", companyToCommit);
+            return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to commit active company: {Company}", SelectedCompany);
-            StatusMessage = $"Failed to commit company: {ex.Message}";
-            ValidationMessage = $"Error saving company: {ex.Message}";
+            _logger.LogError(ex, "Failed to commit active company: {Company}", companyToCommit);
+            StatusMessage = $"Failed to activate company: {ex.Message}";
+            ValidationMessage = $"Error activating company: {ex.Message}";
+            return false;
+        }
+        finally
+        {
+            _isCommitting = false;
         }
     }
 
@@ -661,12 +705,15 @@ ALL 5 TALLY INTEGRATION TEST SUITES PASSED.";
             output.AppendLine();
 
             // Stage 3: Selected company
-            output.AppendLine("Stage 3: Verifying Selected Company...");
-            var companyNameToTest = SelectedCompany ?? _companyContext.ActiveCompanyName ?? _companyContext.TallyCompanyName;
+            output.AppendLine("Stage 3: Verifying Active Company...");
+            var activeComp = await _companyContext.GetActiveCompanyAsync();
+            var companyNameToTest = activeComp?.TallyCompanyName;
+            
             if (string.IsNullOrWhiteSpace(companyNameToTest))
             {
-                output.AppendLine("⚠ WARNING: No company is selected in the UI. Falling back to first available company.");
-                companyNameToTest = openCompanies[0];
+                output.AppendLine("✗ FAIL: No active company has been selected and activated.");
+                TestRunnerOutput = output.ToString();
+                return;
             }
 
             output.AppendLine($"Target Company: '{companyNameToTest}'");

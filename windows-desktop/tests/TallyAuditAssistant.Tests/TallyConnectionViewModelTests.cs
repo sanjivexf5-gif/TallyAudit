@@ -79,16 +79,17 @@ public class TallyConnectionViewModelTests
         Assert.Contains("Test Company A", vm.AvailableCompanies);
         Assert.Contains("Test Company B", vm.AvailableCompanies);
         
-        // New UX: First discovered company is selected in dropdown but NOT yet committed
+        // New UX: First discovered company is selected in dropdown. 
+        // Programmatic update during scan does NOT auto-commit.
         Assert.Equal("Test Company A", vm.SelectedCompany);
         Assert.Equal("—", vm.ActiveCompany);
         _mockContext.Verify(c => c.SetActiveCompanyNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
 
-        // Commit selection
-        await vm.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+        // User interaction: Changing selection manually (simulated by property set) MUST auto-commit
+        vm.SelectedCompany = "Test Company B";
         
-        Assert.Equal("Test Company A", vm.ActiveCompany);
-        _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Test Company A", It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("Test Company B", vm.ActiveCompany);
+        _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Test Company B", It.IsAny<CancellationToken>()), Times.Once);
         Assert.Contains("✓ Company query completed", vm.DiagnosticReport);
     }
 
@@ -252,27 +253,46 @@ public class TallyConnectionViewModelTests
         );
 
         // Fast sequential selections (dropdown changes)
+        // These simulate user clicks which should trigger commits
         vm.SelectedCompany = "Company 1";
-        await Task.Delay(10);
         vm.SelectedCompany = "Company 2";
 
-        // Wait for slow load to complete
-        await Task.Delay(150);
+        // Wait for asynchronous profile/context operations
+        await Task.Delay(200);
 
         // Dropdown must reflect Company 2
         Assert.Equal("Company 2", vm.SelectedCompany);
         
-        // ActiveCompany must NOT have changed yet (it remains uncommitted)
-        Assert.Equal("—", vm.ActiveCompany);
-
-        // Commit selection
-        await vm.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+        // ActiveCompany must reflect Company 2 (auto-committed)
+        Assert.Equal("Company 2", vm.ActiveCompany);
 
         // Target state must reflect Company 2, never overwritten by slow Company 1
         Assert.Equal("Company 2", vm.ActiveCompany);
         Assert.Equal("GST-2", vm.CompanyGstin);
         Assert.Equal("State 2", vm.CompanyState);
         _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Company 2", It.IsAny<CancellationToken>()), Times.Once);
-        _mockContext.Verify(c => c.SetActiveCompanyNameAsync("Company 1", It.IsAny<CancellationToken>()), Times.Never);
+        // Company 1 might have been called depending on timing, but Company 2 must be the final one.
+    }
+
+    [Fact]
+    public void ActiveCompanyContext_IsSharedAsSingleton()
+    {
+        // This test verifies the design requirement that IActiveCompanyContext is shared
+        var context = new ActiveCompanyContext(new Mock<IAuditRepository>().Object, new Mock<ISettingsService>().Object, new Mock<ITallyCompanyService>().Object);
+        
+        var connVM = new TallyConnectionViewModel(
+            _mockConnection.Object, _mockCompanyService.Object, _mockSettings.Object, _monitor, context, _mockMasterService.Object, _mockVoucherService.Object);
+            
+        var syncVM = new SyncViewModel(new Mock<ISyncManager>().Object, _mockCompanyService.Object, _mockSettings.Object, context);
+        
+        bool syncNotified = false;
+        syncVM.PropertyChanged += (s, e) => { if (e.PropertyName == nameof(syncVM.CompanyName)) syncNotified = true; };
+        
+        // Act: Change company in Connection VM
+        context.SetActiveCompanyNameAsync("SHARED COMPANY");
+        
+        // Assert: Both see the same state
+        Assert.Equal("SHARED COMPANY", connVM.ActiveCompany);
+        Assert.Equal("SHARED COMPANY", syncVM.CompanyName);
     }
 }

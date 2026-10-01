@@ -213,19 +213,14 @@ public partial class MainWindowViewModel : ObservableObject
                 ConnectionStatusText = $"Connected (Port {_tallyConnection.ActiveEndpoint?.Port ?? 9000})";
                 ConnectionBadgeColor = "#10B981"; // Green
                 
-                if (!string.IsNullOrEmpty(_companyContext.ActiveCompanyName))
+                var currentActive = _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
+                if (!string.IsNullOrEmpty(currentActive))
                 {
-                    ActiveCompany = _companyContext.ActiveCompanyName;
-                }
-                else if (!string.IsNullOrEmpty(_tallyConnection.ActiveEndpoint?.ActiveCompany) &&
-                         _tallyConnection.ActiveEndpoint.ActiveCompany != "Active Tally Session")
-                {
-                    ActiveCompany = _tallyConnection.ActiveEndpoint.ActiveCompany;
-                    _ = _companyContext.SetActiveCompanyNameAsync(ActiveCompany);
+                    ActiveCompany = currentActive;
                 }
                 else
                 {
-                    _ = ResolveAndApplyActiveCompanyAsync();
+                    ActiveCompany = "No Company Selected";
                 }
                 break;
             case ConnectionStatus.Scanning:
@@ -244,35 +239,6 @@ public partial class MainWindowViewModel : ObservableObject
                     ActiveCompany = "No Company Selected";
                 }
                 break;
-        }
-    }
-
-    private async Task ResolveAndApplyActiveCompanyAsync()
-    {
-        var isMock = await _settingsService.IsMockModeEnabledAsync();
-        if (isMock)
-        {
-            var comp = await _companyContext.EnsureAndInitializeActiveCompanyAsync();
-            if (comp != null)
-            {
-                ActiveCompany = comp.TallyCompanyName;
-                return;
-            }
-        }
-        else
-        {
-            var fallback = await _companyService.GetActiveCompanyAsync();
-            if (!string.IsNullOrEmpty(fallback))
-            {
-                ActiveCompany = fallback;
-                await _companyContext.SetActiveCompanyNameAsync(fallback);
-                return;
-            }
-        }
-
-        if (string.IsNullOrEmpty(_companyContext.ActiveCompanyName))
-        {
-            ActiveCompany = "No Company Selected";
         }
     }
 }

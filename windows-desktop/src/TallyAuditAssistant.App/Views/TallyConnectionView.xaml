@@ -115,7 +115,19 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <ComboBox Grid.Column="0" ItemsSource="{Binding AvailableCompanies}" SelectedItem="{Binding SelectedCompany}" Padding="8" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}"/>
-                                <Button Grid.Column="1" Content="✓ Select &amp; Save Company" Command="{Binding SelectAndSaveCompanyCommand}" Margin="8,0,0,0" Padding="12,8" FontWeight="SemiBold" Background="#10B981" Foreground="White" BorderThickness="0" Cursor="Hand"/>
+                                <Button Grid.Column="1" Command="{Binding SelectAndSaveCompanyCommand}" Margin="8,0,0,0" Padding="12,8" FontWeight="SemiBold" Background="#10B981" Foreground="White" BorderThickness="0" Cursor="Hand">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Content" Value="✓ Save &amp; Activate Company"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCommitting}" Value="True">
+                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                    <Setter Property="Content" Value="Activating..."/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </Grid>
                         </StackPanel>
 
@@ -146,6 +158,18 @@
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="Registered GSTIN" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBlock Text="{Binding CompanyGstin}" FontWeight="Bold" Foreground="#38BDF8" FontSize="13" Margin="0,2,0,0"/>
+                            <TextBlock Text="Company activated successfully." Foreground="#10B981" FontSize="10" Margin="0,4,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding StatusMessage}" Value="Company activated successfully!">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
                         <StackPanel Grid.Column="1">
                             <TextBlock Text="Jurisdiction State" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
