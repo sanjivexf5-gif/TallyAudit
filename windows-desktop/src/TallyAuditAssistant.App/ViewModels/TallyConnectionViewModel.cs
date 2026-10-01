@@ -664,12 +664,6 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
                 CompanyBooksDate = "—";
             }
 
-            // Ensure ActiveCompanyContext contains the committed company
-            if (_companyContext.ActiveCompanyName != companyToCommit && _companyContext.TallyCompanyName != companyToCommit)
-            {
-                await _companyContext.SetActiveCompanyNameAsync(companyToCommit, cancellationToken);
-            }
-
             ValidationMessage = string.Empty;
             StatusMessage = "Company activated successfully!";
             DiagnosticReport += $"\n✓ Committed and activated company: {companyToCommit}";
