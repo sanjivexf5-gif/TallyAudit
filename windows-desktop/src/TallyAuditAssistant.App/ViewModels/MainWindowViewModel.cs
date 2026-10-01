@@ -98,35 +98,35 @@ public partial class MainWindowViewModel : ObservableObject
             }
         };
 
-        _companyContext.ActiveCompanyChanged += (s, comp) =>
-        {
-            void Update()
-            {
-                var compName = comp?.TallyCompanyName ?? _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
-                if (!string.IsNullOrEmpty(compName))
-                {
-                    ActiveCompany = compName;
-                }
-                else
-                {
-                    ActiveCompany = "No Company Selected";
-                }
-            }
-
-            if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
-            {
-                App.Current.Dispatcher.Invoke(Update);
-            }
-            else
-            {
-                Update();
-            }
-        };
+        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
 
         _tallyConnection.StatusChanged += OnTallyStatusChanged;
         UpdateStatusDisplay(_tallyConnection.CurrentStatus);
 
         _ = RefreshActiveCompanyAsync();
+    }
+
+    private void OnActiveCompanyChanged(object? sender, Company? company)
+    {
+        var companyName = company?.TallyCompanyName
+                          ?? _companyContext.TallyCompanyName
+                          ?? _companyContext.ActiveCompanyName;
+
+        void Update()
+        {
+            ActiveCompany = string.IsNullOrWhiteSpace(companyName)
+                ? "No Company Selected"
+                : companyName;
+        }
+
+        if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
+        {
+            App.Current.Dispatcher.Invoke(Update);
+        }
+        else
+        {
+            Update();
+        }
     }
 
     public async Task RefreshActiveCompanyAsync()
@@ -136,7 +136,17 @@ public partial class MainWindowViewModel : ObservableObject
         
         void Update()
         {
-            ActiveCompany = !string.IsNullOrEmpty(compName) ? compName : "No Company Selected";
+            var currentContextName = _companyContext.TallyCompanyName ?? _companyContext.ActiveCompanyName;
+            var resolved = !string.IsNullOrWhiteSpace(compName) ? compName : currentContextName;
+
+            if (!string.IsNullOrWhiteSpace(resolved))
+            {
+                ActiveCompany = resolved;
+            }
+            else
+            {
+                ActiveCompany = "No Company Selected";
+            }
         }
 
         if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())

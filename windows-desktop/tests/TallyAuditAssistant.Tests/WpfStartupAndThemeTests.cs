@@ -181,9 +181,15 @@ public class WpfStartupAndThemeTests
     {
         var appDir = FindAppDirectory();
         var appXamlCsPath = Path.Combine(appDir, "App.xaml.cs");
+        var regPath = Path.Combine(appDir, "Services", "ApplicationServiceRegistration.cs");
+        
         Assert.True(File.Exists(appXamlCsPath), $"App.xaml.cs not found at: {appXamlCsPath}");
+        Assert.True(File.Exists(regPath), $"ApplicationServiceRegistration.cs not found at: {regPath}");
 
-        var content = File.ReadAllText(appXamlCsPath);
+        var appContent = File.ReadAllText(appXamlCsPath);
+        Assert.Contains("AddApplicationServices", appContent);
+
+        var content = File.ReadAllText(regPath);
 
         // Core & Investigation registrations
         Assert.Contains("services.AddSingleton<IAuditTrailRepository, AuditTrailRepository>()", content);

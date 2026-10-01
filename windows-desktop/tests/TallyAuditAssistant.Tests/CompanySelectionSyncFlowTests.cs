@@ -590,6 +590,34 @@ public class CompanySelectionSyncFlowTests
     }
 
     [Fact]
+    public async Task MainWindowRefresh_DoesNotOverwriteCommittedCompany()
+    {
+        var services = new ServiceCollection();
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var dbPath = Path.Combine(Path.GetTempPath(), $"test_race_{Guid.NewGuid():N}.db");
+        services.AddApplicationServices(config, dbPath);
+
+        var provider = services.BuildServiceProvider();
+        var ctx = provider.GetRequiredService<IActiveCompanyContext>();
+        var mainVM = provider.GetRequiredService<MainWindowViewModel>();
+        var connVM = provider.GetRequiredService<TallyConnectionViewModel>();
+
+        // Trigger background refresh
+        var refreshTask = mainVM.RefreshActiveCompanyAsync();
+
+        // Commit company in parallel
+        connVM.SelectedCompany = "RAVI & CO.";
+        await connVM.SelectAndSaveCompanyCommand.ExecuteAsync(null);
+
+        // Await pending refresh
+        await refreshTask;
+
+        // Verify it was not overwritten with "No Company Selected"
+        Assert.Equal("RAVI & CO.", mainVM.ActiveCompany);
+        Assert.Equal("RAVI & CO.", ctx.ActiveCompanyName);
+    }
+
+    [Fact]
     public async Task CompanyChange_NoStaleCompanyRemains()
     {
         var dbPath = Path.Combine(Path.GetTempPath(), $"test_change_{Guid.NewGuid():N}.db");
