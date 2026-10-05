@@ -40,8 +40,8 @@ public class UserAuthenticationService : IUserAuthenticationService
         {
             _logger.LogWarning("Authentication failed: User {Username} not found or inactive.", username);
             await _auditTrailService.RecordActivityAsync(
-                action: "Login Failed",
-                category: "AUTHENTICATION",
+                actionType: "Login Failed",
+                module: "AUTHENTICATION",
                 description: $"Failed login attempt for username: {username} (Invalid credentials or inactive account)",
                 ct: ct);
 
@@ -53,8 +53,8 @@ public class UserAuthenticationService : IUserAuthenticationService
         {
             _logger.LogWarning("Authentication failed: Invalid password for user {Username}.", username);
             await _auditTrailService.RecordActivityAsync(
-                action: "Login Failed",
-                category: "AUTHENTICATION",
+                actionType: "Login Failed",
+                module: "AUTHENTICATION",
                 description: $"Failed login attempt for username: {username} (Invalid password)",
                 ct: ct);
 
@@ -75,8 +75,8 @@ public class UserAuthenticationService : IUserAuthenticationService
         _logger.LogInformation("User {Username} ({Role}) authenticated successfully.", user.Username, user.Role);
 
         await _auditTrailService.RecordActivityAsync(
-            action: "Login Succeeded",
-            category: "AUTHENTICATION",
+            actionType: "Login Succeeded",
+            module: "AUTHENTICATION",
             description: $"User {user.Username} logged in with role {user.Role}.",
             ct: ct);
 
@@ -105,8 +105,8 @@ public class UserAuthenticationService : IUserAuthenticationService
         {
             _logger.LogInformation("Password changed successfully for user {Username}.", user.Username);
             await _auditTrailService.RecordActivityAsync(
-                action: "Password Changed",
-                category: "AUTHENTICATION",
+                actionType: "Password Changed",
+                module: "AUTHENTICATION",
                 description: $"Password changed for user {user.Username}.",
                 ct: ct);
         }
@@ -135,8 +135,8 @@ public class UserAuthenticationService : IUserAuthenticationService
         _logger.LogInformation("Created new user {Username} with role {Role}.", user.Username, user.Role);
 
         await _auditTrailService.RecordActivityAsync(
-            action: "User Created",
-            category: "USER_MANAGEMENT",
+            actionType: "User Created",
+            module: "USER_MANAGEMENT",
             description: $"Created user {user.Username} with role {user.Role}.",
             ct: ct);
 
@@ -150,8 +150,8 @@ public class UserAuthenticationService : IUserAuthenticationService
         {
             _logger.LogInformation("Updated user profile for {Username}.", user.Username);
             await _auditTrailService.RecordActivityAsync(
-                action: "User Updated",
-                category: "USER_MANAGEMENT",
+                actionType: "User Updated",
+                module: "USER_MANAGEMENT",
                 description: $"Updated profile for user {user.Username} (Role: {user.Role}, Active: {user.IsActive}).",
                 ct: ct);
         }
@@ -174,8 +174,8 @@ public class UserAuthenticationService : IUserAuthenticationService
         {
             _logger.LogInformation("User {Username} logged out.", _currentSession.User.Username);
             _auditTrailService.RecordActivityAsync(
-                action: "Logout",
-                category: "AUTHENTICATION",
+                actionType: "Logout",
+                module: "AUTHENTICATION",
                 description: $"User {_currentSession.User.Username} logged out.").ConfigureAwait(false);
 
             _currentSession.IsActive = false;

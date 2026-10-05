@@ -121,8 +121,8 @@ public class LicenseService : ILicenseService
         _secureStorage.SetSecret(LicenseStorageKey, token);
 
         await _auditTrailService.RecordActivityAsync(
-            action: "LICENSE_ACTIVATION",
-            category: "SYSTEM",
+            actionType: "LICENSE_ACTIVATION",
+            module: "SYSTEM",
             description: $"Application successfully activated with {type} license key.",
             ct: ct);
 
@@ -172,8 +172,8 @@ public class LicenseService : ILicenseService
         _secureStorage.SetSecret(LicenseStorageKey, token);
 
         await _auditTrailService.RecordActivityAsync(
-            action: "TRIAL_ACTIVATION",
-            category: "SYSTEM",
+            actionType: "TRIAL_ACTIVATION",
+            module: "SYSTEM",
             description: $"14-day evaluation trial started for {organizationName} ({contactEmail}).",
             ct: ct);
 
