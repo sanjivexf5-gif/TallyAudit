@@ -214,7 +214,7 @@ public class AuditRepository : IAuditRepository
             var actionType = newStatus switch
             {
                 ReviewStatus.Reviewed => "Finding marked reviewed",
-                ReviewStatus.Accepted => "Finding accepted",
+                ReviewStatus.FlaggedAsFalsePositive => "Finding marked false positive",
                 ReviewStatus.Resolved => "Finding resolved",
                 ReviewStatus.RequiresClientClarification => "Finding investigated",
                 _ => "Finding marked reviewed"

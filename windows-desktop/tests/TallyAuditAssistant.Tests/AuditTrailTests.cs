@@ -353,4 +353,36 @@ public class AuditTrailTests : IAsyncLifetime
         Assert.Contains(entriesAfterChange, e => e.ActionType == "Company changed" && e.CompanyName == "Company Beta LLP");
         Assert.Equal("Company Alpha Pvt Ltd", entriesAfterChange.First(e => e.ActionType == "Company changed").PreviousState);
     }
+
+    [Fact]
+    public async Task UpdateExceptionStatus_PersistsAndLogsValidReviewStatuses()
+    {
+        var auditRepo = new AuditRepository(_factory, _service);
+        var resultRepo = new AuditResultRepository(_factory, NullLogger<AuditResultRepository>.Instance);
+
+        var result = new AuditResult
+        {
+            ResultId = "RES-STATUS-101",
+            CompanyId = "Company Alpha Pvt Ltd",
+            RuleId = "GST-001",
+            RuleName = "Missing GSTIN",
+            Category = RuleCategory.GST,
+            Severity = SeverityLevel.High,
+            Explanation = "GSTIN missing",
+            Status = ReviewStatus.Pending
+        };
+
+        await resultRepo.SaveResultsBatchAsync(new[] { result });
+
+        // Update to Resolved (equivalent to accepted)
+        await auditRepo.UpdateExceptionStatusAsync("RES-STATUS-101", ReviewStatus.Resolved, "Auditor accepted resolution");
+
+        var exceptions = await auditRepo.GetExceptionsFilteredAsync("Company Alpha Pvt Ltd");
+        var exc = Assert.Single(exceptions);
+        Assert.Equal(ReviewStatus.Resolved, exc.Status);
+        Assert.Equal("Auditor accepted resolution", exc.AuditorNote);
+
+        var trail = await _service.GetEntriesAsync(companyName: "Company Alpha Pvt Ltd");
+        Assert.Contains(trail, e => e.ActionType == "Finding resolved" && e.EntityId == "RES-STATUS-101");
+    }
 }
