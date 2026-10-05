@@ -13,4 +13,6 @@ public interface IAuditAssistantService
     Task<string> DraftWorkingPaperRemarkAsync(AuditException exception, CancellationToken cancellationToken = default);
     Task<string> ExplainReconciliationAsync(AuditException exception, CancellationToken cancellationToken = default);
     Task<string> SummarizeAuditRunAsync(int transactionsAudited, int rulesExecuted, int findings, int highPriority, int reviewRequired, string additionalStatsJson, CancellationToken cancellationToken = default);
+    Task<string> GenerateRiskSummaryAsync(AuditDashboardSummary summary, CancellationToken cancellationToken = default);
+    Task<string> SuggestInvestigationFocusAsync(AuditDashboardSummary summary, CancellationToken cancellationToken = default);
 }

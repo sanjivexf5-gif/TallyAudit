@@ -12,6 +12,7 @@ public interface ISyncManager
     
     event EventHandler<SyncMetrics>? ProgressChanged;
     event EventHandler<string>? SyncLogEmitted;
+    event EventHandler<SyncResult>? SyncCompleted;
 
     Task<SyncResult> StartSyncAsync(string companyName, SyncMode mode, CancellationToken cancellationToken = default);
     Task PauseAsync();

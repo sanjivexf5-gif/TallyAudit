@@ -34,6 +34,7 @@ public class SyncManager : ISyncManager
 
     public event EventHandler<SyncMetrics>? ProgressChanged;
     public event EventHandler<string>? SyncLogEmitted;
+    public event EventHandler<SyncResult>? SyncCompleted;
 
     public SyncManager(
         ITallyConnection connection,
@@ -351,7 +352,7 @@ public class SyncManager : ISyncManager
             SetStage(SyncStage.Complete, "Synchronization completed successfully!");
             EmitLog($"Sync finished in {stopwatch.Elapsed:mm\\:ss}. {CurrentMetrics.RecordsProcessed} records stored.");
 
-            return new SyncResult(
+            var syncResult = new SyncResult(
                 IsSuccess: true,
                 Mode: mode,
                 TotalProcessed: CurrentMetrics.RecordsProcessed,
@@ -360,6 +361,17 @@ public class SyncManager : ISyncManager
                 Skipped: CurrentMetrics.RecordsSkipped,
                 Errors: CurrentMetrics.Errors,
                 Duration: stopwatch.Elapsed);
+
+            try
+            {
+                SyncCompleted?.Invoke(this, syncResult);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error while notifying SyncCompleted subscribers");
+            }
+
+            return syncResult;
         }
         catch (OperationCanceledException)
         {
