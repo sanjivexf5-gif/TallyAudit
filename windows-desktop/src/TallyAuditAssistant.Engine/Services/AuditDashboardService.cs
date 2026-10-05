@@ -313,7 +313,7 @@ public class AuditDashboardService : IAuditDashboardService
         {
             try
             {
-                var investigations = await _investigationRepository.GetByCompanyIdAsync(companyId, cancellationToken: cancellationToken);
+                var investigations = await _investigationRepository.GetByCompanyIdAsync(companyId, ct: cancellationToken);
                 foreach (var inv in investigations)
                 {
                     if (!string.IsNullOrWhiteSpace(inv.LinkedWorkingPaperIds))
