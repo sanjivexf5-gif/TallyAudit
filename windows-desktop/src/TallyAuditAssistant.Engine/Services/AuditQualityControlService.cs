@@ -224,11 +224,11 @@ public class AuditQualityControlService : IAuditQualityControlService
         };
 
         await _auditTrailService.RecordActivityAsync(
-            "QCCheckGenerated",
-            "QC_DASHBOARD",
-            $"Quality control checks generated for company {companyId}, period {financialPeriodId}.",
-            companyId,
-            financialPeriodId,
+            actionType: "QCCheckGenerated",
+            module: "QC_DASHBOARD",
+            description: $"Quality control checks generated for company {companyId}, period {financialPeriodId}.",
+            companyName: companyId,
+            financialYear: financialPeriodId,
             ct: cancellationToken
         );
 

@@ -72,14 +72,14 @@ public class InvestigationService : IInvestigationService
         await _investigationRepository.SaveInvestigationAsync(investigation, ct);
 
         await _auditTrailService.RecordActivityAsync(
-            action: "InvestigationCreated",
-            category: "INVESTIGATION",
+            actionType: "InvestigationCreated",
+            module: "INVESTIGATION",
             description: $"Investigation opened for exception {exceptionId} by {username}",
-            companyId: companyId,
-            financialPeriodId: financialPeriodId,
+            companyName: companyId,
+            financialYear: financialPeriodId,
             entityType: "ExceptionInvestigation",
             entityId: investigation.Id,
-            metadataJson: $"{{\"exceptionId\":\"{exceptionId}\",\"status\":\"{investigation.Status}\"}}",
+            details: $"{{\"exceptionId\":\"{exceptionId}\",\"status\":\"{investigation.Status}\"}}",
             ct: ct
         );
 
@@ -178,14 +178,16 @@ public class InvestigationService : IInvestigationService
         await _investigationRepository.UpdateStatusAsync(investigationId, newStatus, username, closedAt, ct);
 
         await _auditTrailService.RecordActivityAsync(
-            action: "InvestigationStatusChanged",
-            category: "INVESTIGATION",
+            actionType: "InvestigationStatusChanged",
+            module: "INVESTIGATION",
             description: $"Investigation {investigationId} transitioned from {oldStatus} to {newStatus}. Reason: {reason ?? "Status updated by auditor"}",
-            companyId: investigation.CompanyId,
-            financialPeriodId: investigation.FinancialPeriodId,
+            companyName: investigation.CompanyId,
+            financialYear: investigation.FinancialPeriodId,
             entityType: "ExceptionInvestigation",
             entityId: investigation.Id,
-            metadataJson: $"{{\"from\":\"{oldStatus}\",\"to\":\"{newStatus}\",\"reason\":\"{reason}\"}}",
+            previousState: oldStatus.ToString(),
+            newState: newStatus.ToString(),
+            details: $"{{\"from\":\"{oldStatus}\",\"to\":\"{newStatus}\",\"reason\":\"{reason}\"}}",
             ct: ct
         );
 
@@ -219,14 +221,14 @@ public class InvestigationService : IInvestigationService
         await _investigationRepository.UpdateInvestigationAsync(investigation, ct);
 
         await _auditTrailService.RecordActivityAsync(
-            action: "InvestigationUpdated",
-            category: "INVESTIGATION",
+            actionType: "InvestigationUpdated",
+            module: "INVESTIGATION",
             description: $"Investigation {investigation.Id} updated by {username}. Root cause: {investigation.RootCause}",
-            companyId: investigation.CompanyId,
-            financialPeriodId: investigation.FinancialPeriodId,
+            companyName: investigation.CompanyId,
+            financialYear: investigation.FinancialPeriodId,
             entityType: "ExceptionInvestigation",
             entityId: investigation.Id,
-            metadataJson: $"{{\"rootCause\":\"{investigation.RootCause}\",\"status\":\"{investigation.Status}\"}}",
+            details: $"{{\"rootCause\":\"{investigation.RootCause}\",\"status\":\"{investigation.Status}\"}}",
             ct: ct
         );
     }
@@ -253,14 +255,16 @@ public class InvestigationService : IInvestigationService
         await _investigationRepository.UpdateInvestigationAsync(investigation, ct);
 
         await _auditTrailService.RecordActivityAsync(
-            action: "ConclusionChanged",
-            category: "INVESTIGATION",
+            actionType: "ConclusionChanged",
+            module: "INVESTIGATION",
             description: $"Investigation {investigationId} conclusion changed from {oldConclusion} to {conclusion}. Notes: {notes ?? "None"}",
-            companyId: investigation.CompanyId,
-            financialPeriodId: investigation.FinancialPeriodId,
+            companyName: investigation.CompanyId,
+            financialYear: investigation.FinancialPeriodId,
             entityType: "ExceptionInvestigation",
             entityId: investigation.Id,
-            metadataJson: $"{{\"from\":\"{oldConclusion}\",\"to\":\"{conclusion}\",\"notes\":\"{notes}\"}}",
+            previousState: oldConclusion.ToString(),
+            newState: conclusion.ToString(),
+            details: $"{{\"from\":\"{oldConclusion}\",\"to\":\"{conclusion}\",\"notes\":\"{notes}\"}}",
             ct: ct
         );
     }
@@ -288,14 +292,14 @@ public class InvestigationService : IInvestigationService
             await _investigationRepository.UpdateInvestigationAsync(investigation, ct);
 
             await _auditTrailService.RecordActivityAsync(
-                action: "EvidenceLinked",
-                category: "INVESTIGATION",
+                actionType: "EvidenceLinked",
+                module: "INVESTIGATION",
                 description: $"Audit evidence {evidenceId} linked to investigation {investigationId} by {username}",
-                companyId: investigation.CompanyId,
-                financialPeriodId: investigation.FinancialPeriodId,
+                companyName: investigation.CompanyId,
+                financialYear: investigation.FinancialPeriodId,
                 entityType: "ExceptionInvestigation",
                 entityId: investigation.Id,
-                metadataJson: $"{{\"evidenceId\":\"{evidenceId}\"}}",
+                details: $"{{\"evidenceId\":\"{evidenceId}\"}}",
                 ct: ct
             );
         }
@@ -324,14 +328,14 @@ public class InvestigationService : IInvestigationService
             await _investigationRepository.UpdateInvestigationAsync(investigation, ct);
 
             await _auditTrailService.RecordActivityAsync(
-                action: "WorkingPaperLinked",
-                category: "INVESTIGATION",
+                actionType: "WorkingPaperLinked",
+                module: "INVESTIGATION",
                 description: $"Working paper {workingPaperId} linked to investigation {investigationId} by {username}",
-                companyId: investigation.CompanyId,
-                financialPeriodId: investigation.FinancialPeriodId,
+                companyName: investigation.CompanyId,
+                financialYear: investigation.FinancialPeriodId,
                 entityType: "ExceptionInvestigation",
                 entityId: investigation.Id,
-                metadataJson: $"{{\"workingPaperId\":\"{workingPaperId}\"}}",
+                details: $"{{\"workingPaperId\":\"{workingPaperId}\"}}",
                 ct: ct
             );
         }
@@ -356,8 +360,8 @@ public class InvestigationService : IInvestigationService
         await _investigationRepository.UpdateChecklistItemAsync(item, ct);
 
         await _auditTrailService.RecordActivityAsync(
-            action: "InvestigationChecklistUpdated",
-            category: "INVESTIGATION",
+            actionType: "InvestigationChecklistUpdated",
+            module: "INVESTIGATION",
             description: $"Checklist item {itemId} set to {(isCompleted ? "Completed" : "Incomplete")} by {username}",
             entityType: "InvestigationChecklistItem",
             entityId: itemId,

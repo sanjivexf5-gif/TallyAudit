@@ -37,11 +37,11 @@ public class AuditFinalizationService : IAuditFinalizationService
             await InitializeDefaultChecklistAsync(state.Id, cancellationToken);
             
             await _auditTrailService.RecordActivityAsync(
-                "AuditCreated",
-                "AUDIT_LIFECYCLE",
-                $"Audit workflow initiated for company {companyId}, period {financialPeriodId}",
-                companyId,
-                financialPeriodId,
+                actionType: "AuditCreated",
+                module: "AUDIT_LIFECYCLE",
+                description: $"Audit workflow initiated for company {companyId}, period {financialPeriodId}",
+                companyName: companyId,
+                financialYear: financialPeriodId,
                 ct: cancellationToken
             );
         }
@@ -70,13 +70,15 @@ public class AuditFinalizationService : IAuditFinalizationService
         await _repository.SaveStateAsync(state, cancellationToken);
 
         await _auditTrailService.RecordActivityAsync(
-            "AuditStatusUpdated",
-            "AUDIT_LIFECYCLE",
-            $"Audit workflow state transitioned from {originalStatus} to {status} by {user}. Note: {comments ?? "None"}",
-            state.CompanyId,
-            state.FinancialPeriodId,
-            "AuditFinalizationState",
-            state.Id,
+            actionType: "AuditStatusUpdated",
+            module: "AUDIT_LIFECYCLE",
+            description: $"Audit workflow state transitioned from {originalStatus} to {status} by {user}. Note: {comments ?? "None"}",
+            companyName: state.CompanyId,
+            financialYear: state.FinancialPeriodId,
+            entityType: "AuditFinalizationState",
+            entityId: state.Id,
+            previousState: originalStatus.ToString(),
+            newState: status.ToString(),
             ct: cancellationToken
         );
     }
@@ -96,11 +98,11 @@ public class AuditFinalizationService : IAuditFinalizationService
         await _repository.SaveStateAsync(state, cancellationToken);
 
         await _auditTrailService.RecordActivityAsync(
-            "AuditSubmittedForReview",
-            "AUDIT_LIFECYCLE",
-            $"Audit submitted for review by {auditor} to {reviewer}.",
-            state.CompanyId,
-            state.FinancialPeriodId,
+            actionType: "AuditSubmittedForReview",
+            module: "AUDIT_LIFECYCLE",
+            description: $"Audit submitted for review by {auditor} to {reviewer}.",
+            companyName: state.CompanyId,
+            financialYear: state.FinancialPeriodId,
             ct: cancellationToken
         );
     }
@@ -116,11 +118,11 @@ public class AuditFinalizationService : IAuditFinalizationService
         await _repository.SaveStateAsync(state, cancellationToken);
 
         await _auditTrailService.RecordActivityAsync(
-            "AuditReturned",
-            "AUDIT_LIFECYCLE",
-            $"Audit returned by reviewer {reviewer} with comments: {comment}",
-            state.CompanyId,
-            state.FinancialPeriodId,
+            actionType: "AuditReturned",
+            module: "AUDIT_LIFECYCLE",
+            description: $"Audit returned by reviewer {reviewer} with comments: {comment}",
+            companyName: state.CompanyId,
+            financialYear: state.FinancialPeriodId,
             ct: cancellationToken
         );
     }
@@ -136,11 +138,11 @@ public class AuditFinalizationService : IAuditFinalizationService
         await _repository.SaveStateAsync(state, cancellationToken);
 
         await _auditTrailService.RecordActivityAsync(
-            "AuditApprovedByReviewer",
-            "AUDIT_LIFECYCLE",
-            $"Audit approved for finalization by reviewer {reviewer}.",
-            state.CompanyId,
-            state.FinancialPeriodId,
+            actionType: "AuditApprovedByReviewer",
+            module: "AUDIT_LIFECYCLE",
+            description: $"Audit approved for finalization by reviewer {reviewer}.",
+            companyName: state.CompanyId,
+            financialYear: state.FinancialPeriodId,
             ct: cancellationToken
         );
     }
@@ -169,11 +171,11 @@ public class AuditFinalizationService : IAuditFinalizationService
         await _repository.SaveStateAsync(state, cancellationToken);
 
         await _auditTrailService.RecordActivityAsync(
-            "AuditFinalized",
-            "AUDIT_LIFECYCLE",
-            $"Audit file permanently finalized as Read-Only by {user}.",
-            state.CompanyId,
-            state.FinancialPeriodId,
+            actionType: "AuditFinalized",
+            module: "AUDIT_LIFECYCLE",
+            description: $"Audit file permanently finalized as Read-Only by {user}.",
+            companyName: state.CompanyId,
+            financialYear: state.FinancialPeriodId,
             ct: cancellationToken
         );
     }
@@ -205,11 +207,11 @@ public class AuditFinalizationService : IAuditFinalizationService
         await _repository.SaveAmendmentAsync(amendment, cancellationToken);
 
         await _auditTrailService.RecordActivityAsync(
-            "AuditReopened",
-            "AUDIT_LIFECYCLE",
-            $"Audit reopened by {user} for amendment. Reason: {reason}",
-            state.CompanyId,
-            state.FinancialPeriodId,
+            actionType: "AuditReopened",
+            module: "AUDIT_LIFECYCLE",
+            description: $"Audit reopened by {user} for amendment. Reason: {reason}",
+            companyName: state.CompanyId,
+            financialYear: state.FinancialPeriodId,
             ct: cancellationToken
         );
     }

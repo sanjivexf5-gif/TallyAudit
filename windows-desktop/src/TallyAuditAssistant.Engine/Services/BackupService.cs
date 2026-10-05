@@ -108,8 +108,8 @@ public class BackupService : IBackupService
         await _backupRepository.InsertAsync(metadata, ct);
 
         await _auditTrailService.RecordActivityAsync(
-            action: "Database Backup Created",
-            category: "BACKUP_RESTORE",
+            actionType: "Database Backup Created",
+            module: "BACKUP_RESTORE",
             description: $"Backup created: {backupFileName} (Size: {fileInfo.Length / 1024} KB, Checksum: {checksum[..12]}...)",
             ct: ct);
 
@@ -139,8 +139,8 @@ public class BackupService : IBackupService
         File.Move(tempRestorePath, _databaseFilePath, overwrite: true);
 
         await _auditTrailService.RecordActivityAsync(
-            action: "Database Restored",
-            category: "BACKUP_RESTORE",
+            actionType: "Database Restored",
+            module: "BACKUP_RESTORE",
             description: $"Database restored from backup file: {Path.GetFileName(backupFilePath)}",
             ct: ct);
 

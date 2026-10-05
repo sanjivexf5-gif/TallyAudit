@@ -24,17 +24,6 @@ public interface IAuditTrailService
         string? financialYear = null,
         CancellationToken ct = default);
 
-    Task RecordActivityAsync(
-        string action,
-        string category,
-        string description,
-        string? companyId = null,
-        string? financialPeriodId = null,
-        string? entityType = null,
-        string? entityId = null,
-        string? metadataJson = null,
-        CancellationToken ct = default);
-
     Task<IReadOnlyList<AuditTrailEntry>> GetEntriesAsync(
         string? searchTerm = null,
         DateTime? fromUtc = null,
@@ -55,4 +44,5 @@ public interface IAuditTrailService
     Task<byte[]> ExportToExcelAsync(IReadOnlyList<AuditTrailEntry> entries, CancellationToken ct = default);
     Task<byte[]> ExportToPdfAsync(IReadOnlyList<AuditTrailEntry> entries, CancellationToken ct = default);
 }
+
 

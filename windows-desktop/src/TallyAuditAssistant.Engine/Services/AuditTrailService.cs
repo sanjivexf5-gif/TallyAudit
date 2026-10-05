@@ -67,7 +67,7 @@ public class AuditTrailService : IAuditTrailService
                 : _companyContext?.ActiveFinancialYear;
 
             // Sanitize sensitive strings
-            var sanitizedDescription = Sanitize(description);
+            var sanitizedDescription = Sanitize(description) ?? string.Empty;
             var sanitizedDetails = Sanitize(details);
             var sanitizedPrevState = Sanitize(previousState);
             var sanitizedNewState = Sanitize(newState);
@@ -106,31 +106,6 @@ public class AuditTrailService : IAuditTrailService
             // The primary audit operation remains authoritative; do not fail caller
             _logger.LogError(ex, "Failed to persist audit trail record for action '{ActionType}' in module '{Module}'.", actionType, module);
         }
-    }
-
-    public Task RecordActivityAsync(
-        string action,
-        string category,
-        string description,
-        string? companyId = null,
-        string? financialPeriodId = null,
-        string? entityType = null,
-        string? entityId = null,
-        string? metadataJson = null,
-        CancellationToken ct = default)
-    {
-        return RecordActivityAsync(
-            actionType: action,
-            module: category,
-            description: description,
-            entityType: entityType,
-            entityId: entityId,
-            previousState: null,
-            newState: null,
-            details: metadataJson,
-            companyName: companyId,
-            financialYear: financialPeriodId,
-            ct: ct);
     }
 
     public Task<IReadOnlyList<AuditTrailEntry>> GetEntriesAsync(
