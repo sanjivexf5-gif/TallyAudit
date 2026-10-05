@@ -380,7 +380,8 @@ public class DatabaseInitializer : IDatabaseInitializer
                 Description TEXT NOT NULL,
                 Details TEXT,
                 ApplicationVersion TEXT NOT NULL,
-                MachineName TEXT NOT NULL
+                MachineName TEXT NOT NULL,
+                IntegrityHash TEXT
             );
 
             -- 9. Performance Indexes
@@ -405,6 +406,16 @@ public class DatabaseInitializer : IDatabaseInitializer
         ";
 
         await connection.ExecuteAsync(new CommandDefinition(schemaSql, cancellationToken: cancellationToken));
+
+        // Backward-compatible migration for databases created before IntegrityHash was added.
+        try
+        {
+            await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN IntegrityHash TEXT;", cancellationToken: cancellationToken));
+        }
+        catch
+        {
+            // Column already exists.
+        }
 
         try
         {
