@@ -217,19 +217,18 @@
                                 <TextBlock Text="{Binding SelectedEntry.Module}" Foreground="White" FontWeight="SemiBold" Margin="0,0,0,8"/>
 
                                 <TextBlock Text="User &amp; Machine:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
-                                <TextBlock Text="{Binding SelectedEntry.UserName, StringFormat='{0} (Machine: '}" Foreground="White" Margin="0,0,0,8">
-                                    <TextBlock.Inlines>
-                                        <Run Text="{Binding SelectedEntry.MachineName}"/>
-                                        <Run Text=")"/>
-                                    </TextBlock.Inlines>
+                                <TextBlock Foreground="White" Margin="0,0,0,8">
+                                    <Run Text="{Binding SelectedEntry.UserName, Mode=OneWay}"/>
+                                    <Run Text=" (Machine: "/>
+                                    <Run Text="{Binding SelectedEntry.MachineName, Mode=OneWay}"/>
+                                    <Run Text=")"/>
                                 </TextBlock>
 
                                 <TextBlock Text="Company / Financial Year:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
-                                <TextBlock Text="{Binding SelectedEntry.CompanyName, TargetNullValue='(None)'}" Foreground="White" Margin="0,0,0,8">
-                                    <TextBlock.Inlines>
-                                        <Run Text=" / "/>
-                                        <Run Text="{Binding SelectedEntry.FinancialYear, TargetNullValue='(No FY)'}"/>
-                                    </TextBlock.Inlines>
+                                <TextBlock Foreground="White" Margin="0,0,0,8">
+                                    <Run Text="{Binding SelectedEntry.CompanyName, TargetNullValue='(None)', Mode=OneWay}"/>
+                                    <Run Text=" / "/>
+                                    <Run Text="{Binding SelectedEntry.FinancialYear, TargetNullValue='(No FY)', Mode=OneWay}"/>
                                 </TextBlock>
 
                                 <TextBlock Text="Application Version:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
