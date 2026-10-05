@@ -188,7 +188,7 @@
                     BorderBrush="{StaticResource BorderBrush}" 
                     BorderThickness="1,0,0,0" 
                     Padding="16"
-                    Visibility="{Binding IsDetailsOpen, Converter={x:Static BooleanToVisibilityConverter.Instance}, FallbackValue=Collapsed}">
+                    Visibility="{Binding IsDetailsOpen, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                         <!-- Panel Header -->
