@@ -23,7 +23,6 @@ public interface IAuditTrailRepository
         string? userName = null,
         int limit = 1000,
         CancellationToken ct = default);
-    Task<IReadOnlyList<AuditTrailEntry>> GetEntriesAsync(string? companyId = null, string? financialPeriodId = null, int limit = 100, CancellationToken ct = default);
 }
 
 public class AuditTrailRepository : IAuditTrailRepository
@@ -161,18 +160,5 @@ public class AuditTrailRepository : IAuditTrailRepository
         return results.ToList();
     }
 
-    public async Task<IReadOnlyList<AuditTrailEntry>> GetEntriesAsync(string? companyId = null, string? financialPeriodId = null, int limit = 100, CancellationToken ct = default)
-    {
-        return await GetEntriesAsync(
-            searchTerm: null,
-            fromUtc: null,
-            toUtc: null,
-            companyName: companyId,
-            module: null,
-            actionType: null,
-            userName: null,
-            limit: limit,
-            ct: ct);
-    }
 }
 
