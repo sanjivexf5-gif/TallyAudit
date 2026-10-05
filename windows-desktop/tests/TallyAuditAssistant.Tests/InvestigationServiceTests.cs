@@ -107,7 +107,6 @@ public class InvestigationServiceTests : IAsyncLifetime
             null,
             compId,
             null,
-            null,
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
