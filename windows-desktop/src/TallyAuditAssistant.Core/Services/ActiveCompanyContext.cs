@@ -473,7 +473,7 @@ public class ActiveCompanyContext : IActiveCompanyContext
             _currentCompany = saved ?? companyToEnsure;
             _currentPeriod = CreatePeriodForCompany(_currentCompany);
 
-            await _settingsService.SetSettingAsync("ActiveCompany", saved.TallyCompanyName, cancellationToken);
+            await _settingsService.SetSettingAsync("ActiveCompany", _currentCompany.TallyCompanyName, cancellationToken);
             var fy = _currentPeriod.FinancialYear;
             await _settingsService.SetSettingAsync("FinancialYear", fy, cancellationToken);
             await _settingsService.SetSettingAsync("FinancialPeriodId", _currentPeriod.FinancialPeriodId, cancellationToken);
