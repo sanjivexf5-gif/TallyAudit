@@ -25,10 +25,11 @@ public class NavigationMappingTests
             ["Exceptions"] = ("ExceptionsViewModel", "ExceptionsView"),
             ["Reports"] = ("ReportsViewModel", "ReportsView"),
             ["Settings"] = ("SettingsViewModel", "SettingsView"),
+            ["AuditTrail"] = ("AuditTrailViewModel", "AuditTrailView"),
         };
 
     [Fact]
-    public void VerifyMainWindowXamlSidebarContainsAllTwelveNavigationRoutes()
+    public void VerifyMainWindowXamlSidebarContainsAllThirteenNavigationRoutes()
     {
         var appDir = FindAppDirectory();
         var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
@@ -41,7 +42,7 @@ public class NavigationMappingTests
                         (e.Attribute("Command")?.Value.Contains("NavigateCommand") ?? false))
             .ToList();
 
-        Assert.Equal(12, buttons.Count);
+        Assert.Equal(13, buttons.Count);
 
         var registeredSections = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -66,7 +67,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyMainWindowXamlDataTemplatesMapAllTwelveViewModelsToCorrectViews()
+    public void VerifyMainWindowXamlDataTemplatesMapAllThirteenViewModelsToCorrectViews()
     {
         var appDir = FindAppDirectory();
         var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
@@ -76,7 +77,7 @@ public class NavigationMappingTests
             .Where(e => e.Name.LocalName == "DataTemplate" && e.Attribute("DataType") != null)
             .ToList();
 
-        Assert.True(dataTemplates.Count >= 12, $"Expected at least 12 DataTemplates, found {dataTemplates.Count}");
+        Assert.True(dataTemplates.Count >= 13, $"Expected at least 13 DataTemplates, found {dataTemplates.Count}");
 
         foreach (var kvp in ExpectedNavigationMappings)
         {
@@ -157,7 +158,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyMainWindowViewModelSourceCodeContainsCompleteTwelveSectionRouting()
+    public void VerifyMainWindowViewModelSourceCodeContainsCompleteThirteenSectionRouting()
     {
         var appDir = FindAppDirectory();
         var vmPath = Path.Combine(appDir, "ViewModels", "MainWindowViewModel.cs");
@@ -178,7 +179,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyAllTwelveViewAndViewModelFilesExistPhysicallyOnDisk()
+    public void VerifyAllThirteenViewAndViewModelFilesExistPhysicallyOnDisk()
     {
         var appDir = FindAppDirectory();
 
