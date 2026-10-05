@@ -44,13 +44,13 @@ public class AuditTrailRepository : IAuditTrailRepository
                 Id, TimestampUtc, UserName, ActionType, Module, 
                 CompanyName, FinancialYear, EntityType, EntityId, 
                 PreviousState, NewState, Description, Details, 
-                ApplicationVersion, MachineName
+                ApplicationVersion, MachineName, IntegrityHash
             )
             VALUES (
                 @Id, @TimestampUtc, @UserName, @ActionType, @Module, 
                 @CompanyName, @FinancialYear, @EntityType, @EntityId, 
                 @PreviousState, @NewState, @Description, @Details, 
-                @ApplicationVersion, @MachineName
+                @ApplicationVersion, @MachineName, @IntegrityHash
             );";
 
         var rows = await connection.ExecuteAsync(new CommandDefinition(sql, new
@@ -69,7 +69,8 @@ public class AuditTrailRepository : IAuditTrailRepository
             entry.Description,
             entry.Details,
             entry.ApplicationVersion,
-            entry.MachineName
+            entry.MachineName,
+            entry.IntegrityHash
         }, cancellationToken: ct));
 
         return rows > 0;
@@ -94,7 +95,7 @@ public class AuditTrailRepository : IAuditTrailRepository
                 Id, TimestampUtc, UserName, ActionType, Module,
                 CompanyName, FinancialYear, EntityType, EntityId,
                 PreviousState, NewState, Description, Details,
-                ApplicationVersion, MachineName
+                ApplicationVersion, MachineName, IntegrityHash
             FROM AuditTrail
             WHERE 1=1 ");
 
