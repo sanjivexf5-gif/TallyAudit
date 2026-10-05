@@ -104,7 +104,9 @@ public class InvestigationServiceTests : IAsyncLifetime
             inv.Id,
             null,
             It.IsAny<string>(),
+            null,
             compId,
+            null,
             null,
             It.IsAny<CancellationToken>()), Times.Once);
     }
