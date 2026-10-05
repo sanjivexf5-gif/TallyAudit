@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -99,12 +100,13 @@ public class InvestigationServiceTests : IAsyncLifetime
             "InvestigationCreated",
             "INVESTIGATION",
             It.IsAny<string>(),
-            compId,
-            null,
             "ExceptionInvestigation",
             inv.Id,
+            null,
             It.IsAny<string>(),
-            default), Times.Once);
+            compId,
+            null,
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
