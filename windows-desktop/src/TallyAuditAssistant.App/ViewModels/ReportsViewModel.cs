@@ -252,7 +252,7 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
             // Summary Worksheet
             sb.AppendLine(" <Worksheet ss:Name=\"Executive Summary\">");
             sb.AppendLine("  <Table>");
-            sb.AppendLine("   <Row ss:Height=\"30\" ss:StyleID=\"Title\"><Cell><Data ss:Type=\"String\">TALLY AUDIT ASSISTANT — STATUTORY AUDIT SUMMARY</Data></Cell></Row>");
+            sb.AppendLine("   <Row ss:Height=\"30\" ss:StyleID=\"Title\"><Cell><Data ss:Type=\"String\">TALLY AUDIT ASSISTANT — AUTOMATED AUDIT REPORT</Data></Cell></Row>");
             sb.AppendLine("   <Row><Cell><Data ss:Type=\"String\"></Data></Cell></Row>");
             sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">Company Name:</Data></Cell><Cell><Data ss:Type=\"String\">{EscapeXml(current.TallyCompanyName)}</Data></Cell></Row>");
             sb.AppendLine($"   <Row><Cell ss:StyleID=\"BoldText\"><Data ss:Type=\"String\">GSTIN / PAN:</Data></Cell><Cell><Data ss:Type=\"String\">{current.GSTIN} / {current.PAN}</Data></Cell></Row>");
@@ -308,7 +308,7 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
     public async Task GeneratePdfReportAsync()
     {
         IsLoading = true;
-        StatusMessage = "Compiling executive HTML audit summary...";
+        StatusMessage = "Compiling executive audit report...";
         IsSuccess = false;
         IsError = false;
 
@@ -327,6 +327,15 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
             var allExceptions = await _repository.GetExceptionsAsync(current.Id, take: 5000);
             var totalVouchers = await _repository.GetVoucherCountAsync(current.Id);
 
+            var criticalCount = allExceptions.Count(e => e.Severity == SeverityLevel.Critical);
+            var highCount = allExceptions.Count(e => e.Severity == SeverityLevel.High);
+            var mediumCount = allExceptions.Count(e => e.Severity == SeverityLevel.Medium);
+            var lowCount = allExceptions.Count(e => e.Severity == SeverityLevel.Low);
+            var pendingCount = allExceptions.Count(e => e.Status == ReviewStatus.Pending);
+            var reviewedCount = allExceptions.Count(e => e.Status == ReviewStatus.Reviewed || e.Status == ReviewStatus.Resolved);
+            var riskScore = Math.Min(100, criticalCount * 30 + highCount * 15 + mediumCount * 7 + lowCount * 3);
+            var riskLabel = riskScore >= 75 ? "CRITICAL" : riskScore >= 50 ? "HIGH" : riskScore >= 25 ? "MEDIUM" : "LOW";
+
             var html = new StringBuilder();
             html.AppendLine("<!DOCTYPE html>");
             html.AppendLine("<html>");
@@ -341,7 +350,7 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
             html.AppendLine("   .kpi-row { display: flex; gap: 16px; margin-top: 16px; }");
             html.AppendLine("   .kpi { background: #0F172A; border: 1px solid #334155; padding: 14px; border-radius: 6px; flex: 1; }");
             html.AppendLine("   .kpi-title { font-size: 11px; color: #94A3B8; text-transform: uppercase; font-weight: 600; }");
-            html.AppendLine("   .kpi-val { font-size: 22px; font-weight: 700; color: #38BDF8; margin-top: 4px; }");
+            html.AppendLine("   .kpi-val { font-size: 22px; font-weight: 700; color: #38BDF8; margin-top: 4px; }\n   .risk { border: 1px solid #F59E0B; background: #422006; }\n   .risk-score { font-size: 32px; font-weight: 800; color: #FBBF24; }\n   .note { color: #CBD5E1; font-size: 11px; line-height: 1.5; }");
             html.AppendLine("   table { width: 100%; border-collapse: collapse; margin-top: 16px; }");
             html.AppendLine("   th { background: #0F766E; color: white; text-align: left; padding: 10px; font-size: 12px; }");
             html.AppendLine("   td { padding: 10px; border-bottom: 1px solid #334155; font-size: 12px; }");
@@ -362,9 +371,20 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
             html.AppendLine($"     <div class='kpi'><div class='kpi-title'>TDS Variances</div><div class='kpi-val'>{allExceptions.Count(e => e.Category == RuleCategory.TDS)}</div></div>");
             html.AppendLine("   </div>");
             html.AppendLine(" </div>");
+            html.AppendLine(" <div class='card risk'>");
+            html.AppendLine($"   <h2>Audit Risk Assessment: {riskLabel}</h2>");
+            html.AppendLine($"   <div class='risk-score'>{riskScore}/100</div>");
+            html.AppendLine($"   <div class='note'>Weighted assessment based on recorded findings: {criticalCount} critical, {highCount} high, {mediumCount} medium and {lowCount} low. This is an audit-prioritisation indicator, not a conclusion of fraud or non-compliance.</div>");
+            html.AppendLine("   <div class='kpi-row'>");
+            html.AppendLine($"     <div class='kpi'><div class='kpi-title'>Pending Review</div><div class='kpi-val'>{pendingCount}</div></div>");
+            html.AppendLine($"     <div class='kpi'><div class='kpi-title'>Reviewed / Resolved</div><div class='kpi-val'>{reviewedCount}</div></div>");
+            html.AppendLine($"     <div class='kpi'><div class='kpi-title'>Duplicate Findings</div><div class='kpi-val'>{allExceptions.Count(e => e.Category == RuleCategory.DuplicateDetection)}</div></div>");
+            html.AppendLine("   </div>");
+            html.AppendLine(" </div>");
 
             html.AppendLine(" <div class='card'>");
             html.AppendLine("   <h2>Detailed Findings Register</h2>");
+            html.AppendLine("   <div class='note'>Source: synchronized Tally data analysed locally by Tally Audit Assistant. The application does not modify Tally data.</div>");
             html.AppendLine("   <table>");
             html.AppendLine("     <tr><th>Rule Name</th><th>Category</th><th>Severity</th><th>Voucher No</th><th>Ledger Name</th><th>Flagged Amount</th><th>Status</th></tr>");
             foreach (var ex in allExceptions)
@@ -388,14 +408,14 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
             html.AppendLine("</html>");
 
             var dir = GetSafeExportDirectory();
-            var fileName = $"Audit_Executive_Summary_{SanitizeFileName(current.TallyCompanyName)}_{DateTime.Now:yyyyMMdd_HHmmss}.html";
+            var fileName = $"Tally_Audit_Report_{SanitizeFileName(current.TallyCompanyName)}_{DateTime.Now:yyyyMMdd_HHmmss}.html";
             var filePath = Path.Combine(dir, fileName);
 
             await File.WriteAllTextAsync(filePath, html.ToString(), Encoding.UTF8);
 
             LastExportedFilePath = filePath;
             HasExportedFile = true;
-            StatusMessage = $"Executive report exported successfully to: {filePath}";
+            StatusMessage = $"Automated audit report exported successfully to: {filePath}";
             IsSuccess = true;
 
             if (_auditTrailService != null)
@@ -403,7 +423,7 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
                 _ = _auditTrailService.RecordActivityAsync(
                     actionType: "Report exported",
                     module: "REPORTS",
-                    description: $"Executive report summary exported to '{fileName}'.",
+                    description: $"Automated audit report exported to '{fileName}'. Risk score {riskScore}/100 ({riskLabel}).",
                     companyName: current.TallyCompanyName,
                     ct: CancellationToken.None);
             }
