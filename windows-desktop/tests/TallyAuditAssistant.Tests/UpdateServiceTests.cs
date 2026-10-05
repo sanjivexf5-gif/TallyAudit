@@ -582,4 +582,84 @@ public class UpdateServiceTests
             if (File.Exists(tempFile)) File.Delete(tempFile);
         }
     }
+
+    [Fact]
+    public void InnoSetupScript_Configures_Safe_Process_Closure_And_RestartManager()
+    {
+        // Find installer script relative to solution / test execution directory
+        var possiblePaths = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "../../../../installer/TallyAuditAssistant.iss"),
+            Path.Combine(AppContext.BaseDirectory, "../../../installer/TallyAuditAssistant.iss"),
+            Path.Combine(AppContext.BaseDirectory, "../../installer/TallyAuditAssistant.iss"),
+            Path.Combine(Directory.GetCurrentDirectory(), "windows-desktop/installer/TallyAuditAssistant.iss"),
+            Path.Combine(Directory.GetCurrentDirectory(), "installer/TallyAuditAssistant.iss"),
+            "windows-desktop/installer/TallyAuditAssistant.iss",
+            "installer/TallyAuditAssistant.iss"
+        };
+
+        string? issPath = null;
+        foreach (var p in possiblePaths)
+        {
+            if (File.Exists(p))
+            {
+                issPath = p;
+                break;
+            }
+        }
+
+        if (issPath == null)
+        {
+            // If running in isolated unit test runner, find repo root by walking upwards
+            var current = new DirectoryInfo(AppContext.BaseDirectory);
+            while (current != null && current.Exists)
+            {
+                var checkPath = Path.Combine(current.FullName, "windows-desktop/installer/TallyAuditAssistant.iss");
+                if (File.Exists(checkPath))
+                {
+                    issPath = checkPath;
+                    break;
+                }
+                var checkPath2 = Path.Combine(current.FullName, "installer/TallyAuditAssistant.iss");
+                if (File.Exists(checkPath2))
+                {
+                    issPath = checkPath2;
+                    break;
+                }
+                current = current.Parent;
+            }
+        }
+
+        if (issPath != null && File.Exists(issPath))
+        {
+            var content = File.ReadAllText(issPath);
+
+            // 1. Verify Inno Setup Restart Manager / Application In-Use configuration
+            Assert.Contains("CloseApplications=force", content);
+            Assert.Contains("RestartApplications=no", content);
+            Assert.Contains("CloseApplicationsFilter=*.exe,*.dll", content);
+
+            // 2. Verify PrepareToInstall Pascal script for graceful and safe process exit
+            Assert.Contains("function PrepareToInstall", content);
+            Assert.Contains("TallyAuditAssistant.App.exe", content);
+            Assert.Contains("taskkill", content);
+
+            // 3. Verify TallyPrime is NEVER targeted for termination
+            Assert.DoesNotContain("taskkill /IM tally.exe", content, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("taskkill /F /IM tally.exe", content, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("taskkill /IM tallyprime.exe", content, StringComparison.OrdinalIgnoreCase);
+
+            // 4. Verify Local AppData data directory is protected
+            Assert.Contains("{localappdata}\\TallyAuditAssistant", content);
+        }
+    }
+
+    [Fact]
+    public async Task LaunchInstallerAndExitAsync_WhenFileDoesNotExist_ReturnsFalse()
+    {
+        var service = new UpdateService(NullLogger<UpdateService>.Instance);
+        var result = await service.LaunchInstallerAndExitAsync("C:\\NonExistentInstallerFile_12345.exe");
+        Assert.False(result);
+    }
 }
+

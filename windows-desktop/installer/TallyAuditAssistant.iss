@@ -22,6 +22,10 @@ AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
+; Application in-use / safe replacement handling
+CloseApplications=force
+RestartApplications=no
+CloseApplicationsFilter=*.exe,*.dll
 ; Architecture configuration: Windows 64-bit strictly
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -54,10 +58,74 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilen
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
-// Custom Pascal Scripting for Safe User-Data Preservation on Uninstall
-function InitializeUninstall(): Boolean;
+// Custom Pascal Scripting for Safe Process Termination and User-Data Preservation
+
+function InitializeSetup(): Boolean;
+var
+  ResultCode: Integer;
 begin
   Result := True;
+  // Pre-emptively request graceful termination of running TallyAuditAssistant.App.exe if active
+  Exec(ExpandConstant('{cmd}'), '/C taskkill /IM TallyAuditAssistant.App.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+  Attempts: Integer;
+  ProcessExited: Boolean;
+begin
+  Result := '';
+  NeedsRestart := False;
+
+  // 1. Request graceful exit of running TallyAuditAssistant.App.exe
+  Exec(ExpandConstant('{cmd}'), '/C taskkill /IM TallyAuditAssistant.App.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(1000);
+
+  // 2. If still active after timeout, forcefully terminate ONLY TallyAuditAssistant.App.exe
+  Attempts := 0;
+  ProcessExited := False;
+  while (Attempts < 5) and (not ProcessExited) do
+  begin
+    Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq TallyAuditAssistant.App.exe" 2>&1 | find /I "TallyAuditAssistant.App.exe" >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    if ResultCode = 0 then
+    begin
+      // Process is still running: terminate ONLY TallyAuditAssistant.App.exe (never TallyPrime or shell)
+      Exec(ExpandConstant('{cmd}'), '/C taskkill /F /IM TallyAuditAssistant.App.exe /T >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      Sleep(1000);
+      Attempts := Attempts + 1;
+    end
+    else
+    begin
+      ProcessExited := True;
+    end;
+  end;
+
+  // 3. Final verification: ensure process is completely exited before file replacement begins
+  Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq TallyAuditAssistant.App.exe" 2>&1 | find /I "TallyAuditAssistant.App.exe" >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  if ResultCode = 0 then
+  begin
+    Result := 'Tally Audit Assistant is currently running and could not be automatically closed.' + #13#10 +
+              'Please close Tally Audit Assistant and click Retry.';
+  end;
+end;
+
+function InitializeUninstall(): Boolean;
+var
+  ResultCode: Integer;
+  Attempts: Integer;
+begin
+  Result := True;
+  // On uninstall, close running instance if active
+  Exec(ExpandConstant('{cmd}'), '/C taskkill /IM TallyAuditAssistant.App.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(1000);
+  Attempts := 0;
+  while Attempts < 3 do
+  begin
+    Exec(ExpandConstant('{cmd}'), '/C taskkill /F /IM TallyAuditAssistant.App.exe /T >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(500);
+    Attempts := Attempts + 1;
+  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
@@ -83,3 +151,4 @@ begin
     end;
   end;
 end;
+
