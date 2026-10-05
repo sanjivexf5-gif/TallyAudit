@@ -15,7 +15,7 @@
         <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,14">
             <TextBlock Text="Audit Working Papers &amp; Reports Center" FontSize="22" FontWeight="Bold" Foreground="White"/>
-            <TextBlock Text="Generate, compile, and export professional statutory audit summaries, tax reconciliations, and structured spreadsheets." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,10"/>
+            <TextBlock Text="Generate professional audit reports, working papers, executive risk summaries, and structured registers from your synchronized company data." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,10"/>
 
             <!-- Company Overview Ribbon -->
             <Border Padding="14,10" Background="#1E293B" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
@@ -114,11 +114,11 @@
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="📄 Executive HTML" FontSize="17" FontWeight="Bold" Foreground="White" Margin="0,0,0,4"/>
-                            <TextBlock Grid.Row="1" Text="Print-Ready Audit Summary" FontSize="12" Foreground="#38BDF8" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                            <TextBlock Grid.Row="2" Text="Produces a polished, stand-alone HTML audit document with high-level KPI cards, company registration details, and structured statutory review notes." 
+                            <TextBlock Grid.Row="0" Text="📄 Executive Audit Report" FontSize="17" FontWeight="Bold" Foreground="White" Margin="0,0,0,4"/>
+                            <TextBlock Grid.Row="1" Text="Management &amp; Auditor Summary" FontSize="12" Foreground="#38BDF8" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                            <TextBlock Grid.Row="2" Text="Produces a polished executive report with company details, finding severity, review status, risk assessment, and a detailed findings register. Tally remains read-only." 
                                        Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,18"/>
-                            <Button Grid.Row="3" Content="📥 Generate HTML Summary" Command="{Binding GeneratePdfReportCommand}" HorizontalAlignment="Stretch" Padding="12,10"/>
+                            <Button Grid.Row="3" Content="📥 Generate Audit Report" Command="{Binding GeneratePdfReportCommand}" HorizontalAlignment="Stretch" Padding="12,10"/>
                         </Grid>
                     </Border>
 
