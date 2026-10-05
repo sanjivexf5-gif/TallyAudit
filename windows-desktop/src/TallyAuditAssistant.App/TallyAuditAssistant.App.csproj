@@ -13,9 +13,9 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
-    <Version>1.0.30</Version>
-    <AssemblyVersion>1.0.30.0</AssemblyVersion>
-    <FileVersion>1.0.30.0</FileVersion>
+    <Version>1.0.31</Version>
+    <AssemblyVersion>1.0.31.0</AssemblyVersion>
+    <FileVersion>1.0.31.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
