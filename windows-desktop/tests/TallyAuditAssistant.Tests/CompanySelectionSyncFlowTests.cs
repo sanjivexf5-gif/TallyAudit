@@ -170,7 +170,8 @@ public class CompanySelectionSyncFlowTests
             bankVM,
             exceptionsVM,
             reportsVM,
-            investigationVM);
+            investigationVM,
+            new AuditTrailViewModel(new Mock<IAuditTrailService>().Object, _companyContext));
     }
 
     [Fact]
