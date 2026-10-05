@@ -8,10 +8,14 @@ namespace TallyAuditAssistant.Data.Repositories;
 public class AuditRepository : IAuditRepository
 {
     private readonly SqliteConnectionFactory _connectionFactory;
+    private readonly IAuditTrailService? _auditTrailService;
 
-    public AuditRepository(SqliteConnectionFactory connectionFactory)
+    public AuditRepository(
+        SqliteConnectionFactory connectionFactory,
+        IAuditTrailService? auditTrailService = null)
     {
         _connectionFactory = connectionFactory;
+        _auditTrailService = auditTrailService;
     }
 
     public async Task<IReadOnlyList<Company>> GetAllCompaniesAsync(CancellationToken cancellationToken = default)
@@ -191,6 +195,11 @@ public class AuditRepository : IAuditRepository
     public async Task UpdateExceptionStatusAsync(string exceptionId, ReviewStatus newStatus, string? auditorNote, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        
+        // Fetch existing for metadata if needed
+        var existing = await connection.QuerySingleOrDefaultAsync<AuditException>(
+            new CommandDefinition("SELECT * FROM Exceptions WHERE Id = @Id LIMIT 1", new { Id = exceptionId }, cancellationToken: cancellationToken));
+
         const string sql = @"
             UPDATE Exceptions 
             SET Status = @Status, 
@@ -199,6 +208,29 @@ public class AuditRepository : IAuditRepository
             WHERE Id = @Id
         ";
         await connection.ExecuteAsync(new CommandDefinition(sql, new { Id = exceptionId, Status = (int)newStatus, AuditorNote = auditorNote }, cancellationToken: cancellationToken));
+
+        if (_auditTrailService != null && existing != null)
+        {
+            var actionType = newStatus switch
+            {
+                ReviewStatus.Reviewed => "Finding marked reviewed",
+                ReviewStatus.Accepted => "Finding accepted",
+                ReviewStatus.Resolved => "Finding resolved",
+                ReviewStatus.RequiresClientClarification => "Finding investigated",
+                _ => "Finding marked reviewed"
+            };
+
+            _ = _auditTrailService.RecordActivityAsync(
+                actionType: actionType,
+                module: "EXCEPTIONS",
+                description: $"Finding {existing.RuleName} ({existing.RuleId}) status changed to {newStatus}. Note: {auditorNote ?? "None"}",
+                entityType: "AuditException",
+                entityId: exceptionId,
+                previousState: existing.Status.ToString(),
+                newState: newStatus.ToString(),
+                companyName: existing.CompanyId,
+                ct: CancellationToken.None);
+        }
     }
 
     public async Task<IReadOnlyList<AuditRule>> GetActiveRulesAsync(CancellationToken cancellationToken = default)

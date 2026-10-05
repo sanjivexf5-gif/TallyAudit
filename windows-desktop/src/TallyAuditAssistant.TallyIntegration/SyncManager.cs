@@ -19,6 +19,7 @@ public class SyncManager : ISyncManager
     private readonly IAuditRepository _auditRepository;
     private readonly ISettingsService _settingsService;
     private readonly IActiveCompanyContext? _companyContext;
+    private readonly IAuditTrailService? _auditTrailService;
     private readonly ILogger<SyncManager> _logger;
 
     private readonly SemaphoreSlim _pauseSemaphore = new(1, 1);
@@ -45,7 +46,8 @@ public class SyncManager : ISyncManager
         IAuditRepository auditRepository,
         ISettingsService settingsService,
         ILogger<SyncManager> logger,
-        IActiveCompanyContext? companyContext = null)
+        IActiveCompanyContext? companyContext = null,
+        IAuditTrailService? auditTrailService = null)
     {
         _connection = connection;
         _companyService = companyService;
@@ -56,6 +58,7 @@ public class SyncManager : ISyncManager
         _settingsService = settingsService;
         _logger = logger;
         _companyContext = companyContext;
+        _auditTrailService = auditTrailService;
     }
 
     public async Task<SyncResult> StartSyncAsync(string companyName, SyncMode mode, CancellationToken cancellationToken = default)
@@ -72,6 +75,16 @@ public class SyncManager : ISyncManager
 
         _logger.LogInformation("Synchronization starting for company: {CompanyName}", companyName);
         EmitLog($"Synchronization starting for company: {companyName}");
+
+        if (_auditTrailService != null)
+        {
+            _ = _auditTrailService.RecordActivityAsync(
+                actionType: "Synchronization started",
+                module: "SYNC",
+                description: $"Started {mode} synchronization for company '{companyName}'.",
+                companyName: companyName,
+                ct: CancellationToken.None);
+        }
 
         _lastCompanySynced = companyName;
         _lastModeSynced = mode;
@@ -352,6 +365,16 @@ public class SyncManager : ISyncManager
             SetStage(SyncStage.Complete, "Synchronization completed successfully!");
             EmitLog($"Sync finished in {stopwatch.Elapsed:mm\\:ss}. {CurrentMetrics.RecordsProcessed} records stored.");
 
+            if (_auditTrailService != null)
+            {
+                _ = _auditTrailService.RecordActivityAsync(
+                    actionType: "Synchronization completed",
+                    module: "SYNC",
+                    description: $"Completed {mode} synchronization for company '{companyName}'. Synced {CurrentMetrics.RecordsProcessed} records (Inserted: {CurrentMetrics.RecordsInserted}, Updated: {CurrentMetrics.RecordsUpdated}).",
+                    companyName: companyName,
+                    ct: CancellationToken.None);
+            }
+
             var syncResult = new SyncResult(
                 IsSuccess: true,
                 Mode: mode,
@@ -380,6 +403,16 @@ public class SyncManager : ISyncManager
             SetStage(SyncStage.Cancelled, "Synchronization cancelled by user.");
             EmitLog("Sync cancelled. Already synchronized batches were preserved safely.");
 
+            if (_auditTrailService != null)
+            {
+                _ = _auditTrailService.RecordActivityAsync(
+                    actionType: "Synchronization failed",
+                    module: "SYNC",
+                    description: $"Synchronization cancelled for company '{companyName}'.",
+                    companyName: companyName,
+                    ct: CancellationToken.None);
+            }
+
             await RecordFailureHistoryAsync(companyId, companyName, mode, stopwatch.ElapsedMilliseconds, "Cancelled by user");
             return new SyncResult(false, mode, CurrentMetrics.RecordsProcessed, CurrentMetrics.RecordsInserted, CurrentMetrics.RecordsUpdated, CurrentMetrics.RecordsSkipped, CurrentMetrics.Errors, stopwatch.Elapsed, "Cancelled by user");
         }
@@ -391,6 +424,16 @@ public class SyncManager : ISyncManager
             SetStage(SyncStage.Failed, $"Sync failed: {ex.Message}");
             _logger.LogError(ex, "Synchronization failed critically.");
             EmitLog($"ERROR: {ex.Message}. Committed data was preserved. You can Resume/Retry.");
+
+            if (_auditTrailService != null)
+            {
+                _ = _auditTrailService.RecordActivityAsync(
+                    actionType: "Synchronization failed",
+                    module: "SYNC",
+                    description: $"Synchronization failed for company '{companyName}': {ex.Message}",
+                    companyName: companyName,
+                    ct: CancellationToken.None);
+            }
 
             await RecordFailureHistoryAsync(companyId, companyName, mode, stopwatch.ElapsedMilliseconds, ex.Message);
             return new SyncResult(false, mode, CurrentMetrics.RecordsProcessed, CurrentMetrics.RecordsInserted, CurrentMetrics.RecordsUpdated, CurrentMetrics.RecordsSkipped, CurrentMetrics.Errors, stopwatch.Elapsed, ex.Message);

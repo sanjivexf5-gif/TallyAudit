@@ -364,6 +364,25 @@ public class DatabaseInitializer : IDatabaseInitializer
                 Notes TEXT
             );
 
+            -- 12. Audit Trail & Activity History
+            CREATE TABLE IF NOT EXISTS AuditTrail (
+                Id TEXT PRIMARY KEY,
+                TimestampUtc DATETIME NOT NULL,
+                UserName TEXT NOT NULL,
+                ActionType TEXT NOT NULL,
+                Module TEXT NOT NULL,
+                CompanyName TEXT,
+                FinancialYear TEXT,
+                EntityType TEXT,
+                EntityId TEXT,
+                PreviousState TEXT,
+                NewState TEXT,
+                Description TEXT NOT NULL,
+                Details TEXT,
+                ApplicationVersion TEXT NOT NULL,
+                MachineName TEXT NOT NULL
+            );
+
             -- 9. Performance Indexes
             CREATE INDEX IF NOT EXISTS idx_vouchers_comp_date ON Vouchers(CompanyId, VoucherDate);
             CREATE INDEX IF NOT EXISTS idx_vouchers_comp_type ON Vouchers(CompanyId, VoucherTypeName);
@@ -378,6 +397,11 @@ public class DatabaseInitializer : IDatabaseInitializer
             CREATE INDEX IF NOT EXISTS idx_investigations_exc ON ExceptionInvestigations(ExceptionId);
             CREATE INDEX IF NOT EXISTS idx_investigations_comp ON ExceptionInvestigations(CompanyId, Status);
             CREATE INDEX IF NOT EXISTS idx_inv_checklist_inv ON InvestigationChecklistItems(InvestigationId);
+            CREATE INDEX IF NOT EXISTS idx_audittrail_timestamp ON AuditTrail(TimestampUtc);
+            CREATE INDEX IF NOT EXISTS idx_audittrail_company ON AuditTrail(CompanyName);
+            CREATE INDEX IF NOT EXISTS idx_audittrail_action ON AuditTrail(ActionType);
+            CREATE INDEX IF NOT EXISTS idx_audittrail_module ON AuditTrail(Module);
+            CREATE INDEX IF NOT EXISTS idx_audittrail_entity ON AuditTrail(EntityId);
         ";
 
         await connection.ExecuteAsync(new CommandDefinition(schemaSql, cancellationToken: cancellationToken));
@@ -397,6 +421,20 @@ public class DatabaseInitializer : IDatabaseInitializer
         try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN RecurrenceSource TEXT;", cancellationToken: cancellationToken)); } catch {}
         try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN LinkedEvidenceIds TEXT;", cancellationToken: cancellationToken)); } catch {}
         try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN LinkedWorkingPaperIds TEXT;", cancellationToken: cancellationToken)); } catch {}
+
+        // AuditTrail table column migrations if upgrading from legacy schema
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN TimestampUtc DATETIME;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN UserName TEXT;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN ActionType TEXT;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN Module TEXT;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN CompanyName TEXT;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN FinancialYear TEXT;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN PreviousState TEXT;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN NewState TEXT;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN Details TEXT;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN ApplicationVersion TEXT;", cancellationToken: cancellationToken)); } catch {}
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN MachineName TEXT;", cancellationToken: cancellationToken)); } catch {}
+
 
         try
         {

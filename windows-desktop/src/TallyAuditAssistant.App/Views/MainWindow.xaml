@@ -52,6 +52,9 @@
         <DataTemplate DataType="{x:Type vm:ReportsViewModel}">
             <views:ReportsView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AuditTrailViewModel}">
+            <views:AuditTrailView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:InvestigationViewModel}">
             <views:InvestigationView />
         </DataTemplate>
@@ -167,6 +170,7 @@
                     <Button Content="🏦  Bank Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Bank" Tag="Bank"/>
                     <Button Content="⚠️  Exceptions" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Exceptions" Tag="Exceptions"/>
                     <Button Content="📈  Reports" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Reports" Tag="Reports"/>
+                    <Button Content="🛡️  Audit Trail" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="AuditTrail" Tag="AuditTrail"/>
                     <Button Content="⚙️  Settings" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Settings" Tag="Settings"/>
                 </StackPanel>
             </Border>

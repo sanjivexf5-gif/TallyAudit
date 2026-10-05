@@ -13,6 +13,7 @@ public class ActiveCompanyContext : IActiveCompanyContext
     private readonly IAuditRepository _repository;
     private readonly ISettingsService _settingsService;
     private readonly ITallyCompanyService _companyService;
+    private readonly IAuditTrailService? _auditTrailService;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     private Company? _currentCompany;
@@ -46,11 +47,13 @@ public class ActiveCompanyContext : IActiveCompanyContext
     public ActiveCompanyContext(
         IAuditRepository repository,
         ISettingsService settingsService,
-        ITallyCompanyService companyService)
+        ITallyCompanyService companyService,
+        IAuditTrailService? auditTrailService = null)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _companyService = companyService ?? throw new ArgumentNullException(nameof(companyService));
+        _auditTrailService = auditTrailService;
     }
 
     public async Task<Company?> GetActiveCompanyAsync(CancellationToken cancellationToken = default)
@@ -217,6 +220,7 @@ public class ActiveCompanyContext : IActiveCompanyContext
             catch { }
         }
 
+        var previousCompany = _currentCompany;
         _currentCompany = company;
         _currentPeriod = CreatePeriodForCompany(company);
 
@@ -227,6 +231,23 @@ public class ActiveCompanyContext : IActiveCompanyContext
         await _settingsService.SetSettingAsync("FinancialPeriodId", _currentPeriod.FinancialPeriodId, cancellationToken);
         await _settingsService.SetSettingAsync("AuditPeriodFrom", _currentPeriod.StartDate.ToString("yyyy-MM-dd"), cancellationToken);
         await _settingsService.SetSettingAsync("AuditPeriodTo", _currentPeriod.EndDate.ToString("yyyy-MM-dd"), cancellationToken);
+
+        if (_auditTrailService != null)
+        {
+            var isChange = previousCompany != null && !string.Equals(previousCompany.TallyCompanyName, company.TallyCompanyName, StringComparison.OrdinalIgnoreCase);
+            var actionType = isChange ? "Company changed" : "Company selected";
+            _ = _auditTrailService.RecordActivityAsync(
+                actionType: actionType,
+                module: "WORKSPACE",
+                description: isChange
+                    ? $"Active company changed from '{previousCompany?.TallyCompanyName}' to '{company.TallyCompanyName}'."
+                    : $"Active company selected: '{company.TallyCompanyName}'.",
+                companyName: company.TallyCompanyName,
+                financialYear: fy,
+                previousState: previousCompany?.TallyCompanyName,
+                newState: company.TallyCompanyName,
+                ct: CancellationToken.None);
+        }
 
         ActiveCompanyChanged?.Invoke(this, _currentCompany);
     }

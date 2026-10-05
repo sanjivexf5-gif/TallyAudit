@@ -1,0 +1,282 @@
+<UserControl x:Class="TallyAuditAssistant.App.Views.AuditTrailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             mc:Ignorable="d" 
+             d:DesignHeight="700" d:DesignWidth="1100">
+    <Grid Margin="0,0,10,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Top Header Ribbon -->
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="🛡️" FontSize="20" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="Audit Trail &amp; Activity History" FontSize="22" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                    <Border Margin="12,0,0,0" Padding="8,3" CornerRadius="4" Background="#1E293B" BorderBrush="#334155" BorderThickness="1">
+                        <TextBlock Text="IMMUTABLE LOCAL FORENSIC LOG" FontSize="11" FontWeight="SemiBold" Foreground="#38BDF8"/>
+                    </Border>
+                </StackPanel>
+                <TextBlock Text="Read-only chronological audit log tracking company changes, synchronization runs, engine executions, finding status transitions, and exports." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0" FontSize="12"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Content="🔄 Refresh" Command="{Binding RefreshCommand}" Background="#1E293B" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Padding="12,6" Margin="0,0,8,0" FontWeight="SemiBold" Cursor="Hand"/>
+                <Button Content="📊 Export Excel" Command="{Binding ExportExcelCommand}" Background="#047857" Foreground="White" BorderThickness="0" Padding="12,6" Margin="0,0,8,0" FontWeight="SemiBold" Cursor="Hand"/>
+                <Button Content="📑 Export Report" Command="{Binding ExportPdfCommand}" Background="#0284C7" Foreground="White" BorderThickness="0" Padding="12,6" FontWeight="SemiBold" Cursor="Hand"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Multi-criteria Filter Bar -->
+        <Border Grid.Row="1" Background="{StaticResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="12" Margin="0,0,0,14">
+            <WrapPanel VerticalAlignment="Center">
+                <!-- Search Query -->
+                <StackPanel Margin="0,0,12,6">
+                    <TextBlock Text="Search (Description, Entity, Details)" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Width="200" Padding="6,4"/>
+                </StackPanel>
+
+                <!-- Company -->
+                <StackPanel Margin="0,0,12,6">
+                    <TextBlock Text="Company" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                    <ComboBox ItemsSource="{Binding Companies}" SelectedItem="{Binding SelectedCompany}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Width="150" Padding="6,4"/>
+                </StackPanel>
+
+                <!-- Module -->
+                <StackPanel Margin="0,0,12,6">
+                    <TextBlock Text="Module" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                    <ComboBox ItemsSource="{Binding Modules}" SelectedItem="{Binding SelectedModule}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Width="130" Padding="6,4"/>
+                </StackPanel>
+
+                <!-- Action -->
+                <StackPanel Margin="0,0,12,6">
+                    <TextBlock Text="Action Type" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                    <ComboBox ItemsSource="{Binding Actions}" SelectedItem="{Binding SelectedAction}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Width="140" Padding="6,4"/>
+                </StackPanel>
+
+                <!-- User -->
+                <StackPanel Margin="0,0,12,6">
+                    <TextBlock Text="User" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                    <ComboBox ItemsSource="{Binding Users}" SelectedItem="{Binding SelectedUser}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Width="120" Padding="6,4"/>
+                </StackPanel>
+
+                <!-- Date Range -->
+                <StackPanel Margin="0,0,12,6">
+                    <TextBlock Text="Date From" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                    <DatePicker SelectedDate="{Binding DateFrom}" Background="#0F172A" Foreground="White" Width="120"/>
+                </StackPanel>
+
+                <StackPanel Margin="0,0,12,6">
+                    <TextBlock Text="Date To" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                    <DatePicker SelectedDate="{Binding DateTo}" Background="#0F172A" Foreground="White" Width="120"/>
+                </StackPanel>
+
+                <!-- Action Buttons -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" Margin="0,0,0,6">
+                    <Button Content="Filter" Command="{Binding ApplyFiltersCommand}" Background="{StaticResource PrimaryBrandBrush}" Foreground="White" BorderThickness="0" Padding="12,5" Margin="0,0,6,0" FontWeight="SemiBold" Cursor="Hand"/>
+                    <Button Content="Clear" Command="{Binding ClearFiltersCommand}" Background="#334155" Foreground="White" BorderThickness="0" Padding="12,5" FontWeight="SemiBold" Cursor="Hand"/>
+                </StackPanel>
+            </WrapPanel>
+        </Border>
+
+        <!-- Main Content Area: DataGrid + Side Details Drawer -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="{Binding IsDetailsOpen, Converter={x:Null}}"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Read-Only DataGrid -->
+            <Border Grid.Column="0" Background="{StaticResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <DataGrid ItemsSource="{Binding Entries}" 
+                          SelectedItem="{Binding SelectedEntry}"
+                          AutoGenerateColumns="False" 
+                          IsReadOnly="True" 
+                          CanUserAddRows="False" 
+                          CanUserDeleteRows="False"
+                          Background="Transparent" 
+                          RowBackground="#0F172A" 
+                          AlternatingRowBackground="#1E293B"
+                          Foreground="White" 
+                          BorderThickness="0" 
+                          GridLinesVisibility="Horizontal" 
+                          HorizontalGridLinesBrush="#334155"
+                          HeadersVisibility="Column">
+                    <DataGrid.Columns>
+                        <!-- Timestamp -->
+                        <DataGridTextColumn Header="Date / Time (UTC)" Binding="{Binding TimestampUtc, StringFormat='yyyy-MM-dd HH:mm:ss'}" Width="140"/>
+                        
+                        <!-- User -->
+                        <DataGridTextColumn Header="User" Binding="{Binding UserName}" Width="100"/>
+                        
+                        <!-- Action -->
+                        <DataGridTemplateColumn Header="Action" Width="160">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding ActionType}" FontWeight="SemiBold" Foreground="#38BDF8" VerticalAlignment="Center" Margin="4,0"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Module -->
+                        <DataGridTemplateColumn Header="Module" Width="100">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Padding="6,2" CornerRadius="4" Background="#334155" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Module}" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Company -->
+                        <DataGridTextColumn Header="Company" Binding="{Binding CompanyName}" Width="140"/>
+
+                        <!-- Entity -->
+                        <DataGridTemplateColumn Header="Entity" Width="120">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0">
+                                        <TextBlock Text="{Binding EntityType}" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,4,0"/>
+                                        <TextBlock Text="{Binding EntityId}" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Description -->
+                        <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+
+                        <!-- View Details -->
+                        <DataGridTemplateColumn Header="Action" Width="90">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Content="Details" 
+                                            Command="{Binding DataContext.ViewDetailsCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" 
+                                            CommandParameter="{Binding}" 
+                                            Background="#1E293B" 
+                                            Foreground="#38BDF8" 
+                                            BorderBrush="#334155" 
+                                            Padding="8,2" 
+                                            FontSize="11" 
+                                            FontWeight="SemiBold"
+                                            Cursor="Hand"
+                                            Margin="4,2"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+
+            <!-- Details Slide-in Panel (Visible when an entry is selected / Details clicked) -->
+            <Border Grid.Column="0" 
+                    HorizontalAlignment="Right" 
+                    Width="400" 
+                    Background="#090D16" 
+                    BorderBrush="{StaticResource BorderBrush}" 
+                    BorderThickness="1,0,0,0" 
+                    Padding="16"
+                    Visibility="{Binding IsDetailsOpen, Converter={x:Static BooleanToVisibilityConverter.Instance}, FallbackValue=Collapsed}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <!-- Panel Header -->
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Audit Record Details" FontSize="16" FontWeight="Bold" Foreground="White"/>
+                            <Button Grid.Column="1" Content="✕" Command="{Binding CloseDetailsCommand}" Background="Transparent" Foreground="{StaticResource TextMutedBrush}" BorderThickness="0" FontSize="14" Cursor="Hand"/>
+                        </Grid>
+
+                        <!-- Properties List -->
+                        <Border Background="#1E293B" CornerRadius="6" Padding="12" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="ID:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding SelectedEntry.Id}" Foreground="White" FontWeight="SemiBold" Margin="0,0,0,8" TextWrapping="Wrap"/>
+
+                                <TextBlock Text="Timestamp (UTC):" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding SelectedEntry.TimestampUtc, StringFormat='yyyy-MM-dd HH:mm:ss UTC'}" Foreground="White" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                                <TextBlock Text="Action Type:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding SelectedEntry.ActionType}" Foreground="#38BDF8" FontWeight="Bold" Margin="0,0,0,8"/>
+
+                                <TextBlock Text="Module / Category:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding SelectedEntry.Module}" Foreground="White" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                                <TextBlock Text="User &amp; Machine:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding SelectedEntry.UserName, StringFormat='{0} (Machine: '}" Foreground="White" Margin="0,0,0,8">
+                                    <TextBlock.Inlines>
+                                        <Run Text="{Binding SelectedEntry.MachineName}"/>
+                                        <Run Text=")"/>
+                                    </TextBlock.Inlines>
+                                </TextBlock>
+
+                                <TextBlock Text="Company / Financial Year:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding SelectedEntry.CompanyName, TargetNullValue='(None)'}" Foreground="White" Margin="0,0,0,8">
+                                    <TextBlock.Inlines>
+                                        <Run Text=" / "/>
+                                        <Run Text="{Binding SelectedEntry.FinancialYear, TargetNullValue='(No FY)'}"/>
+                                    </TextBlock.Inlines>
+                                </TextBlock>
+
+                                <TextBlock Text="Application Version:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding SelectedEntry.ApplicationVersion}" Foreground="#10B981" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- State Transition (if any) -->
+                        <Border Background="#1E293B" CornerRadius="6" Padding="12" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="STATE TRANSITION" FontSize="11" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,6"/>
+                                <TextBlock Text="Previous State:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding SelectedEntry.PreviousState, TargetNullValue='(None)'}" Foreground="#F87171" Margin="0,0,0,6"/>
+                                <TextBlock Text="New State:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding SelectedEntry.NewState, TargetNullValue='(None)'}" Foreground="#34D399" Margin="0,0,0,6"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Description & Details -->
+                        <Border Background="#1E293B" CornerRadius="6" Padding="12" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Text="Description:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding SelectedEntry.Description}" Foreground="White" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                                <TextBlock Text="Extended Details / Metadata:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBox Text="{Binding SelectedEntry.Details, Mode=OneWay}" IsReadOnly="True" Background="#0F172A" Foreground="#E2E8F0" BorderBrush="#334155" TextWrapping="Wrap" AcceptsReturn="True" Height="100" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0" Padding="6"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Cryptographic Hash -->
+                        <Border Background="#1E293B" CornerRadius="6" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="SHA256 INTEGRITY HASH:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding SelectedEntry.IntegrityHash, TargetNullValue='SHA256-VERIFIED'}" FontFamily="Consolas" FontSize="11" Foreground="#A78BFA" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Status Footer -->
+        <Border Grid.Row="3" Background="#090D16" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,8" Margin="0,12,0,0">
+            <Grid>
+                <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource TextMutedBrush}" FontSize="12" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding TotalRecordsCount, StringFormat='Total Logged Events: {0}'}" HorizontalAlignment="Right" Foreground="White" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

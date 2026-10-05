@@ -10,6 +10,7 @@ public class AuditEngine : IAuditEngine
     private readonly List<IAuditRule> _rules = new();
     private readonly IAuditRuleRepository _ruleRepository;
     private readonly IAuditResultRepository _resultRepository;
+    private readonly IAuditTrailService? _auditTrailService;
     private readonly ILogger<AuditEngine> _logger;
     private readonly IReconciliationEngine? _reconciliationEngine;
 
@@ -22,12 +23,14 @@ public class AuditEngine : IAuditEngine
         IAuditResultRepository resultRepository,
         ILogger<AuditEngine> logger,
         IEnumerable<IAuditRule>? initialRules = null,
-        IReconciliationEngine? reconciliationEngine = null)
+        IReconciliationEngine? reconciliationEngine = null,
+        IAuditTrailService? auditTrailService = null)
     {
         _ruleRepository = ruleRepository;
         _resultRepository = resultRepository;
         _logger = logger;
         _reconciliationEngine = reconciliationEngine;
+        _auditTrailService = auditTrailService;
 
         if (initialRules != null)
         {
@@ -50,6 +53,16 @@ public class AuditEngine : IAuditEngine
     public async Task<IReadOnlyList<AuditResult>> ExecuteAuditAsync(AuditExecutionContext context, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting full audit execution for company {Company} across {Count} registered rules...", context.CompanyId, _rules.Count);
+
+        if (_auditTrailService != null)
+        {
+            _ = _auditTrailService.RecordActivityAsync(
+                actionType: "Audit run started",
+                module: "AUDIT",
+                description: $"Audit run initiated for company '{context.CompanyId}' across registered rules.",
+                companyName: context.CompanyId,
+                ct: CancellationToken.None);
+        }
 
         // Synchronize in-memory rules with database configuration (Enabled / Parameters)
         await SynchronizeRuleConfigurationsAsync(cancellationToken);
@@ -95,6 +108,16 @@ public class AuditEngine : IAuditEngine
             _logger.LogInformation("Executing cross-dataset reconciliations...");
             var reconciliationResults = await _reconciliationEngine.ExecuteReconciliationsAsync(context, cancellationToken);
             allResults.AddRange(reconciliationResults);
+        }
+
+        if (_auditTrailService != null)
+        {
+            _ = _auditTrailService.RecordActivityAsync(
+                actionType: "Audit run completed",
+                module: "AUDIT",
+                description: $"Audit run completed for company '{context.CompanyId}'. Evaluated {executedCount} rules, discovered {allResults.Count} exception(s).",
+                companyName: context.CompanyId,
+                ct: CancellationToken.None);
         }
 
         return allResults;

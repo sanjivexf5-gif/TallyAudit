@@ -18,6 +18,7 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
     private readonly ISettingsService _settingsService;
     private readonly IActiveCompanyContext _companyContext;
     private readonly INavigationService _navigationService;
+    private readonly IAuditTrailService? _auditTrailService;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -62,12 +63,14 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
         IAuditRepository repository,
         ISettingsService settingsService,
         IActiveCompanyContext companyContext,
-        INavigationService navigationService)
+        INavigationService navigationService,
+        IAuditTrailService? auditTrailService = null)
     {
         _repository = repository;
         _settingsService = settingsService;
         _companyContext = companyContext;
         _navigationService = navigationService;
+        _auditTrailService = auditTrailService;
 
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
         _ = LoadReportsInfoAsync();
@@ -278,6 +281,16 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
             StatusMessage = $"Excel working papers exported successfully to: {filePath}";
             IsSuccess = true;
 
+            if (_auditTrailService != null)
+            {
+                _ = _auditTrailService.RecordActivityAsync(
+                    actionType: "Report exported",
+                    module: "REPORTS",
+                    description: $"Excel working papers exported to '{fileName}'. Included {allExceptions.Count} exception(s).",
+                    companyName: current.TallyCompanyName,
+                    ct: CancellationToken.None);
+            }
+
             TryOpenFile(filePath);
         }
         catch (Exception ex)
@@ -385,6 +398,16 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
             StatusMessage = $"Executive report exported successfully to: {filePath}";
             IsSuccess = true;
 
+            if (_auditTrailService != null)
+            {
+                _ = _auditTrailService.RecordActivityAsync(
+                    actionType: "Report exported",
+                    module: "REPORTS",
+                    description: $"Executive report summary exported to '{fileName}'.",
+                    companyName: current.TallyCompanyName,
+                    ct: CancellationToken.None);
+            }
+
             TryOpenFile(filePath);
         }
         catch (Exception ex)
@@ -447,6 +470,16 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
             HasExportedFile = true;
             StatusMessage = $"CSV Audit register exported successfully to: {filePath}";
             IsSuccess = true;
+
+            if (_auditTrailService != null)
+            {
+                _ = _auditTrailService.RecordActivityAsync(
+                    actionType: "Report exported",
+                    module: "REPORTS",
+                    description: $"CSV audit findings register exported to '{fileName}'. Included {allExceptions.Count} exception(s).",
+                    companyName: current.TallyCompanyName,
+                    ct: CancellationToken.None);
+            }
 
             TryOpenFile(filePath);
         }

@@ -17,6 +17,7 @@ public partial class SettingsViewModel : ObservableObject, INavigationAware
     private readonly IUpdateService _updateService;
     private readonly IAuditRepository _repository;
     private readonly ITallyConnection _tallyConnection;
+    private readonly IAuditTrailService? _auditTrailService;
 
     [ObservableProperty]
     private string _databasePath = string.Empty;
@@ -87,7 +88,8 @@ public partial class SettingsViewModel : ObservableObject, INavigationAware
         IActiveCompanyContext companyContext,
         IUpdateService updateService,
         IAuditRepository repository,
-        ITallyConnection tallyConnection)
+        ITallyConnection tallyConnection,
+        IAuditTrailService? auditTrailService = null)
     {
         _settingsService = settingsService;
         _dbInitializer = dbInitializer;
@@ -95,6 +97,7 @@ public partial class SettingsViewModel : ObservableObject, INavigationAware
         _updateService = updateService;
         _repository = repository;
         _tallyConnection = tallyConnection;
+        _auditTrailService = auditTrailService;
         _databasePath = _dbInitializer.DatabasePath;
 
         _ = LoadSettingsAsync();
@@ -162,6 +165,15 @@ public partial class SettingsViewModel : ObservableObject, INavigationAware
                 await _repository.ClearMockDatasetAsync();
                 await _tallyConnection.ProbePortRangeAsync(TallyHost, TallyPort, TallyPort);
                 StatusMessage = "Mock Tally Integration disabled. Demo data cleared.";
+            }
+
+            if (_auditTrailService != null)
+            {
+                _ = _auditTrailService.RecordActivityAsync(
+                    actionType: "Settings changed",
+                    module: "SETTINGS",
+                    description: $"Application settings updated. Tally host={TallyHost}:{TallyPort}, Mock={IsMockMode}, LargeTxThreshold={LargeTransactionThreshold}, TDSSingleLimit={TdsSinglePaymentLimit}.",
+                    ct: CancellationToken.None);
             }
         }
         catch (Exception ex)

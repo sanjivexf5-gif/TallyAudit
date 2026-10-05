@@ -93,6 +93,7 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<InvestigationViewModel>();
         services.AddSingleton<ExceptionsViewModel>();
         services.AddSingleton<ReportsViewModel>();
+        services.AddSingleton<AuditTrailViewModel>();
 
         // Views
         services.AddSingleton<MainWindow>();

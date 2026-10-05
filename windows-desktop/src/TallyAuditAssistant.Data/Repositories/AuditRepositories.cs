@@ -69,12 +69,17 @@ public class AuditRuleRepository : IAuditRuleRepository
 public class AuditResultRepository : IAuditResultRepository
 {
     private readonly SqliteConnectionFactory _connectionFactory;
+    private readonly IAuditTrailService? _auditTrailService;
     private readonly ILogger<AuditResultRepository> _logger;
 
-    public AuditResultRepository(SqliteConnectionFactory connectionFactory, ILogger<AuditResultRepository> logger)
+    public AuditResultRepository(
+        SqliteConnectionFactory connectionFactory, 
+        ILogger<AuditResultRepository> logger,
+        IAuditTrailService? auditTrailService = null)
     {
         _connectionFactory = connectionFactory;
         _logger = logger;
+        _auditTrailService = auditTrailService;
     }
 
     public async Task SaveResultsBatchAsync(IReadOnlyList<AuditResult> results, CancellationToken cancellationToken = default)
@@ -158,6 +163,17 @@ public class AuditResultRepository : IAuditResultRepository
 
         await connection.ExecuteAsync(new CommandDefinition(sql, parametersList, tx, cancellationToken: cancellationToken));
         tx.Commit();
+
+        if (_auditTrailService != null)
+        {
+            var first = results.FirstOrDefault();
+            _ = _auditTrailService.RecordActivityAsync(
+                actionType: "Finding created",
+                module: "AUDIT",
+                description: $"Recorded {results.Count} audit finding(s) across rules (e.g. {first?.RuleName ?? "Rule"}).",
+                companyName: first?.CompanyId,
+                ct: CancellationToken.None);
+        }
     }
 
     public async Task<IReadOnlyList<AuditResult>> GetResultsAsync(string companyId, string? ruleId = null, SeverityLevel? minSeverity = null, CancellationToken cancellationToken = default)
