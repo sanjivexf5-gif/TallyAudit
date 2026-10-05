@@ -103,8 +103,8 @@ public class InvestigationServiceTests : IAsyncLifetime
             "ExceptionInvestigation",
             inv.Id,
             null,
-            It.IsAny<string>(),
             null,
+            It.IsAny<string>(),
             compId,
             null,
             It.IsAny<CancellationToken>()), Times.Once);
