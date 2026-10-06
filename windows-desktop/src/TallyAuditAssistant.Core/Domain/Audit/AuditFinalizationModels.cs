@@ -49,6 +49,7 @@ public class ChecklistItem
     public string Section { get; set; } = string.Empty; // Planning, Execution, Findings, Evidence, Corrections, Final Review
     public string Code { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    public string Status { get; set; } = "Not Started"; // Not Started, In Progress, Completed, Not Applicable
     public bool IsCompleted { get; set; }
     public DateTime? CompletedAt { get; set; }
     public string CompletedBy { get; set; } = string.Empty;
