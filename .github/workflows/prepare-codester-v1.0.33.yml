@@ -1,0 +1,257 @@
+name: Prepare Codester v1.0.33 Package
+
+on:
+  push:
+    branches:
+      - codester-package-v1.0.33
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout v1.0.33 source
+        uses: actions/checkout@v7
+        with:
+          ref: v1.0.33
+          fetch-depth: 1
+
+      - name: Prepare clean Codester package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $root = "Codester-TallyAuditAssistant-v1.0.33"
+          $stage = Join-Path $PWD $root
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          New-Item -ItemType Directory -Force -Path "$stage\Application" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$stage\Source" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$stage\Documentation" | Out-Null
+
+          Copy-Item -Recurse -Force "windows-desktop" "$stage\Source\windows-desktop"
+          Copy-Item -Force "windows-desktop\README.md" "$stage\Source\README.md"
+
+          Get-ChildItem "$stage\Source\windows-desktop" -Recurse -Directory -Force |
+            Where-Object { $_.Name -in @("bin","obj",".vs") } |
+            Sort-Object FullName -Descending |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+          @'
+          # Tally Audit Assistant v1.0.33 — Codester Package
+
+          This package contains the complete editable Windows desktop source code and the tested Windows installer for Tally Audit Assistant v1.0.33.
+
+          ## What is included
+
+          - Application: ready-to-install Windows x64 installer.
+          - Source: complete .NET 8 WPF solution, project files, tests, Tally integration, installer script and application assets.
+          - Documentation: installation, usage, development and release information.
+
+          ## Important product behavior
+
+          Tally Audit Assistant is read-only with respect to TallyPrime. It reads and analyzes synchronized Tally data and does not write or modify TallyPrime company data. Local application databases, audit status and audit trail records are maintained by the application.
+
+          ## Quick start
+
+          1. Install TallyPrime and open the company to audit.
+          2. Run the included installer from the Application folder.
+          3. Start Tally Audit Assistant.
+          4. Auto-detect/connect to TallyPrime.
+          5. Select and save the active company.
+          6. Synchronize Tally data.
+          7. Run the available audit modules and review findings.
+          8. Generate the automated audit report from the Reports area.
+
+          For developer setup, see Documentation/DEVELOPER-GUIDE.md.
+          '@ | Set-Content -Encoding UTF8 "$stage\README.md"
+
+          @'
+          # Installation & User Guide
+
+          ## System requirements
+
+          - Windows 10 64-bit (Build 19041+) or Windows 11.
+          - TallyPrime installed locally when using live Tally integration.
+          - TallyPrime XML/TDL connectivity enabled.
+          - Administrator rights may be required by Windows when installing the application.
+          - The included v1.0.33 installer is self-contained for the application runtime.
+
+          ## Install
+
+          1. Close any previous Tally Audit Assistant instance.
+          2. Open Application/TallyAuditAssistant-Setup-1.0.33.exe.
+          3. Complete the Windows installer.
+          4. Launch Tally Audit Assistant from the Start Menu or desktop shortcut.
+
+          ## Connect to TallyPrime
+
+          1. Start TallyPrime and open the company you want to audit.
+          2. In TallyPrime, enable Client/Server or Server connectivity.
+          3. Use the TallyPrime XML port configured on the workstation (9000 is the common default).
+          4. In Tally Audit Assistant, use Auto-Detect TallyPrime.
+          5. Select the detected company and save the active company.
+          6. Run Sync.
+
+          ## Audit workflow
+
+          1. Synchronize the selected company.
+          2. Run the audit modules relevant to the engagement.
+          3. Review findings by severity.
+          4. Open investigation details where available.
+          5. Mark local audit findings as reviewed when appropriate.
+          6. Use Reports to generate the automated audit report.
+
+          ## Automated Audit Report
+
+          The report includes company information, audit finding severity, review status, risk assessment, and a detailed findings register. The risk score is a prioritisation indicator and is not a conclusion of fraud or non-compliance.
+
+          ## Read-only policy
+
+          The application does not create, edit, alter, delete or otherwise write back company data in TallyPrime. Audit review state and audit trail information are stored locally by Tally Audit Assistant.
+
+          ## Troubleshooting
+
+          - If Tally is not detected, confirm TallyPrime is running and XML/TDL connectivity is enabled.
+          - Confirm the configured port is reachable locally.
+          - Make sure the intended company is open in TallyPrime.
+          - Reconnect and save the active company before synchronizing.
+          - If synchronization fails, restart TallyPrime and the application and retry.
+
+          ## Support
+
+          Buyers should use the support/contact mechanism provided on the Codester item page and include the application version, Windows version, and a concise description of the problem. Do not include passwords, license secrets or private company data.
+          '@ | Set-Content -Encoding UTF8 "$stage\Documentation\INSTALLATION-AND-USER-GUIDE.md"
+
+          @'
+          # Developer Guide
+
+          ## Technology
+
+          - C#
+          - .NET 8
+          - WPF
+          - MVVM architecture
+          - SQLite local storage
+          - TallyPrime XML/TDL integration
+          - Inno Setup installer
+
+          ## Open the source
+
+          1. Install Visual Studio 2022 with the .NET Desktop Development workload.
+          2. Install the .NET 8 SDK.
+          3. Open Source/windows-desktop/TallyAuditAssistant.sln.
+          4. Set TallyAuditAssistant.App as the startup project.
+
+          Rider or another .NET 8 compatible IDE can also be used.
+
+          ## Build
+
+          From Source/windows-desktop:
+
+          dotnet restore
+          dotnet build TallyAuditAssistant.sln -c Release
+
+          ## Run
+
+          dotnet run --project src/TallyAuditAssistant.App/TallyAuditAssistant.App.csproj
+
+          ## Test
+
+          dotnet test tests/TallyAuditAssistant.Tests/TallyAuditAssistant.Tests.csproj -c Release
+
+          ## Publish a Windows x64 build
+
+          dotnet publish src/TallyAuditAssistant.App/TallyAuditAssistant.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o ./publish
+
+          ## Create the installer
+
+          Install Inno Setup 6 and compile:
+          Source/windows-desktop/installer/TallyAuditAssistant.iss
+
+          The CI workflow in the repository also contains the authoritative automated build, test, publish and release process.
+
+          ## Project structure
+
+          - src/TallyAuditAssistant.Core — domain models, interfaces, common application services.
+          - src/TallyAuditAssistant.Data — SQLite database, initialization and repositories.
+          - src/TallyAuditAssistant.Engine — audit engines and rules including GST/TDS/accounting analysis.
+          - src/TallyAuditAssistant.TallyIntegration — Tally connectivity, XML/TDL integration and mocks.
+          - src/TallyAuditAssistant.App — WPF UI, view models, views, navigation and reporting.
+          - tests/TallyAuditAssistant.Tests — automated test suite.
+          - installer — Inno Setup installer definition.
+
+          ## Data and privacy
+
+          Tally company data is read from the local TallyPrime integration and analyzed locally. The product is designed to keep TallyPrime itself read-only. Do not commit customer company data, database files containing customer information, credentials, API keys or private licensing material into source control.
+
+          ## Versioning
+
+          v1.0.33 is the package version represented by this submission. The repository's release workflow handles application version synchronization for subsequent releases.
+          '@ | Set-Content -Encoding UTF8 "$stage\Documentation\DEVELOPER-GUIDE.md"
+
+          @'
+          # v1.0.33 Changelog
+
+          - Added the automated audit report generation workflow.
+          - Enhanced the report with an audit risk assessment and severity breakdown.
+          - Added pending/reviewed finding counts and duplicate-finding visibility.
+          - Clarified that the report risk score is an audit-prioritisation indicator, not a fraud/non-compliance conclusion.
+          - Clarified the read-only relationship with TallyPrime.
+          - Updated the Reports UI wording to present the export as an Automated Audit Report.
+          - Included the complete editable .NET 8 Windows desktop source and tests for marketplace distribution.
+          '@ | Set-Content -Encoding UTF8 "$stage\Documentation\CHANGELOG.md"
+
+          @'
+          # Codester Package Notes
+
+          Product: Tally Audit Assistant
+          Version: 1.0.33
+          Platform: Windows 10/11 x64
+          Framework: .NET 8 WPF
+          Package type: Full source code + compiled Windows installer + documentation
+
+          The source package is intentionally free of build output directories such as bin, obj and .vs.
+
+          No customer Tally company data is included.
+
+          No credentials, private keys or API secrets are included.
+
+          TallyPrime remains read-only from the application's perspective.
+          '@ | Set-Content -Encoding UTF8 "$stage\Documentation\CODESTER-PACKAGE-NOTES.txt"
+
+          $installerUrl = "https://github.com/sanjivexf5-gif/TallyAudit/releases/download/v1.0.33/TallyAuditAssistant-Setup-1.0.33.exe"
+          Invoke-WebRequest -Uri $installerUrl -OutFile "$stage\Application\TallyAuditAssistant-Setup-1.0.33.exe"
+
+          if (-not (Test-Path "$stage\Application\TallyAuditAssistant-Setup-1.0.33.exe")) {
+            throw "v1.0.33 installer was not downloaded."
+          }
+
+          $installer = Get-Item "$stage\Application\TallyAuditAssistant-Setup-1.0.33.exe"
+          if ($installer.Length -lt 1000000) {
+            throw "Downloaded installer is unexpectedly small."
+          }
+
+          $hash = (Get-FileHash "$stage\Application\TallyAuditAssistant-Setup-1.0.33.exe" -Algorithm SHA256).Hash
+          $hashText = "Tally Audit Assistant v1.0.33 Installer SHA-256" + [Environment]::NewLine + $hash
+          $hashText | Set-Content -Encoding UTF8 "$stage\Documentation\SHA256.txt"
+
+          $zip = Join-Path $PWD "TallyAuditAssistant-Codester-v1.0.33.zip"
+          Compress-Archive -Path "$stage\*" -DestinationPath $zip -CompressionLevel Optimal -Force
+
+          if (-not (Test-Path $zip)) {
+            throw "Codester ZIP was not created."
+          }
+
+          $zipInfo = Get-Item $zip
+          Write-Host "Created: $($zipInfo.FullName)"
+          Write-Host "Size: $([math]::Round($zipInfo.Length / 1MB, 2)) MB"
+          Write-Host "SHA-256: $((Get-FileHash $zip -Algorithm SHA256).Hash)"
+
+      - name: Upload Codester-ready package
+        uses: actions/upload-artifact@v4
+        with:
+          name: TallyAuditAssistant-Codester-v1.0.33
+          path: TallyAuditAssistant-Codester-v1.0.33.zip
+          if-no-files-found: error
+          retention-days: 30
