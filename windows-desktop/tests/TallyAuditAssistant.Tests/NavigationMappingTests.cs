@@ -35,7 +35,7 @@ public class NavigationMappingTests
         };
 
     [Fact]
-    public void VerifyMainWindowXamlSidebarContainsAllNineteenNavigationRoutes()
+    public void VerifyMainWindowXamlSidebarContainsAllTwentyNavigationRoutes()
     {
         var appDir = FindAppDirectory();
         var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
@@ -48,7 +48,7 @@ public class NavigationMappingTests
                         (e.Attribute("Command")?.Value.Contains("NavigateCommand") ?? false))
             .ToList();
 
-        Assert.Equal(19, buttons.Count);
+        Assert.Equal(20, buttons.Count);
 
         var registeredSections = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -95,7 +95,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyMainWindowXamlDataTemplatesMapAllNineteenViewModelsToCorrectViews()
+    public void VerifyMainWindowXamlDataTemplatesMapAllTwentyViewModelsToCorrectViews()
     {
         var appDir = FindAppDirectory();
         var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
@@ -105,7 +105,7 @@ public class NavigationMappingTests
             .Where(e => e.Name.LocalName == "DataTemplate" && e.Attribute("DataType") != null)
             .ToList();
 
-        Assert.True(dataTemplates.Count >= 19, $"Expected at least 19 DataTemplates, found {dataTemplates.Count}");
+        Assert.True(dataTemplates.Count >= 20, $"Expected at least 20 DataTemplates, found {dataTemplates.Count}");
 
         foreach (var kvp in ExpectedNavigationMappings)
         {
@@ -186,7 +186,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyMainWindowViewModelSourceCodeContainsCompleteNineteenSectionRouting()
+    public void VerifyMainWindowViewModelSourceCodeContainsCompleteTwentySectionRouting()
     {
         var appDir = FindAppDirectory();
         var vmPath = Path.Combine(appDir, "ViewModels", "MainWindowViewModel.cs");
@@ -207,7 +207,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyAllNineteenViewAndViewModelFilesExistPhysicallyOnDisk()
+    public void VerifyAllTwentyViewAndViewModelFilesExistPhysicallyOnDisk()
     {
         var appDir = FindAppDirectory();
 
