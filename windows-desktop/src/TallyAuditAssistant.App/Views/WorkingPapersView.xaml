@@ -1,0 +1,64 @@
+<UserControl x:Class="TallyAuditAssistant.App.Views.WorkingPapersView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+ xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+ mc:Ignorable="d" d:DesignHeight="650" d:DesignWidth="950">
+ <Grid Margin="0,0,10,0">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <StackPanel Grid.Row="0" Margin="0,0,0,12">
+   <TextBlock Text="Audit Working Papers" FontSize="22" FontWeight="Bold" Foreground="White"/>
+   <TextBlock Text="Document observations, procedures, conclusions and supporting evidence without modifying TallyPrime." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,8"/>
+   <Border Padding="12,8" Background="#1E293B" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+    <StackPanel Orientation="Horizontal"><TextBlock Text="Company: " Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding ActiveCompanyName}" Foreground="#38BDF8" FontWeight="Bold"/></StackPanel>
+   </Border>
+  </StackPanel>
+  <Border Grid.Row="1" Padding="10" Margin="0,0,0,12" Background="{StaticResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+   <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <TextBox Grid.Column="0" Text="{Binding SearchQuery,UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Padding="7" Margin="0,0,8,0"/>
+    <ComboBox Grid.Column="1" SelectedValue="{Binding AuditAreaFilter}" SelectedValuePath="Content" Width="130" Margin="0,0,8,0" Background="#0F172A" Foreground="White"><ComboBoxItem Content="All"/><ComboBoxItem Content="GST"/><ComboBoxItem Content="TDS"/><ComboBoxItem Content="Banking"/><ComboBoxItem Content="Ledger"/><ComboBoxItem Content="General"/></ComboBox>
+    <ComboBox Grid.Column="2" SelectedValue="{Binding StatusFilter}" SelectedValuePath="Content" Width="130" Margin="0,0,8,0" Background="#0F172A" Foreground="White"><ComboBoxItem Content="All"/><ComboBoxItem Content="Draft"/><ComboBoxItem Content="Under Review"/><ComboBoxItem Content="Reviewed"/><ComboBoxItem Content="Resolved"/><ComboBoxItem Content="Not Applicable"/></ComboBox>
+    <Button Grid.Column="3" Content="🔄 Refresh" Command="{Binding LoadCommand}" Padding="10,6" Margin="0,0,8,0"/>
+    <Button Grid.Column="4" Content="＋ New Working Paper" Command="{Binding NewWorkingPaperCommand}" Padding="12,6"/>
+   </Grid>
+  </Border>
+  <Grid Grid.Row="2">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="360"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <Border Grid.Column="0" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,10,0">
+    <ListBox ItemsSource="{Binding WorkingPapers}" SelectedItem="{Binding SelectedWorkingPaper}" Background="Transparent" BorderThickness="0">
+     <ListBox.ItemTemplate><DataTemplate><Border Padding="10" Margin="0,0,0,7" Background="#0F172A" CornerRadius="5" BorderBrush="#334155" BorderThickness="1"><StackPanel>
+      <TextBlock Text="{Binding Title}" Foreground="White" FontWeight="Bold" TextWrapping="Wrap"/>
+      <TextBlock Text="{Binding AuditArea}" Foreground="#38BDF8" FontSize="11" Margin="0,3,0,0"/>
+      <TextBlock Text="{Binding Status}" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+      <TextBlock Text="{Binding PreparedDate,StringFormat={}{0:dd-MMM-yyyy}}" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/>
+     </StackPanel></Border></DataTemplate></ListBox.ItemTemplate>
+    </ListBox>
+   </Border>
+   <Border Grid.Column="1" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="16">
+    <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel>
+     <TextBlock Text="Working Paper Details" FontSize="17" FontWeight="Bold" Foreground="White" Margin="0,0,0,12"/>
+     <TextBlock Text="Title" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+     <TextBox Text="{Binding TitleInput,UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" Padding="7" Margin="0,3,0,10"/>
+     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <StackPanel Grid.Column="0" Margin="0,0,6,8"><TextBlock Text="Audit Area" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><ComboBox SelectedValue="{Binding AuditAreaInput}" SelectedValuePath="Content" Background="#0F172A" Foreground="White"><ComboBoxItem Content="General"/><ComboBoxItem Content="GST"/><ComboBoxItem Content="TDS"/><ComboBoxItem Content="Banking"/><ComboBoxItem Content="Ledger"/></ComboBox></StackPanel>
+      <StackPanel Grid.Column="1" Margin="3,0,3,8"><TextBlock Text="Status" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><ComboBox SelectedValue="{Binding WorkingPaperStatusInput}" SelectedValuePath="Content" Background="#0F172A" Foreground="White"><ComboBoxItem Content="Draft"/><ComboBoxItem Content="Under Review"/><ComboBoxItem Content="Reviewed"/><ComboBoxItem Content="Resolved"/><ComboBoxItem Content="Not Applicable"/></ComboBox></StackPanel>
+      <StackPanel Grid.Column="2" Margin="6,0,0,8"><TextBlock Text="Finding ID" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><TextBox Text="{Binding RelatedFindingIdInput,UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" Padding="5"/></StackPanel>
+     </Grid>
+     <TextBlock Text="Objective" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><TextBox Text="{Binding ObjectiveInput,UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" Height="65" TextWrapping="Wrap" AcceptsReturn="True" Padding="7" Margin="0,3,0,10"/>
+     <TextBlock Text="Procedure Performed" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><TextBox Text="{Binding ProcedureInput,UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" Height="85" TextWrapping="Wrap" AcceptsReturn="True" Padding="7" Margin="0,3,0,10"/>
+     <TextBlock Text="Conclusion" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><TextBox Text="{Binding ConclusionInput,UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" Height="85" TextWrapping="Wrap" AcceptsReturn="True" Padding="7" Margin="0,3,0,10"/>
+     <TextBlock Text="Supporting Evidence" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,2,0,4"/>
+     <Border Background="#0F172A" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,10"><StackPanel>
+      <ItemsControl ItemsSource="{Binding Attachments}"><ItemsControl.ItemTemplate><DataTemplate><DockPanel Margin="0,0,0,5">
+       <Button DockPanel.Dock="Right" Content="Open" Command="{Binding DataContext.OpenAttachmentCommand,RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Padding="8,3"/>
+       <TextBlock Text="{Binding FileName}" Foreground="White" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+      </DockPanel></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+      <StackPanel Orientation="Horizontal"><Button Content="＋ Add Evidence" Command="{Binding AddAttachmentCommand}" Padding="10,5" Margin="0,5,8,0"/><Button Content="📁 Evidence Folder" Command="{Binding OpenEvidenceFolderCommand}" Background="#334155" Padding="10,5" Margin="0,5,0,0"/></StackPanel>
+     </StackPanel></Border>
+     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><TextBlock Text="{Binding StatusMessage}" Foreground="#10B981" VerticalAlignment="Center" Margin="0,0,12,0" TextWrapping="Wrap"/><Button Content="💾 Save Working Paper" Command="{Binding SaveCommand}" Padding="14,8"/></StackPanel>
+    </StackPanel></ScrollViewer>
+   </Border>
+  </Grid>
+ </Grid>
+</UserControl>

@@ -168,6 +168,60 @@ public class AuditFinalizationRepository : IAuditFinalizationRepository
         return results.ToList();
     }
 
+    public async Task<string> GetOrCreateWorkingPaperPlanIdAsync(string companyId, string companyName, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string findSql = "SELECT Id FROM AuditPlans WHERE CompanyId = @CompanyId AND FinancialPeriodId = 'WORKING-PAPER' LIMIT 1;";
+        var existing = await connection.QuerySingleOrDefaultAsync<string>(new CommandDefinition(findSql, new { CompanyId = companyId }, cancellationToken: cancellationToken));
+        if (!string.IsNullOrWhiteSpace(existing)) return existing;
+
+        var id = $"WP-PLAN-{companyId}";
+        const string sql = @"INSERT OR IGNORE INTO AuditPlans (Id, CompanyId, FinancialPeriodId, Status, MaterialityAmount, PerformanceMateriality, TrivialThreshold, IsFinalized, CreatedAt, UpdatedAt)
+                             VALUES (@Id, @CompanyId, 'WORKING-PAPER', 'In Progress', 250000, 187500, 12500, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);";
+        await connection.ExecuteAsync(new CommandDefinition(sql, new { Id = id, CompanyId = companyId }, cancellationToken: cancellationToken));
+        return id;
+    }
+
+    public async Task<IReadOnlyList<WorkingPaper>> GetWorkingPapersAsync(string planId, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = @"SELECT wp.*, ap.CompanyId AS CompanyId, c.TallyCompanyName AS CompanyName
+                             FROM WorkingPapers wp
+                             INNER JOIN AuditPlans ap ON ap.Id = wp.PlanId
+                             INNER JOIN Companies c ON c.Id = ap.CompanyId
+                             WHERE wp.PlanId = @PlanId ORDER BY wp.PreparedDate DESC, wp.Title ASC;";
+        var rows = await connection.QueryAsync<WorkingPaper>(new CommandDefinition(sql, new { PlanId = planId }, cancellationToken: cancellationToken));
+        return rows.ToList();
+    }
+
+    public async Task SaveWorkingPaperAsync(WorkingPaper paper, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = @"INSERT INTO WorkingPapers (Id, PlanId, AuditArea, Title, Objective, ProcedurePerformed, Conclusion, Status, PreparedBy, PreparedDate, ReviewedBy, ReviewedDate, RelatedFindingId)
+                             VALUES (@Id, @PlanId, @AuditArea, @Title, @Objective, @ProcedurePerformed, @Conclusion, @Status, @PreparedBy, @PreparedDate, @ReviewedBy, @ReviewedDate, @RelatedFindingId)
+                             ON CONFLICT(Id) DO UPDATE SET AuditArea=excluded.AuditArea, Title=excluded.Title, Objective=excluded.Objective,
+                             ProcedurePerformed=excluded.ProcedurePerformed, Conclusion=excluded.Conclusion, Status=excluded.Status,
+                             PreparedBy=excluded.PreparedBy, PreparedDate=excluded.PreparedDate, ReviewedBy=excluded.ReviewedBy,
+                             ReviewedDate=excluded.ReviewedDate, RelatedFindingId=excluded.RelatedFindingId;";
+        await connection.ExecuteAsync(new CommandDefinition(sql, paper, cancellationToken: cancellationToken));
+    }
+
+    public async Task<IReadOnlyList<WorkingPaperAttachment>> GetWorkingPaperAttachmentsAsync(string workingPaperId, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = "SELECT * FROM WorkingPaperAttachments WHERE WorkingPaperId = @WorkingPaperId ORDER BY AddedAt DESC;";
+        var rows = await connection.QueryAsync<WorkingPaperAttachment>(new CommandDefinition(sql, new { WorkingPaperId = workingPaperId }, cancellationToken: cancellationToken));
+        return rows.ToList();
+    }
+
+    public async Task SaveWorkingPaperAttachmentAsync(WorkingPaperAttachment attachment, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = @"INSERT INTO WorkingPaperAttachments (Id, WorkingPaperId, FileName, FilePath, FileHash, FileSizeBytes, AddedAt, AddedBy)
+                             VALUES (@Id, @WorkingPaperId, @FileName, @FilePath, @FileHash, @FileSizeBytes, @AddedAt, @AddedBy);";
+        await connection.ExecuteAsync(new CommandDefinition(sql, attachment, cancellationToken: cancellationToken));
+    }
+
     public async Task SaveAmendmentAsync(AuditAmendment amendment, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
