@@ -514,5 +514,34 @@ public class MigrationService : IMigrationService
             CREATE INDEX IF NOT EXISTS idx_investigations_comp ON ExceptionInvestigations(CompanyId, Status);
             CREATE INDEX IF NOT EXISTS idx_inv_checklist_inv ON InvestigationChecklistItems(InvestigationId);
             ");
+
+        yield return new MigrationDefinition(
+            "009_WorkingPaperEvidence",
+            "1.8.0",
+            "Working paper finding links and local evidence attachment register",
+            @"
+            CREATE TABLE IF NOT EXISTS WorkingPaperAttachments (
+                Id TEXT PRIMARY KEY,
+                WorkingPaperId TEXT NOT NULL REFERENCES WorkingPapers(Id) ON DELETE CASCADE,
+                FileName TEXT NOT NULL,
+                FilePath TEXT NOT NULL,
+                FileHash TEXT,
+                FileSizeBytes INTEGER NOT NULL DEFAULT 0,
+                AddedAt DATETIME NOT NULL,
+                AddedBy TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_wp_attachments_wp ON WorkingPaperAttachments(WorkingPaperId, AddedAt DESC);
+            ",
+            async (conn, tx, ct) =>
+            {
+                var columns = await conn.QueryAsync<string>(
+                    new CommandDefinition("SELECT name FROM pragma_table_info('WorkingPapers');", transaction: tx, cancellationToken: ct));
+                if (!columns.Contains("RelatedFindingId", StringComparer.OrdinalIgnoreCase))
+                {
+                    await conn.ExecuteAsync(
+                        new CommandDefinition("ALTER TABLE WorkingPapers ADD COLUMN RelatedFindingId TEXT;", transaction: tx, cancellationToken: ct));
+                }
+            });
     }
 }
