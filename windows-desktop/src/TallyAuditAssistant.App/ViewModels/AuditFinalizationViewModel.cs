@@ -21,6 +21,7 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
     private readonly IAuditTrailService? _auditTrailService;
     private string _companyId = string.Empty;
     private string _financialPeriodId = string.Empty;
+    private readonly SemaphoreSlim _loadGate = new(1, 1);
 
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private string _activeCompanyName = "No Company Selected";
@@ -80,6 +81,7 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
     [RelayCommand]
     public async Task LoadAsync()
     {
+        await _loadGate.WaitAsync();
         IsLoading = true;
         IsError = false;
         try
@@ -147,7 +149,11 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
             StatusMessage = $"Unable to load finalization workspace: {ex.Message}";
             IsError = true;
         }
-        finally { IsLoading = false; }
+        finally
+        {
+            IsLoading = false;
+            _loadGate.Release();
+        }
     }
 
     [RelayCommand]
