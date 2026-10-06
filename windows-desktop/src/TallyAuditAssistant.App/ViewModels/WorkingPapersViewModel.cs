@@ -127,8 +127,12 @@ public partial class WorkingPapersViewModel : ObservableObject, INavigationAware
 
             await _repository.SaveWorkingPaperAsync(paper);
             if (_auditTrailService != null)
-                await _auditTrailService.RecordActivityAsync("Working paper saved", "WORKING PAPERS",
-                    $"Working paper '{paper.Title}' saved with status '{paper.Status}'.", company.TallyCompanyName, CancellationToken.None);
+                await _auditTrailService.RecordActivityAsync(
+                    actionType: "Working paper saved",
+                    module: "WORKING PAPERS",
+                    description: $"Working paper '{paper.Title}' saved with status '{paper.Status}'.",
+                    companyName: company.TallyCompanyName,
+                    ct: CancellationToken.None);
 
             await LoadAsync();
             SelectedWorkingPaper = WorkingPapers.FirstOrDefault(x => x.Id == paper.Id);
