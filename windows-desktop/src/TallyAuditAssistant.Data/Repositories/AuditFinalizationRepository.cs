@@ -223,6 +223,29 @@ public class AuditFinalizationRepository : IAuditFinalizationRepository
         await connection.ExecuteAsync(new CommandDefinition(sql, attachment, cancellationToken: cancellationToken));
     }
 
+
+    public async Task<IReadOnlyList<AuditEvidence>> GetAuditEvidenceAsync(string planId, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = "SELECT * FROM AuditEvidence WHERE PlanId = @PlanId ORDER BY UploadedAt DESC;";
+        var rows = await connection.QueryAsync<AuditEvidence>(new CommandDefinition(sql, new { PlanId = planId }, cancellationToken: cancellationToken));
+        return rows.ToList();
+    }
+
+    public async Task SaveAuditEvidenceAsync(AuditEvidence evidence, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = @"
+            INSERT INTO AuditEvidence (Id, PlanId, AuditArea, ProcedureId, FindingId, EvidenceType, Description, ReferenceNumber, FileName, FilePath, FileHash, FileSizeBytes, DateReceived, UploadedAt, Status, AuditorRemarks)
+            VALUES (@Id, @PlanId, @AuditArea, @ProcedureId, @FindingId, @EvidenceType, @Description, @ReferenceNumber, @FileName, @FilePath, @FileHash, @FileSizeBytes, @DateReceived, @UploadedAt, @Status, @AuditorRemarks)
+            ON CONFLICT(Id) DO UPDATE SET
+                AuditArea=excluded.AuditArea, ProcedureId=excluded.ProcedureId, FindingId=excluded.FindingId,
+                EvidenceType=excluded.EvidenceType, Description=excluded.Description, ReferenceNumber=excluded.ReferenceNumber,
+                FileName=excluded.FileName, FilePath=excluded.FilePath, FileHash=excluded.FileHash, FileSizeBytes=excluded.FileSizeBytes,
+                DateReceived=excluded.DateReceived, Status=excluded.Status, AuditorRemarks=excluded.AuditorRemarks;";
+        await connection.ExecuteAsync(new CommandDefinition(sql, evidence, cancellationToken: cancellationToken));
+    }
+
     public async Task SaveAmendmentAsync(AuditAmendment amendment, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
