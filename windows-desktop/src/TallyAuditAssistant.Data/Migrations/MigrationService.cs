@@ -544,4 +544,37 @@ public class MigrationService : IMigrationService
                 }
             });
     }
+
+        yield return new MigrationDefinition(
+            "010_AuditChecklistProgram",
+            "1.9.0",
+            "Professional audit checklist program with status tracking",
+            @"
+            CREATE TABLE IF NOT EXISTS AuditChecklistItems (
+                Id TEXT PRIMARY KEY,
+                AuditId TEXT NOT NULL,
+                Section TEXT NOT NULL,
+                Code TEXT NOT NULL,
+                Description TEXT NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'Not Started',
+                IsCompleted INTEGER NOT NULL DEFAULT 0,
+                CompletedAt DATETIME,
+                CompletedBy TEXT,
+                Notes TEXT,
+                SourceReference TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_checklist_audit_section ON AuditChecklistItems(AuditId, Section);
+            ",
+            async (conn, tx, ct) =>
+            {
+                var columns = await conn.QueryAsync<string>(
+                    new CommandDefinition("SELECT name FROM pragma_table_info('AuditChecklistItems');", transaction: tx, cancellationToken: ct));
+                if (!columns.Contains("Status", StringComparer.OrdinalIgnoreCase))
+                {
+                    await conn.ExecuteAsync(new CommandDefinition(
+                        "ALTER TABLE AuditChecklistItems ADD COLUMN Status TEXT NOT NULL DEFAULT 'Not Started';",
+                        transaction: tx, cancellationToken: ct));
+                }
+            });
+    }
 }
