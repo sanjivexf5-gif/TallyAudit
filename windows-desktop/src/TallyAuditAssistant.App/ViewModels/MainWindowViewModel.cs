@@ -50,6 +50,7 @@ public partial class MainWindowViewModel : ObservableObject
     public ReportsViewModel ReportsVM { get; }
     public WorkingPapersViewModel WorkingPapersVM { get; }
     public AuditChecklistViewModel AuditChecklistVM { get; }
+    public RiskDashboardViewModel RiskDashboardVM { get; }
     public InvestigationViewModel InvestigationVM { get; }
     public AuditTrailViewModel AuditTrailVM { get; }
 
@@ -74,7 +75,8 @@ public partial class MainWindowViewModel : ObservableObject
         WorkingPapersViewModel workingPapersVM,
         AuditChecklistViewModel auditChecklistVM,
         InvestigationViewModel investigationVM,
-        AuditTrailViewModel auditTrailVM)
+        AuditTrailViewModel auditTrailVM,
+        RiskDashboardViewModel? riskDashboardVM = null)
     {
         _tallyConnection = tallyConnection;
         _companyContext = companyContext;
@@ -96,6 +98,8 @@ public partial class MainWindowViewModel : ObservableObject
         ReportsVM = reportsVM;
         WorkingPapersVM = workingPapersVM;
         AuditChecklistVM = auditChecklistVM;
+        RiskDashboardVM = riskDashboardVM ?? new RiskDashboardViewModel(
+            (IAuditRepository)null!, (IAuditFinalizationRepository)null!, _companyContext);
         InvestigationVM = investigationVM;
         AuditTrailVM = auditTrailVM;
 
@@ -205,6 +209,7 @@ public partial class MainWindowViewModel : ObservableObject
             "Reports" => ReportsVM,
             "WorkingPapers" => WorkingPapersVM,
             "AuditChecklist" => AuditChecklistVM,
+            "RiskDashboard" => RiskDashboardVM,
             "Settings" => SettingsVM,
             "AuditTrail" => AuditTrailVM,
             _ => null
