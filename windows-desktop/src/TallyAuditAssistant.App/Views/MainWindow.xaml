@@ -61,6 +61,9 @@
         <DataTemplate DataType="{x:Type vm:AuditTrailViewModel}">
             <views:AuditTrailView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ManagementRepresentationLetterViewModel}">
+            <views:ManagementRepresentationLetterView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:InvestigationViewModel}">
             <views:InvestigationView />
         </DataTemplate>
@@ -179,6 +182,7 @@
                     <Button Content="📝  Working Papers" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="WorkingPapers" Tag="WorkingPapers"/>
                     <Button Content="☑️  Audit Checklist" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="AuditChecklist" Tag="AuditChecklist"/>
                     <Button Content="🛡️  Audit Trail" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="AuditTrail" Tag="AuditTrail"/>
+                    <Button Content="✉️  Management Letter" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="ManagementLetter" Tag="ManagementLetter"/>
                     <Button Content="⚙️  Settings" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Settings" Tag="Settings"/>
                 </StackPanel>
             </Border>
