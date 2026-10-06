@@ -32,6 +32,7 @@ public class NavigationMappingTests
             ["AuditEvidence"] = ("AuditEvidenceViewModel", "AuditEvidenceView"),
             ["AuditFinalization"] = ("AuditFinalizationViewModel", "AuditFinalizationView"),
             ["AuditReportPack"] = ("AuditReportPackViewModel", "AuditReportPackView"),
+            ["AuditQueries"] = ("AuditQueriesViewModel", "AuditQueriesView"),
         };
 
     [Fact]
