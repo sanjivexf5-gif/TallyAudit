@@ -73,6 +73,28 @@ public class NavigationMappingTests
     }
 
     [Fact]
+    public void VerifyMainWindowXamlSidebarIsVerticallyScrollable()
+    {
+        var appDir = FindAppDirectory();
+        var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
+        var doc = XDocument.Parse(File.ReadAllText(mainWindowXamlPath));
+
+        var scrollViewer = doc.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "ScrollViewer" &&
+                                 e.Attribute("VerticalScrollBarVisibility")?.Value == "Auto");
+
+        Assert.NotNull(scrollViewer);
+        Assert.Equal("Disabled", scrollViewer!.Attribute("HorizontalScrollBarVisibility")?.Value);
+
+        var settingsButton = doc.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "Button" &&
+                                 e.Attribute("CommandParameter")?.Value == "Settings");
+
+        Assert.NotNull(settingsButton);
+        Assert.Equal("Settings", settingsButton!.Attribute("Tag")?.Value);
+    }
+
+    [Fact]
     public void VerifyMainWindowXamlDataTemplatesMapAllNineteenViewModelsToCorrectViews()
     {
         var appDir = FindAppDirectory();
