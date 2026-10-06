@@ -156,6 +156,10 @@ public class CompanySelectionSyncFlowTests
             new AuditFinalizationRepository(_sqliteConnectionFactory),
             _companyContext,
             null);
+        var auditChecklistVM = new AuditChecklistViewModel(
+            new AuditFinalizationRepository(_sqliteConnectionFactory),
+            _companyContext,
+            null);
 
         return new MainWindowViewModel(
             _mockConnection.Object,
@@ -176,6 +180,7 @@ public class CompanySelectionSyncFlowTests
             exceptionsVM,
             reportsVM,
             workingPapersVM,
+            auditChecklistVM,
             investigationVM,
             new AuditTrailViewModel(new Mock<IAuditTrailService>().Object, _companyContext));
     }

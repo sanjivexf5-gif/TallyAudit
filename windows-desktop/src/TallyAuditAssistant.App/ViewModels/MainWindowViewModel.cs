@@ -49,6 +49,7 @@ public partial class MainWindowViewModel : ObservableObject
     public ExceptionsViewModel ExceptionsVM { get; }
     public ReportsViewModel ReportsVM { get; }
     public WorkingPapersViewModel WorkingPapersVM { get; }
+    public AuditChecklistViewModel AuditChecklistVM { get; }
     public InvestigationViewModel InvestigationVM { get; }
     public AuditTrailViewModel AuditTrailVM { get; }
 
@@ -71,6 +72,7 @@ public partial class MainWindowViewModel : ObservableObject
         ExceptionsViewModel exceptionsVM,
         ReportsViewModel reportsVM,
         WorkingPapersViewModel workingPapersVM,
+        AuditChecklistViewModel auditChecklistVM,
         InvestigationViewModel investigationVM,
         AuditTrailViewModel auditTrailVM)
     {
@@ -93,6 +95,7 @@ public partial class MainWindowViewModel : ObservableObject
         ExceptionsVM = exceptionsVM;
         ReportsVM = reportsVM;
         WorkingPapersVM = workingPapersVM;
+        AuditChecklistVM = auditChecklistVM;
         InvestigationVM = investigationVM;
         AuditTrailVM = auditTrailVM;
 
@@ -201,6 +204,7 @@ public partial class MainWindowViewModel : ObservableObject
             "Investigation" => InvestigationVM,
             "Reports" => ReportsVM,
             "WorkingPapers" => WorkingPapersVM,
+            "AuditChecklist" => AuditChecklistVM,
             "Settings" => SettingsVM,
             "AuditTrail" => AuditTrailVM,
             _ => null
