@@ -543,8 +543,6 @@ public class MigrationService : IMigrationService
                         new CommandDefinition("ALTER TABLE WorkingPapers ADD COLUMN RelatedFindingId TEXT;", transaction: tx, cancellationToken: ct));
                 }
             });
-    }
-
         yield return new MigrationDefinition(
             "010_AuditChecklistProgram",
             "1.9.0",
