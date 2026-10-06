@@ -25,7 +25,7 @@
                     <TextBlock Text="Financial Year" Foreground="{StaticResource TextMutedBrush}"/>
                     <TextBox Text="{Binding FinancialYear, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12" />
                     <TextBlock Text="Management / Authorized Signatory" Foreground="{StaticResource TextMutedBrush}"/>
-                    <TextBox Text="{Binding ManagementName, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12}" />
+                    <TextBox Text="{Binding ManagementName, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12" />
                     <TextBlock Text="Auditor / Firm" Foreground="{StaticResource TextMutedBrush}"/>
                     <TextBox Text="{Binding AuditorName, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12}" />
                     <TextBlock Text="Letter Date" Foreground="{StaticResource TextMutedBrush}"/>
