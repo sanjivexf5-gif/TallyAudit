@@ -153,7 +153,7 @@ public class CompanySelectionSyncFlowTests
             _navigationService);
 
         var workingPapersVM = new WorkingPapersViewModel(
-            _mockAuditRepo.Object,
+            new AuditFinalizationRepository(_sqliteConnectionFactory),
             _companyContext,
             null);
 
