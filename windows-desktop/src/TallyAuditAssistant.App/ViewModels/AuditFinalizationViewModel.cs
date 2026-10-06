@@ -50,7 +50,8 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
         ChecklistCompletion >= 100 &&
         PendingHighRisk == 0 &&
         OpenItems == 0 &&
-        RejectedEvidence == 0;
+        RejectedEvidence == 0 &&
+        OutstandingQueries == 0;
 
     public bool CanFinalize =>
         LifecycleStatus == nameof(AuditLifecycleStatus.ReadyForFinalization) &&
@@ -81,6 +82,15 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
     [RelayCommand]
     public async Task LoadAsync()
     {
+        // ActiveCompanyChanged may originate from a background Tally monitor.
+        // All WPF-bound state must therefore be loaded and updated on the dispatcher.
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+        {
+            await dispatcher.InvokeAsync(LoadAsync);
+            return;
+        }
+
         await _loadGate.WaitAsync();
         IsLoading = true;
         IsError = false;
