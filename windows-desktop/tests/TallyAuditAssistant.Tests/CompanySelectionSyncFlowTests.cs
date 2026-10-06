@@ -152,6 +152,11 @@ public class CompanySelectionSyncFlowTests
             _companyContext,
             _navigationService);
 
+        var workingPapersVM = new WorkingPapersViewModel(
+            _mockAuditRepo.Object,
+            _companyContext,
+            null);
+
         return new MainWindowViewModel(
             _mockConnection.Object,
             _companyContext,
@@ -170,6 +175,7 @@ public class CompanySelectionSyncFlowTests
             bankVM,
             exceptionsVM,
             reportsVM,
+            workingPapersVM,
             investigationVM,
             new AuditTrailViewModel(new Mock<IAuditTrailService>().Object, _companyContext));
     }
