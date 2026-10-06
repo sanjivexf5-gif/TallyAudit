@@ -453,6 +453,31 @@ public class DatabaseInitializer : IDatabaseInitializer
         try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN LinkedEvidenceIds TEXT;", cancellationToken: cancellationToken)); } catch {}
         try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN LinkedWorkingPaperIds TEXT;", cancellationToken: cancellationToken)); } catch {}
 
+        // Audit query and management follow-up tracker.
+        await connection.ExecuteAsync(new CommandDefinition(@"
+            CREATE TABLE IF NOT EXISTS AuditQueries (
+                Id TEXT PRIMARY KEY,
+                PlanId TEXT NOT NULL,
+                QueryNumber TEXT NOT NULL,
+                Title TEXT NOT NULL,
+                Details TEXT NOT NULL,
+                AuditArea TEXT NOT NULL,
+                FindingId TEXT,
+                ResponsiblePerson TEXT,
+                Priority TEXT NOT NULL DEFAULT 'Medium',
+                Status TEXT NOT NULL DEFAULT 'Open',
+                QueryDate DATETIME NOT NULL,
+                ResponseDate DATETIME,
+                DueDate DATETIME,
+                ManagementResponse TEXT,
+                AuditorRemarks TEXT,
+                CreatedAt DATETIME NOT NULL,
+                UpdatedAt DATETIME NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_auditqueries_plan_status ON AuditQueries(PlanId, Status);
+            CREATE INDEX IF NOT EXISTS idx_auditqueries_due ON AuditQueries(PlanId, DueDate);
+        ", cancellationToken: cancellationToken));
+
         // Audit checklist status migration for databases created before the status column was introduced.
         try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditChecklistItems ADD COLUMN Status TEXT NOT NULL DEFAULT 'Not Started';", cancellationToken: cancellationToken)); } catch { }
 
