@@ -121,27 +121,11 @@ public class TallyVoucherService : ITallyVoucherService
                     "Streaming voucher chunk from {Start:yyyy-MM-dd} to {End:yyyy-MM-dd} ({Days} days)...",
                     currentStart, currentEnd, (currentEnd - currentStart).Days + 1);
 
+                IReadOnlyList<TallyVoucherDto>? chunk = null;
+
                 try
                 {
-                    var chunk = await GetVouchersAsync(companyName, currentStart, currentEnd, null, cancellationToken);
-
-                    foreach (var voucher in chunk)
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        yield return voucher;
-                    }
-
-                    chunkSucceeded = true;
-
-                    // If a reduced chunk succeeded, keep using that smaller
-                    // size for the remainder of the sync. This avoids repeatedly
-                    // timing out against a slow Tally server.
-                    if (requestedChunkDays < safeChunkDays)
-                    {
-                        safeChunkDays = requestedChunkDays;
-                    }
-
-                    currentStart = currentEnd.AddDays(1);
+                    chunk = await GetVouchersAsync(companyName, currentStart, currentEnd, null, cancellationToken);
                 }
                 catch (TallySynchronizationException ex) when (
                     ex.HttpStatusCode == 408 &&
@@ -155,7 +139,28 @@ public class TallyVoucherService : ITallyVoucherService
 
                     EmitTimeoutRecoveryLog(companyName, currentStart, currentEnd, nextChunkDays);
                     requestedChunkDays = nextChunkDays;
+                    continue;
                 }
+
+                // Keep yield outside the try/catch. C# iterator methods cannot
+                // yield a value inside a try block that has a catch clause.
+                foreach (var voucher in chunk)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    yield return voucher;
+                }
+
+                chunkSucceeded = true;
+
+                // If a reduced chunk succeeded, keep using that smaller
+                // size for the remainder of the sync. This avoids repeatedly
+                // timing out against a slow Tally server.
+                if (requestedChunkDays < safeChunkDays)
+                {
+                    safeChunkDays = requestedChunkDays;
+                }
+
+                currentStart = currentEnd.AddDays(1);
             }
         }
     }
