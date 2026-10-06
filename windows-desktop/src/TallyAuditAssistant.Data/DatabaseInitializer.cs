@@ -433,6 +433,9 @@ public class DatabaseInitializer : IDatabaseInitializer
         try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN LinkedEvidenceIds TEXT;", cancellationToken: cancellationToken)); } catch {}
         try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN LinkedWorkingPaperIds TEXT;", cancellationToken: cancellationToken)); } catch {}
 
+        // Audit checklist status migration for databases created before the status column was introduced.
+        try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditChecklistItems ADD COLUMN Status TEXT NOT NULL DEFAULT 'Not Started';", cancellationToken: cancellationToken)); } catch { }
+
         // AuditTrail table column migrations if upgrading from legacy schema
         try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN TimestampUtc DATETIME;", cancellationToken: cancellationToken)); } catch {}
         try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE AuditTrail ADD COLUMN UserName TEXT;", cancellationToken: cancellationToken)); } catch {}
