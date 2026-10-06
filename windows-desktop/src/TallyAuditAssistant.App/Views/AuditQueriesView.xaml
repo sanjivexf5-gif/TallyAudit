@@ -52,7 +52,7 @@
      </Grid>
      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <StackPanel Grid.Column="0" Margin="0,0,6,8"><TextBlock Text="Responsible Person" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><TextBox Text="{Binding ResponsiblePersonInput,UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" Padding="7"/></StackPanel>
-      <StackPanel Grid.Column="1" Margin="6,0,0,8"><TextBlock Text="Due Date" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><DatePicker SelectedDate="{Binding DueDateInput}" Background="#0F172A" Foreground="White"/></StackPicker>
+      <StackPanel Grid.Column="1" Margin="6,0,0,8"><TextBlock Text="Due Date" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><DatePicker SelectedDate="{Binding DueDateInput}" Background="#0F172A" Foreground="White"/></StackPanel>
      </Grid>
      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
       <StackPanel Grid.Column="0" Margin="0,0,6,8"><TextBlock Text="Finding ID" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><TextBox Text="{Binding FindingIdInput,UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" Padding="7"/></StackPanel>
