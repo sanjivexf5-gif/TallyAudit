@@ -25,12 +25,13 @@ public class NavigationMappingTests
             ["Exceptions"] = ("ExceptionsViewModel", "ExceptionsView"),
             ["Reports"] = ("ReportsViewModel", "ReportsView"),
             ["WorkingPapers"] = ("WorkingPapersViewModel", "WorkingPapersView"),
+            ["AuditChecklist"] = ("AuditChecklistViewModel", "AuditChecklistView"),
             ["Settings"] = ("SettingsViewModel", "SettingsView"),
             ["AuditTrail"] = ("AuditTrailViewModel", "AuditTrailView"),
         };
 
     [Fact]
-    public void VerifyMainWindowXamlSidebarContainsAllFourteenNavigationRoutes()
+    public void VerifyMainWindowXamlSidebarContainsAllFifteenNavigationRoutes()
     {
         var appDir = FindAppDirectory();
         var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
@@ -43,7 +44,7 @@ public class NavigationMappingTests
                         (e.Attribute("Command")?.Value.Contains("NavigateCommand") ?? false))
             .ToList();
 
-        Assert.Equal(14, buttons.Count);
+        Assert.Equal(15, buttons.Count);
 
         var registeredSections = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -68,7 +69,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyMainWindowXamlDataTemplatesMapAllFourteenViewModelsToCorrectViews()
+    public void VerifyMainWindowXamlDataTemplatesMapAllFifteenViewModelsToCorrectViews()
     {
         var appDir = FindAppDirectory();
         var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
@@ -78,7 +79,7 @@ public class NavigationMappingTests
             .Where(e => e.Name.LocalName == "DataTemplate" && e.Attribute("DataType") != null)
             .ToList();
 
-        Assert.True(dataTemplates.Count >= 14, $"Expected at least 14 DataTemplates, found {dataTemplates.Count}");
+        Assert.True(dataTemplates.Count >= 15, $"Expected at least 15 DataTemplates, found {dataTemplates.Count}");
 
         foreach (var kvp in ExpectedNavigationMappings)
         {
@@ -159,7 +160,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyMainWindowViewModelSourceCodeContainsCompleteFourteenSectionRouting()
+    public void VerifyMainWindowViewModelSourceCodeContainsCompleteFifteenSectionRouting()
     {
         var appDir = FindAppDirectory();
         var vmPath = Path.Combine(appDir, "ViewModels", "MainWindowViewModel.cs");
@@ -180,7 +181,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyAllFourteenViewAndViewModelFilesExistPhysicallyOnDisk()
+    public void VerifyAllFifteenViewAndViewModelFilesExistPhysicallyOnDisk()
     {
         var appDir = FindAppDirectory();
 
