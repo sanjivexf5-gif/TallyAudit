@@ -17,7 +17,7 @@ public class TallyClient : ITallyClient
         _httpClient = httpClient;
         _logger = logger;
         _parser = parser;
-        // TallyPrime on another PC/server can legitimately take longer than 15s\n        // to build a large voucher response. Keep connectivity probes short (PingAsync\n        // has its own 3s cancellation), but allow data requests enough time to complete.\n        _httpClient.Timeout = TimeSpan.FromSeconds(60);
+        // TallyPrime on another PC/server can legitimately take longer than 15s\n        // to build a large voucher response. Keep connectivity probes short (PingAsync\n        // has its own 3s cancellation), but allow data requests enough time to complete.\n        _httpClient.Timeout = TimeSpan.FromSeconds(30);
     }
 
     public async Task<string> PostXmlAsync(string endpointUrl, string xmlPayload, CancellationToken cancellationToken = default)
