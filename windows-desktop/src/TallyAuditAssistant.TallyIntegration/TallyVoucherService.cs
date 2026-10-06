@@ -91,27 +91,83 @@ public class TallyVoucherService : ITallyVoucherService
         string companyName, 
         DateTime fromDate, 
         DateTime toDate, 
-        int chunkDays = 30, 
+        int chunkDays = 7, 
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        // Server-hosted TallyPrime installations can be noticeably slower than a
+        // local Tally instance. Start with a conservative 7-day window and
+        // automatically reduce the window when Tally cannot produce the response
+        // within the HTTP timeout. This keeps large FY requests from failing as
+        // one monolithic voucher read.
+        var safeChunkDays = Math.Clamp(chunkDays, 1, 30);
         var currentStart = fromDate;
 
         while (currentStart <= toDate)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var currentEnd = currentStart.AddDays(chunkDays - 1);
-            if (currentEnd > toDate) currentEnd = toDate;
+            var remainingDays = (toDate - currentStart).Days + 1;
+            var requestedChunkDays = Math.Min(safeChunkDays, remainingDays);
+            var chunkSucceeded = false;
 
-            _logger.LogInformation("Streaming voucher chunk from {Start:yyyy-MM-dd} to {End:yyyy-MM-dd}...", currentStart, currentEnd);
-
-            var chunk = await GetVouchersAsync(companyName, currentStart, currentEnd, null, cancellationToken);
-            foreach (var voucher in chunk)
+            while (!chunkSucceeded)
             {
-                yield return voucher;
-            }
+                cancellationToken.ThrowIfCancellationRequested();
 
-            currentStart = currentEnd.AddDays(1);
+                var currentEnd = currentStart.AddDays(requestedChunkDays - 1);
+                if (currentEnd > toDate) currentEnd = toDate;
+
+                _logger.LogInformation(
+                    "Streaming voucher chunk from {Start:yyyy-MM-dd} to {End:yyyy-MM-dd} ({Days} days)...",
+                    currentStart, currentEnd, (currentEnd - currentStart).Days + 1);
+
+                try
+                {
+                    var chunk = await GetVouchersAsync(companyName, currentStart, currentEnd, null, cancellationToken);
+
+                    foreach (var voucher in chunk)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        yield return voucher;
+                    }
+
+                    chunkSucceeded = true;
+
+                    // If a reduced chunk succeeded, keep using that smaller
+                    // size for the remainder of the sync. This avoids repeatedly
+                    // timing out against a slow Tally server.
+                    if (requestedChunkDays < safeChunkDays)
+                    {
+                        safeChunkDays = requestedChunkDays;
+                    }
+
+                    currentStart = currentEnd.AddDays(1);
+                }
+                catch (TallySynchronizationException ex) when (
+                    ex.HttpStatusCode == 408 &&
+                    requestedChunkDays > 1)
+                {
+                    var nextChunkDays = Math.Max(1, requestedChunkDays / 2);
+
+                    _logger.LogWarning(
+                        "Voucher request timed out for {Start:yyyy-MM-dd} to {End:yyyy-MM-dd}. Retrying with {NextDays}-day chunks.",
+                        currentStart, currentEnd, nextChunkDays);
+
+                    EmitTimeoutRecoveryLog(companyName, currentStart, currentEnd, nextChunkDays);
+                    requestedChunkDays = nextChunkDays;
+                }
+            }
         }
+    }
+
+    private void EmitTimeoutRecoveryLog(
+        string companyName,
+        DateTime fromDate,
+        DateTime toDate,
+        int nextChunkDays)
+    {
+        _logger.LogInformation(
+            "Adaptive voucher sync recovery for {Company}: reducing request window to {Days} day(s).",
+            companyName, nextChunkDays);
     }
 }
