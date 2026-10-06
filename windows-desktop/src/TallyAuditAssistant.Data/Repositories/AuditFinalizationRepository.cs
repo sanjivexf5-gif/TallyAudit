@@ -81,11 +81,12 @@ public class AuditFinalizationRepository : IAuditFinalizationRepository
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
         const string sql = @"
             INSERT INTO AuditChecklistItems (
-                Id, AuditId, Section, Code, Description, IsCompleted, CompletedAt, CompletedBy, Notes, SourceReference
+                Id, AuditId, Section, Code, Description, Status, IsCompleted, CompletedAt, CompletedBy, Notes, SourceReference
             ) VALUES (
-                @Id, @AuditId, @Section, @Code, @Description, @IsCompleted, @CompletedAt, @CompletedBy, @Notes, @SourceReference
+                @Id, @AuditId, @Section, @Code, @Description, @Status, @IsCompleted, @CompletedAt, @CompletedBy, @Notes, @SourceReference
             )
             ON CONFLICT(Id) DO UPDATE SET
+                Status = excluded.Status,
                 IsCompleted = excluded.IsCompleted,
                 CompletedAt = excluded.CompletedAt,
                 CompletedBy = excluded.CompletedBy,
