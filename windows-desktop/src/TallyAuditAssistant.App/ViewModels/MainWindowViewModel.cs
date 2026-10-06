@@ -56,6 +56,7 @@ public partial class MainWindowViewModel : ObservableObject
     public AuditEvidenceViewModel? AuditEvidenceVM { get; }
     public AuditFinalizationViewModel? AuditFinalizationVM { get; }
     public AuditReportPackViewModel? AuditReportPackVM { get; }
+    public AuditQueriesViewModel? AuditQueriesVM { get; }
 
     public MainWindowViewModel(
         ITallyConnection tallyConnection,
@@ -82,7 +83,8 @@ public partial class MainWindowViewModel : ObservableObject
         ManagementRepresentationLetterViewModel? managementRepresentationLetterVM = null,
         AuditEvidenceViewModel? auditEvidenceVM = null,
         AuditFinalizationViewModel? auditFinalizationVM = null,
-        AuditReportPackViewModel? auditReportPackVM = null)
+        AuditReportPackViewModel? auditReportPackVM = null,
+        AuditQueriesViewModel? auditQueriesVM = null)
     {
         _tallyConnection = tallyConnection;
         _companyContext = companyContext;
@@ -110,6 +112,7 @@ public partial class MainWindowViewModel : ObservableObject
         AuditEvidenceVM = auditEvidenceVM;
         AuditFinalizationVM = auditFinalizationVM;
         AuditReportPackVM = auditReportPackVM;
+        AuditQueriesVM = auditQueriesVM;
 
         _currentViewModel = dashboardVM;
 
@@ -223,6 +226,7 @@ public partial class MainWindowViewModel : ObservableObject
             "AuditEvidence" => AuditEvidenceVM,
             "AuditFinalization" => AuditFinalizationVM,
             "AuditReportPack" => AuditReportPackVM,
+            "AuditQueries" => AuditQueriesVM,
             _ => null
         };
 

@@ -34,6 +34,7 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
     [ObservableProperty] private int _totalEvidence;
     [ObservableProperty] private int _verifiedEvidence;
     [ObservableProperty] private int _rejectedEvidence;
+    [ObservableProperty] private int _outstandingQueries;
     [ObservableProperty] private string _conclusionStatus = "No Exceptions Noted";
     [ObservableProperty] private string _conclusionText = string.Empty;
     [ObservableProperty] private string _reviewerName = string.Empty;
@@ -134,6 +135,8 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
             TotalEvidence = evidence.Count;
             VerifiedEvidence = evidence.Count(x => string.Equals(x.Status, "Verified", StringComparison.OrdinalIgnoreCase));
             RejectedEvidence = evidence.Count(x => string.Equals(x.Status, "Rejected", StringComparison.OrdinalIgnoreCase));
+            var queries = await _finalizationRepository.GetAuditQueriesAsync(await _finalizationRepository.GetOrCreateWorkingPaperPlanIdAsync(company.Id, company.TallyCompanyName));
+            OutstandingQueries = queries.Count(x => x.Status != "Closed" && x.Status != "Not Applicable");
 
             RebuildReadinessIssues();
             NotifyReadiness();
@@ -275,6 +278,7 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
         if (PendingHighRisk > 0) ReadinessIssues.Add($"Review or resolve {PendingHighRisk} critical/high pending finding(s).");
         if (OpenItems > 0) ReadinessIssues.Add($"Close {OpenItems} open finalization item(s).");
         if (RejectedEvidence > 0) ReadinessIssues.Add($"Replace or resolve {RejectedEvidence} rejected evidence item(s).");
+        if (OutstandingQueries > 0) ReadinessIssues.Add($"Resolve {OutstandingQueries} outstanding audit query(ies) before finalization.");
         if (TotalEvidence > 0 && VerifiedEvidence < TotalEvidence - RejectedEvidence) ReadinessIssues.Add($"Verify outstanding evidence ({VerifiedEvidence}/{TotalEvidence} verified).");
         if (ReadinessIssues.Count == 0) ReadinessIssues.Add("All configured finalization readiness checks passed.");
     }
@@ -289,7 +293,7 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
     {
         _companyId = _financialPeriodId = string.Empty;
         LifecycleStatus = "Draft";
-        ChecklistCompletion = TotalChecklist = CompletedChecklist = PendingHighRisk = OpenItems = TotalEvidence = VerifiedEvidence = RejectedEvidence = 0;
+        ChecklistCompletion = TotalChecklist = CompletedChecklist = PendingHighRisk = OpenItems = TotalEvidence = VerifiedEvidence = RejectedEvidence = OutstandingQueries = 0;
         RebuildReadinessIssues();
         NotifyReadiness();
     }

@@ -30,5 +30,7 @@ public interface IAuditFinalizationRepository
     Task SaveWorkingPaperAttachmentAsync(WorkingPaperAttachment attachment, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AuditEvidence>> GetAuditEvidenceAsync(string planId, CancellationToken cancellationToken = default);
     Task SaveAuditEvidenceAsync(AuditEvidence evidence, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AuditQuery>> GetAuditQueriesAsync(string planId, CancellationToken cancellationToken = default);
+    Task SaveAuditQueryAsync(AuditQuery query, CancellationToken cancellationToken = default);
     Task SaveAmendmentAsync(AuditAmendment amendment, CancellationToken cancellationToken = default);
 }
