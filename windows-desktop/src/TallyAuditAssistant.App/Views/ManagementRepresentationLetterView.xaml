@@ -27,7 +27,7 @@
                     <TextBlock Text="Management / Authorized Signatory" Foreground="{StaticResource TextMutedBrush}"/>
                     <TextBox Text="{Binding ManagementName, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12" />
                     <TextBlock Text="Auditor / Firm" Foreground="{StaticResource TextMutedBrush}"/>
-                    <TextBox Text="{Binding AuditorName, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12}" />
+                    <TextBox Text="{Binding AuditorName, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12" />
                     <TextBlock Text="Letter Date" Foreground="{StaticResource TextMutedBrush}"/>
                     <TextBox Text="{Binding LetterDate, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,20" />
                     <Button Content="Generate Management Representation Letter" Command="{Binding GenerateCommand}" Padding="14,10" FontWeight="SemiBold"/>
