@@ -67,6 +67,9 @@
         <DataTemplate DataType="{x:Type vm:AuditEvidenceViewModel}">
             <views:AuditEvidenceView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AuditFinalizationViewModel}">
+            <views:AuditFinalizationView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:InvestigationViewModel}">
             <views:InvestigationView />
         </DataTemplate>
@@ -187,6 +190,7 @@
                     <Button Content="🛡️  Audit Trail" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="AuditTrail" Tag="AuditTrail"/>
                     <Button Content="✉️  Management Letter" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="ManagementLetter" Tag="ManagementLetter"/>
                     <Button Content="📎  Audit Evidence" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="AuditEvidence" Tag="AuditEvidence"/>
+                    <Button Content="🔒  Finalize Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="AuditFinalization" Tag="AuditFinalization"/>
                     <Button Content="⚙️  Settings" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Settings" Tag="Settings"/>
                 </StackPanel>
             </Border>
