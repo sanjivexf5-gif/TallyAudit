@@ -49,6 +49,9 @@
         <DataTemplate DataType="{x:Type vm:ExceptionsViewModel}">
             <views:ExceptionsView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RiskDashboardViewModel}">
+            <views:RiskDashboardView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:ReportsViewModel}">
             <views:ReportsView />
         </DataTemplate>
@@ -175,6 +178,7 @@
                     <Button Content="📖  Ledgers" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Ledgers" Tag="Ledgers"/>
                     <Button Content="🏦  Bank Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Bank" Tag="Bank"/>
                     <Button Content="⚠️  Exceptions" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Exceptions" Tag="Exceptions"/>
+                    <Button Content="🛡️  Risk Dashboard" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="RiskDashboard" Tag="RiskDashboard"/>
                     <Button Content="📈  Reports" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Reports" Tag="Reports"/>
                     <Button Content="📝  Working Papers" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="WorkingPapers" Tag="WorkingPapers"/>
                     <Button Content="☑️  Audit Checklist" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="AuditChecklist" Tag="AuditChecklist"/>
