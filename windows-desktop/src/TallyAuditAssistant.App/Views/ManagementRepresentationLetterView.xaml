@@ -13,7 +13,7 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0"><TextBlock Text="Company" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding ActiveCompanyName}" FontSize="18" FontWeight="SemiBold" Foreground="White" Margin="0,4,0,0"/></StackPanel>
                 <StackPanel Grid.Column="1"><TextBlock Text="Findings" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding TotalFindings}" FontSize="20" FontWeight="Bold" Foreground="White"/></StackPanel>
-                <StackPanel Grid.Column="2"><TextBlock Text="Critical / High" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding CriticalFindings, StringFormat={}{0}} / {Binding HighFindings}" FontSize="20" FontWeight="Bold" Foreground="#FBBF24"/></StackPanel>
+                <StackPanel Grid.Column="2"><TextBlock Text="Critical / High" Foreground="{StaticResource TextMutedBrush}"/><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding CriticalFindings}" FontSize="20" FontWeight="Bold" Foreground="#FBBF24"/><TextBlock Text=" / " FontSize="20" FontWeight="Bold" Foreground="#94A3B8"/><TextBlock Text="{Binding HighFindings}" FontSize="20" FontWeight="Bold" Foreground="#FBBF24"/></StackPanel></StackPanel>
                 <StackPanel Grid.Column="3"><TextBlock Text="Pending Review" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding PendingFindings}" FontSize="20" FontWeight="Bold" Foreground="#F59E0B"/></StackPanel>
             </Grid>
         </Border>
@@ -23,13 +23,13 @@
                 <StackPanel>
                     <TextBlock Text="Letter Details" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,0,0,16"/>
                     <TextBlock Text="Financial Year" Foreground="{StaticResource TextMutedBrush}"/>
-                    <TextBox Text="{Binding FinancialYear, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12}" />
+                    <TextBox Text="{Binding FinancialYear, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12" />
                     <TextBlock Text="Management / Authorized Signatory" Foreground="{StaticResource TextMutedBrush}"/>
                     <TextBox Text="{Binding ManagementName, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12}" />
                     <TextBlock Text="Auditor / Firm" Foreground="{StaticResource TextMutedBrush}"/>
                     <TextBox Text="{Binding AuditorName, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12}" />
                     <TextBlock Text="Letter Date" Foreground="{StaticResource TextMutedBrush}"/>
-                    <TextBox Text="{Binding LetterDate, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,20}" />
+                    <TextBox Text="{Binding LetterDate, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,20" />
                     <Button Content="Generate Management Representation Letter" Command="{Binding GenerateCommand}" Padding="14,10" FontWeight="SemiBold"/>
                     <Button Content="Refresh Company Summary" Command="{Binding LoadCommand}" Margin="0,8,0,0" Padding="14,8"/>
                     <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Margin="0,14,0,0" Foreground="White"/>
