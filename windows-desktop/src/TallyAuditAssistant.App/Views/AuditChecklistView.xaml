@@ -1,0 +1,66 @@
+<UserControl x:Class="TallyAuditAssistant.App.Views.AuditChecklistView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Background="Transparent">
+ <Grid Margin="0,0,10,0">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <StackPanel Grid.Row="0" Margin="0,0,0,12">
+   <TextBlock Text="Audit Checklist &amp; Audit Program" FontSize="22" FontWeight="Bold" Foreground="White"/>
+   <TextBlock Text="Structured audit procedures with company-scoped progress tracking. TallyPrime remains read-only." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,8"/>
+   <Border Padding="12,8" Background="#1E293B" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+     <StackPanel><TextBlock Text="Company" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/><TextBlock Text="{Binding ActiveCompanyName}" Foreground="#38BDF8" FontWeight="Bold"/></StackPanel>
+     <StackPanel Grid.Column="1" Margin="25,0,25,0"><TextBlock Text="Completion" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/><TextBlock Text="{Binding CompletionPercentage,StringFormat={}{0}%}" Foreground="White" FontWeight="Bold"/></StackPanel>
+     <StackPanel Grid.Column="2" Margin="0,0,25,0"><TextBlock Text="Completed" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/><TextBlock Text="{Binding CompletedCount}" Foreground="White" FontWeight="Bold"/></StackPanel>
+     <StackPanel Grid.Column="3"><TextBlock Text="Pending" Foreground="{StaticResource TextMutedBrush}" FontSize="10"/><TextBlock Text="{Binding PendingCount}" Foreground="White" FontWeight="Bold"/></StackPanel>
+    </Grid>
+   </Border>
+  </StackPanel>
+  <Border Grid.Row="1" Padding="10" Margin="0,0,0,12" Background="{StaticResource CardBackgroundBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+   <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="150"/><ColumnDefinition Width="145"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <TextBox Grid.Column="0" Text="{Binding SearchQuery,UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Padding="7" Margin="0,0,8,0"/>
+    <ComboBox Grid.Column="1" ItemsSource="{Binding Sections}" SelectedItem="{Binding SectionFilter}" Background="#0F172A" Foreground="White" Margin="0,0,8,0"/>
+    <ComboBox Grid.Column="2" ItemsSource="{Binding Statuses}" SelectedItem="{Binding StatusFilter}" Background="#0F172A" Foreground="White" Margin="0,0,8,0"/>
+    <Button Grid.Column="3" Content="🔄 Refresh" Command="{Binding LoadCommand}" Padding="12,6"/>
+   </Grid>
+  </Border>
+  <Grid Grid.Row="2">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="300"/></Grid.ColumnDefinitions>
+   <Border Grid.Column="0" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,10,0">
+    <DataGrid ItemsSource="{Binding Items}" SelectedItem="{Binding SelectedItem}" AutoGenerateColumns="False" IsReadOnly="False" CanUserAddRows="False" HeadersVisibility="Column" Background="#0F172A" Foreground="White" BorderThickness="0" RowHeight="42">
+     <DataGrid.Columns>
+      <DataGridTextColumn Header="Code" Binding="{Binding Code}" Width="95" IsReadOnly="True"/>
+      <DataGridTextColumn Header="Section" Binding="{Binding Section}" Width="125" IsReadOnly="True"/>
+      <DataGridTextColumn Header="Procedure" Binding="{Binding Description}" Width="*" IsReadOnly="True"/>
+      <DataGridComboBoxColumn Header="Status" Width="125" SelectedItemBinding="{Binding Status,UpdateSourceTrigger=PropertyChanged}">
+       <DataGridComboBoxColumn.ItemsSource><x:Array Type="{x:Type sys:String}" xmlns:sys="clr-namespace:System;assembly=System.Runtime"><sys:String>Not Started</sys:String><sys:String>In Progress</sys:String><sys:String>Completed</sys:String><sys:String>Not Applicable</sys:String></x:Array></DataGridComboBoxColumn.ItemsSource>
+      </DataGridComboBoxColumn>
+      <DataGridTemplateColumn Header="Save" Width="70">
+       <DataGridTemplateColumn.CellTemplate><DataTemplate><Button Content="Save" Command="{Binding DataContext.SaveItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Padding="5,2"/></DataTemplate></DataGridTemplateColumn.CellTemplate>
+      </DataGridTemplateColumn>
+     </DataGrid.Columns>
+    </DataGrid>
+   </Border>
+   <Border Grid.Column="1" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="14">
+    <StackPanel>
+     <TextBlock Text="Procedure Notes" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
+     <TextBlock Text="{Binding SelectedItem.Code}" Foreground="#38BDF8" FontWeight="Bold"/>
+     <TextBlock Text="{Binding SelectedItem.Description}" Foreground="White" TextWrapping="Wrap" Margin="0,5,0,12"/>
+     <TextBlock Text="Status" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+     <ComboBox ItemsSource="{Binding Statuses}" SelectedItem="{Binding SelectedItem.Status}" Background="#0F172A" Foreground="White" Margin="0,3,0,10"/>
+     <TextBlock Text="Notes" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+     <TextBox Text="{Binding SelectedItem.Notes,UpdateSourceTrigger=PropertyChanged}" Height="130" AcceptsReturn="True" TextWrapping="Wrap" Background="#0F172A" Foreground="White" Padding="7" Margin="0,3,0,10"/>
+     <TextBlock Text="Source Reference" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+     <TextBox Text="{Binding SelectedItem.SourceReference,UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" Padding="7" Margin="0,3,0,12"/>
+     <StackPanel Orientation="Horizontal">
+      <Button Content="✓ Complete" Command="{Binding CompleteItemCommand}" CommandParameter="{Binding SelectedItem}" Padding="10,6" Margin="0,0,7,0"/>
+      <Button Content="↺ Reset" Command="{Binding ResetItemCommand}" CommandParameter="{Binding SelectedItem}" Padding="10,6"/>
+     </StackPanel>
+     <Button Content="💾 Save Procedure" Command="{Binding SaveItemCommand}" CommandParameter="{Binding SelectedItem}" Padding="10,7" Margin="0,10,0,0"/>
+     <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,12,0,0"/>
+    </StackPanel>
+   </Border>
+  </Grid>
+ </Grid>
+</UserControl>
