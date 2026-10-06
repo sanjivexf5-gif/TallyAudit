@@ -73,11 +73,27 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
         _auditRepository = auditRepository;
         _companyContext = companyContext;
         _auditTrailService = auditTrailService;
-        _companyContext.ActiveCompanyChanged += (_, _) => _ = LoadAsync();
-        _ = LoadAsync();
+
+        // Do not load from the constructor. This view model is registered as a
+        // singleton and is created while the main shell starts, which caused
+        // Finalization to load before the user navigated to the screen and then
+        // load a second time during navigation.
+        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
     }
 
     public async Task OnNavigatedToAsync() => await LoadAsync();
+
+    private void OnActiveCompanyChanged(object? sender, TallyAuditAssistant.Core.Domain.Companies.Company? company)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.InvokeAsync(() => LoadAsync());
+            return;
+        }
+
+        _ = LoadAsync();
+    }
 
     [RelayCommand]
     public async Task LoadAsync()
