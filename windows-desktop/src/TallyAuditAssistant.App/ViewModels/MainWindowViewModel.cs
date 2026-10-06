@@ -132,6 +132,21 @@ public partial class MainWindowViewModel : ObservableObject
         _ = RefreshActiveCompanyAsync();
     }
 
+    private static async Task NotifyNavigationAsync(INavigationAware navAware, string section)
+    {
+        try
+        {
+            // Keep navigation lifecycle on the WPF dispatcher context.
+            // Running this on Task.Run can update bound properties from a
+            // worker thread and cause runtime exceptions when opening views.
+            await navAware.OnNavigatedToAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error on navigating to {section}: {ex}");
+        }
+    }
+
     private void OnActiveCompanyChanged(object? sender, Company? company)
     {
         Interlocked.Increment(ref _companyRefreshGeneration);
@@ -241,17 +256,7 @@ public partial class MainWindowViewModel : ObservableObject
 
             if (nextVM is INavigationAware navAware)
             {
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await navAware.OnNavigatedToAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Error on navigating to {section}: {ex.Message}");
-                    }
-                });
+                _ = NotifyNavigationAsync(navAware, section);
             }
         }
         else
