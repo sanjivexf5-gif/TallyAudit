@@ -257,14 +257,14 @@ public class AuditFinalizationRepository : IAuditFinalizationRepository
     public async Task SaveAuditQueryAsync(AuditQuery query, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
-        const string sql = @""
+        const string sql = @"
             INSERT INTO AuditQueries (Id, PlanId, QueryNumber, Title, Details, AuditArea, FindingId, ResponsiblePerson, Priority, Status, QueryDate, ResponseDate, DueDate, ManagementResponse, AuditorRemarks, CreatedAt, UpdatedAt)
             VALUES (@Id, @PlanId, @QueryNumber, @Title, @Details, @AuditArea, @FindingId, @ResponsiblePerson, @Priority, @Status, @QueryDate, @ResponseDate, @DueDate, @ManagementResponse, @AuditorRemarks, @CreatedAt, @UpdatedAt)
             ON CONFLICT(Id) DO UPDATE SET
                 QueryNumber=excluded.QueryNumber, Title=excluded.Title, Details=excluded.Details, AuditArea=excluded.AuditArea,
                 FindingId=excluded.FindingId, ResponsiblePerson=excluded.ResponsiblePerson, Priority=excluded.Priority, Status=excluded.Status,
                 QueryDate=excluded.QueryDate, ResponseDate=excluded.ResponseDate, DueDate=excluded.DueDate,
-                ManagementResponse=excluded.ManagementResponse, AuditorRemarks=excluded.AuditorRemarks, UpdatedAt=excluded.UpdatedAt;"";
+                ManagementResponse=excluded.ManagementResponse, AuditorRemarks=excluded.AuditorRemarks, UpdatedAt=excluded.UpdatedAt;";
         await connection.ExecuteAsync(new CommandDefinition(sql, query, cancellationToken: cancellationToken));
     }
 
