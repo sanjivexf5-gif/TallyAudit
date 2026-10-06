@@ -246,6 +246,28 @@ public class AuditFinalizationRepository : IAuditFinalizationRepository
         await connection.ExecuteAsync(new CommandDefinition(sql, evidence, cancellationToken: cancellationToken));
     }
 
+    public async Task<IReadOnlyList<AuditQuery>> GetAuditQueriesAsync(string planId, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = "SELECT * FROM AuditQueries WHERE PlanId = @PlanId ORDER BY QueryDate DESC, UpdatedAt DESC;";
+        var rows = await connection.QueryAsync<AuditQuery>(new CommandDefinition(sql, new { PlanId = planId }, cancellationToken: cancellationToken));
+        return rows.ToList();
+    }
+
+    public async Task SaveAuditQueryAsync(AuditQuery query, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = @""
+            INSERT INTO AuditQueries (Id, PlanId, QueryNumber, Title, Details, AuditArea, FindingId, ResponsiblePerson, Priority, Status, QueryDate, ResponseDate, DueDate, ManagementResponse, AuditorRemarks, CreatedAt, UpdatedAt)
+            VALUES (@Id, @PlanId, @QueryNumber, @Title, @Details, @AuditArea, @FindingId, @ResponsiblePerson, @Priority, @Status, @QueryDate, @ResponseDate, @DueDate, @ManagementResponse, @AuditorRemarks, @CreatedAt, @UpdatedAt)
+            ON CONFLICT(Id) DO UPDATE SET
+                QueryNumber=excluded.QueryNumber, Title=excluded.Title, Details=excluded.Details, AuditArea=excluded.AuditArea,
+                FindingId=excluded.FindingId, ResponsiblePerson=excluded.ResponsiblePerson, Priority=excluded.Priority, Status=excluded.Status,
+                QueryDate=excluded.QueryDate, ResponseDate=excluded.ResponseDate, DueDate=excluded.DueDate,
+                ManagementResponse=excluded.ManagementResponse, AuditorRemarks=excluded.AuditorRemarks, UpdatedAt=excluded.UpdatedAt;"";
+        await connection.ExecuteAsync(new CommandDefinition(sql, query, cancellationToken: cancellationToken));
+    }
+
     public async Task SaveAmendmentAsync(AuditAmendment amendment, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
