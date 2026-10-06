@@ -95,6 +95,7 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<ReportsViewModel>();
         services.AddSingleton<WorkingPapersViewModel>();
         services.AddSingleton<AuditChecklistViewModel>();
+        services.AddSingleton<RiskDashboardViewModel>();
         services.AddSingleton<AuditTrailViewModel>();
 
         // Views
