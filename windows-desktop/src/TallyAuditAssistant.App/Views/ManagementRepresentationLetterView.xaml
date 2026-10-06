@@ -1,0 +1,50 @@
+<UserControl x:Class="TallyAuditAssistant.App.Views.ManagementRepresentationLetterView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource SurfaceBackgroundBrush}">
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Management Representation Letter" FontSize="26" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+            <TextBlock Text="Generate a professional audit working-paper template from the synchronized company data." Margin="0,6,0,18" Foreground="{StaticResource TextMutedBrush}"/>
+        </StackPanel>
+        <Border Grid.Row="1" Background="#111827" BorderBrush="#334155" BorderThickness="1" CornerRadius="10" Padding="16" Margin="0,0,0,16">
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0"><TextBlock Text="Company" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding ActiveCompanyName}" FontSize="18" FontWeight="SemiBold" Foreground="White" Margin="0,4,0,0"/></StackPanel>
+                <StackPanel Grid.Column="1"><TextBlock Text="Findings" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding TotalFindings}" FontSize="20" FontWeight="Bold" Foreground="White"/></StackPanel>
+                <StackPanel Grid.Column="2"><TextBlock Text="Critical / High" Foreground="{StaticResource TextMutedBrush}"/><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding CriticalFindings}" FontSize="20" FontWeight="Bold" Foreground="#FBBF24"/><TextBlock Text=" / " FontSize="20" FontWeight="Bold" Foreground="#94A3B8"/><TextBlock Text="{Binding HighFindings}" FontSize="20" FontWeight="Bold" Foreground="#FBBF24"/></StackPanel></StackPanel>
+                <StackPanel Grid.Column="3"><TextBlock Text="Pending Review" Foreground="{StaticResource TextMutedBrush}"/><TextBlock Text="{Binding PendingFindings}" FontSize="20" FontWeight="Bold" Foreground="#F59E0B"/></StackPanel>
+            </Grid>
+        </Border>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="1.25*"/></Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Background="#111827" BorderBrush="#334155" BorderThickness="1" CornerRadius="10" Padding="20" Margin="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="Letter Details" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,0,0,16"/>
+                    <TextBlock Text="Financial Year" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBox Text="{Binding FinancialYear, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12" />
+                    <TextBlock Text="Management / Authorized Signatory" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBox Text="{Binding ManagementName, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12}" />
+                    <TextBlock Text="Auditor / Firm" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBox Text="{Binding AuditorName, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,12}" />
+                    <TextBlock Text="Letter Date" Foreground="{StaticResource TextMutedBrush}"/>
+                    <TextBox Text="{Binding LetterDate, UpdateSourceTrigger=PropertyChanged}" Margin="0,5,0,20" />
+                    <Button Content="Generate Management Representation Letter" Command="{Binding GenerateCommand}" Padding="14,10" FontWeight="SemiBold"/>
+                    <Button Content="Refresh Company Summary" Command="{Binding LoadCommand}" Margin="0,8,0,0" Padding="14,8"/>
+                    <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" Margin="0,14,0,0" Foreground="White"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Background="#0B1220" BorderBrush="#334155" BorderThickness="1" CornerRadius="10" Padding="20" Margin="10,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="Included in the generated document" FontSize="18" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="• Management responsibility and completeness representations&#x0a;• Books, vouchers and audit information availability&#x0a;• GST and TDS information availability&#x0a;• Fraud / irregularity disclosure representation&#x0a;• Audit findings summary from synchronized data&#x0a;• Signature and auditor acknowledgement sections" TextWrapping="Wrap" Foreground="#CBD5E1" Margin="0,14,0,20" LineHeight="24"/>
+                    <Border Background="#172033" CornerRadius="8" Padding="14">
+                        <TextBlock Text="Read-only assurance: the letter is generated from local audit analysis. TallyPrime data is never edited by this feature." TextWrapping="Wrap" Foreground="#93C5FD"/>
+                    </Border>
+                    <TextBlock Text="{Binding LastGeneratedFilePath}" TextWrapping="Wrap" Foreground="#94A3B8" Margin="0,16,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>
