@@ -31,10 +31,11 @@ public class NavigationMappingTests
             ["ManagementLetter"] = ("ManagementRepresentationLetterViewModel", "ManagementRepresentationLetterView"),
             ["AuditEvidence"] = ("AuditEvidenceViewModel", "AuditEvidenceView"),
             ["AuditFinalization"] = ("AuditFinalizationViewModel", "AuditFinalizationView"),
+            ["AuditReportPack"] = ("AuditReportPackViewModel", "AuditReportPackView"),
         };
 
     [Fact]
-    public void VerifyMainWindowXamlSidebarContainsAllEighteenNavigationRoutes()
+    public void VerifyMainWindowXamlSidebarContainsAllNineteenNavigationRoutes()
     {
         var appDir = FindAppDirectory();
         var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
@@ -47,7 +48,7 @@ public class NavigationMappingTests
                         (e.Attribute("Command")?.Value.Contains("NavigateCommand") ?? false))
             .ToList();
 
-        Assert.Equal(18, buttons.Count);
+        Assert.Equal(19, buttons.Count);
 
         var registeredSections = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -72,7 +73,29 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyMainWindowXamlDataTemplatesMapAllEighteenViewModelsToCorrectViews()
+    public void VerifyMainWindowXamlSidebarIsVerticallyScrollable()
+    {
+        var appDir = FindAppDirectory();
+        var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
+        var doc = XDocument.Parse(File.ReadAllText(mainWindowXamlPath));
+
+        var scrollViewer = doc.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "ScrollViewer" &&
+                                 e.Attribute("VerticalScrollBarVisibility")?.Value == "Auto");
+
+        Assert.NotNull(scrollViewer);
+        Assert.Equal("Disabled", scrollViewer!.Attribute("HorizontalScrollBarVisibility")?.Value);
+
+        var settingsButton = doc.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "Button" &&
+                                 e.Attribute("CommandParameter")?.Value == "Settings");
+
+        Assert.NotNull(settingsButton);
+        Assert.Equal("Settings", settingsButton!.Attribute("Tag")?.Value);
+    }
+
+    [Fact]
+    public void VerifyMainWindowXamlDataTemplatesMapAllNineteenViewModelsToCorrectViews()
     {
         var appDir = FindAppDirectory();
         var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
@@ -82,7 +105,7 @@ public class NavigationMappingTests
             .Where(e => e.Name.LocalName == "DataTemplate" && e.Attribute("DataType") != null)
             .ToList();
 
-        Assert.True(dataTemplates.Count >= 18, $"Expected at least 15 DataTemplates, found {dataTemplates.Count}");
+        Assert.True(dataTemplates.Count >= 19, $"Expected at least 19 DataTemplates, found {dataTemplates.Count}");
 
         foreach (var kvp in ExpectedNavigationMappings)
         {
@@ -163,7 +186,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyMainWindowViewModelSourceCodeContainsCompleteEighteenSectionRouting()
+    public void VerifyMainWindowViewModelSourceCodeContainsCompleteNineteenSectionRouting()
     {
         var appDir = FindAppDirectory();
         var vmPath = Path.Combine(appDir, "ViewModels", "MainWindowViewModel.cs");
@@ -184,7 +207,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyAllEighteenViewAndViewModelFilesExistPhysicallyOnDisk()
+    public void VerifyAllNineteenViewAndViewModelFilesExistPhysicallyOnDisk()
     {
         var appDir = FindAppDirectory();
 

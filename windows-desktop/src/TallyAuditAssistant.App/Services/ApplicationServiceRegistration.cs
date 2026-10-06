@@ -30,7 +30,6 @@ public static class ApplicationServiceRegistration
         var actualDbPath = pathService.DatabasePath;
         Log.Information("Configuring SQLite database path at: {DbPath}", actualDbPath);
 
-        // Data layer registrations
         var sqliteFactory = new SqliteConnectionFactory(actualDbPath);
         services.AddSingleton(sqliteFactory);
         services.AddSingleton<ISqliteConnectionFactory>(sqliteFactory);
@@ -50,13 +49,11 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<IInvestigationRepository, InvestigationRepository>();
         services.AddSingleton<IInvestigationService, InvestigationService>();
 
-        // Tally Integration registrations (strictly read-only policy)
         services.AddSingleton<ITallyReadOnlyPolicy, TallyReadOnlyPolicy>();
         services.AddSingleton<ITallyRequestBuilder, TallyRequestBuilder>();
         services.AddSingleton<ITallyResponseParser, TallyResponseParser>();
         services.AddHttpClient<TallyClient>();
 
-        // Dynamic, runtime-switchable Tally services (no restart required)
         services.AddSingleton<MockTallyClient>();
         services.AddSingleton<MockTallyCompanyService>();
         services.AddSingleton<TallyCompanyService>();
@@ -72,13 +69,9 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<TallyConnectionMonitor>();
         services.AddSingleton<ISyncManager, SyncManager>();
 
-        // Core Audit Engine & All 19 Rules
         services.AddAuditEngine();
-
-        // Central Navigation Service
         services.AddSingleton<INavigationService, NavigationService>();
 
-        // ViewModels
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<TallyConnectionViewModel>();
@@ -99,10 +92,9 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<ManagementRepresentationLetterViewModel>();
         services.AddSingleton<AuditEvidenceViewModel>();
         services.AddSingleton<AuditFinalizationViewModel>();
+        services.AddSingleton<AuditReportPackViewModel>();
 
-        // Views
         services.AddSingleton<MainWindow>();
-
         return services;
     }
 }
