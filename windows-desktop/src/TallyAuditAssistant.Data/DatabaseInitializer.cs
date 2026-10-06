@@ -365,6 +365,26 @@ public class DatabaseInitializer : IDatabaseInitializer
             );
 
             -- 12. Audit Trail & Activity History
+            CREATE TABLE IF NOT EXISTS AuditEvidence (
+                Id TEXT PRIMARY KEY,
+                PlanId TEXT NOT NULL,
+                AuditArea TEXT NOT NULL,
+                ProcedureId TEXT,
+                FindingId TEXT,
+                EvidenceType TEXT NOT NULL,
+                Description TEXT NOT NULL,
+                ReferenceNumber TEXT,
+                FileName TEXT,
+                FilePath TEXT,
+                FileHash TEXT,
+                FileSizeBytes INTEGER,
+                DateReceived DATE,
+                UploadedAt DATETIME NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'Received',
+                AuditorRemarks TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_evidence_plan ON AuditEvidence(PlanId, AuditArea);
+
             CREATE TABLE IF NOT EXISTS AuditTrail (
                 Id TEXT PRIMARY KEY,
                 TimestampUtc DATETIME NOT NULL,
