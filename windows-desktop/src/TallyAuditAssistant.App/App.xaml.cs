@@ -1,12 +1,11 @@
 using System;
 using System.IO;
-using System.Reflection;
 using System.Threading;
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Settings.Configuration;
 using TallyAuditAssistant.App.Services;
@@ -27,6 +26,7 @@ public partial class App : Application
 {
     private static Mutex? _singleInstanceMutex;
     private IHost? _host;
+    private int _diagnosticDialogShown;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -41,22 +41,11 @@ public partial class App : Application
 
         base.OnStartup(e);
 
-        // Setup global unhandled exception handling
-        DispatcherUnhandledException += (s, args) =>
-        {
-            Log.Error(args.Exception, "Unhandled UI Thread Exception");
-            MessageBox.Show($"An unexpected error occurred: {args.Exception.Message}\n\nCheck the application logs for details.", 
-                            "Tally Audit Assistant Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            args.Handled = true;
-        };
-
-        AppDomain.CurrentDomain.UnhandledException += (s, args) =>
-        {
-            if (args.ExceptionObject is Exception ex)
-            {
-                Log.Fatal(ex, "Fatal AppDomain Unhandled Exception");
-            }
-        };
+        // Global diagnostic boundary. Capture the FIRST UI exception once so a
+        // rapid chain of secondary exceptions cannot produce many popups.
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
         try
         {
@@ -89,27 +78,96 @@ public partial class App : Application
 
             Log.Information("DATABASE PATH: {DbPath}", pathService.DatabasePath);
 
-            // Initialize SQLite Database schema & seeds
             var dbInitializer = _host.Services.GetRequiredService<IDatabaseInitializer>();
             await dbInitializer.InitializeAsync();
 
-            // Initialize active company context
             var companyContext = _host.Services.GetRequiredService<IActiveCompanyContext>();
             await companyContext.EnsureAndInitializeActiveCompanyAsync();
 
-            // Start lightweight background Tally connection monitor
             var monitor = _host.Services.GetRequiredService<TallyConnectionMonitor>();
             monitor.StartMonitoring(normalIntervalSeconds: 15, backoffIntervalSeconds: 30);
 
-            // Display main application shell
             var mainWindow = _host.Services.GetRequiredService<MainWindow>();
             mainWindow.Show();
         }
         catch (Exception ex)
         {
+            WriteDiagnostic("STARTUP FAILURE", ex);
             Log.Fatal(ex, "Application startup failed critically.");
-            MessageBox.Show($"Application could not start:\n{ex.Message}", "Fatal Startup Error", MessageBoxButton.OK, MessageBoxImage.Stop);
+            MessageBox.Show($"Application could not start:\n{ex.Message}\n\nDiagnostic file:\n{GetDiagnosticPath()}",
+                "Fatal Startup Error", MessageBoxButton.OK, MessageBoxImage.Stop);
             Shutdown(1);
+        }
+    }
+
+    private void OnDispatcherUnhandledException(object? sender, DispatcherUnhandledExceptionEventArgs args)
+    {
+        WriteDiagnostic("UI THREAD UNHANDLED EXCEPTION", args.Exception);
+        Log.Error(args.Exception, "Unhandled UI Thread Exception");
+
+        // Suppress duplicate popup storms. The first exception is the useful one.
+        if (Interlocked.Exchange(ref _diagnosticDialogShown, 1) == 0)
+        {
+            MessageBox.Show(
+                "Tally Audit Assistant captured an unexpected error.\n\n" +
+                "The application will remain open where possible.\n\n" +
+                $"Diagnostic file:\n{GetDiagnosticPath()}\n\n" +
+                "Please send that file for diagnosis.",
+                "Tally Audit Assistant — Diagnostic Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+
+        args.Handled = true;
+    }
+
+    private void OnAppDomainUnhandledException(object? sender, UnhandledExceptionEventArgs args)
+    {
+        if (args.ExceptionObject is Exception ex)
+        {
+            WriteDiagnostic("APPDOMAIN UNHANDLED EXCEPTION", ex);
+            Log.Fatal(ex, "Fatal AppDomain Unhandled Exception");
+        }
+    }
+
+    private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs args)
+    {
+        WriteDiagnostic("UNOBSERVED TASK EXCEPTION", args.Exception);
+        Log.Error(args.Exception, "Unobserved Task Exception");
+        args.SetObserved();
+    }
+
+    private static string GetDiagnosticPath()
+    {
+        var directory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "TallyAuditAssistant");
+        Directory.CreateDirectory(directory);
+        return Path.Combine(directory, "CrashDiagnostics.txt");
+    }
+
+    private static void WriteDiagnostic(string category, Exception exception)
+    {
+        try
+        {
+            var path = GetDiagnosticPath();
+            var text =
+                "TALLY AUDIT ASSISTANT CRASH DIAGNOSTIC\r\n" +
+                "================================\r\n" +
+                $"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}\r\n" +
+                $"Category: {category}\r\n" +
+                $"Application: {typeof(App).Assembly.GetName().Version}\r\n" +
+                $"OS: {Environment.OSVersion}\r\n" +
+                $"64-bit OS: {Environment.Is64BitOperatingSystem}\r\n" +
+                $"64-bit Process: {Environment.Is64BitProcess}\r\n\r\n" +
+                "Exception:\r\n" +
+                exception + "\r\n\r\n";
+
+            File.AppendAllText(path, text);
+        }
+        catch
+        {
+            // Diagnostic logging must never become another source of failure.
         }
     }
 
