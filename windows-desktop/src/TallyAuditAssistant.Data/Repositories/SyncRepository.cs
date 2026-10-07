@@ -138,17 +138,29 @@ public class SyncRepository : ISyncRepository
         return count;
     }
 
-    public async Task<(int inserted, int updated)> BatchUpsertVouchersAsync(IReadOnlyList<Voucher> vouchers, string companyId, CancellationToken cancellationToken = default)
+    public async Task<(int inserted, int updated)> BatchUpsertVouchersAsync(
+        IReadOnlyList<Voucher> vouchers,
+        string companyId,
+        CancellationToken cancellationToken = default)
     {
         if (vouchers.Count == 0) return (0, 0);
 
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
         using var transaction = connection.BeginTransaction();
 
-        var inserted = 0;
-        var updated = 0;
+        // Determine insert/update counts with one query instead of one SELECT per
+        // voucher. Large synchronizations can otherwise spend most of their time
+        // on SQLite round-trips rather than actual writes.
+        var voucherIds = vouchers.Select(v => v.Id).Distinct().ToArray();
+        const string existingSql = "SELECT Id FROM Vouchers WHERE Id IN @Ids";
+        var existingIds = (await connection.QueryAsync<string>(
+            new CommandDefinition(
+                existingSql,
+                new { Ids = voucherIds },
+                transaction,
+                cancellationToken: cancellationToken)))
+            .ToHashSet(StringComparer.Ordinal);
 
-        const string checkSql = "SELECT COUNT(*) FROM Vouchers WHERE Id = @Id";
         const string voucherSql = @"
             INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, ReferenceNumber, VoucherDate, EffectiveDate, Narration, TotalAmount, IsCancelled, IsOptional, PartyLedgerName, AlterId, CreatedAt)
             VALUES (@Id, @CompanyId, @VoucherTypeId, @VoucherTypeName, @VoucherNumber, @ReferenceNumber, @VoucherDate, @EffectiveDate, @Narration, @TotalAmount, @IsCancelled, @IsOptional, @PartyLedgerName, @AlterId, @CreatedAt)
@@ -167,31 +179,55 @@ public class SyncRepository : ISyncRepository
                 AlterId = excluded.AlterId;
         ";
 
-        const string deleteEntriesSql = "DELETE FROM VoucherEntries WHERE VoucherId = @VoucherId";
-        const string entrySql = @"
-            INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit, BillRefType, BillName)
-            VALUES (@Id, @VoucherId, @LedgerName, @Amount, @IsDebit, @BillRefType, @BillName);
-        ";
+        // Dapper executes the parameterized command for the entire collection
+        // while the transaction keeps the whole batch atomic.
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                voucherSql,
+                vouchers,
+                transaction,
+                cancellationToken: cancellationToken));
 
-        foreach (var v in vouchers)
+        // Replace all entries for this voucher batch in one delete, then insert
+        // all new entries in one Dapper batch. This is substantially cheaper than
+        // DELETE + INSERT round-trips for every voucher.
+        const string deleteEntriesSql = "DELETE FROM VoucherEntries WHERE VoucherId IN @VoucherIds";
+        await connection.ExecuteAsync(
+            new CommandDefinition(
+                deleteEntriesSql,
+                new { VoucherIds = voucherIds },
+                transaction,
+                cancellationToken: cancellationToken));
+
+        var entries = new List<VoucherEntry>();
+        foreach (var voucher in vouchers)
         {
-            var exists = await connection.ExecuteScalarAsync<int>(new CommandDefinition(checkSql, new { v.Id }, transaction, cancellationToken: cancellationToken)) > 0;
-
-            await connection.ExecuteAsync(new CommandDefinition(voucherSql, v, transaction, cancellationToken: cancellationToken));
-
-            // Replace line entries atomically
-            await connection.ExecuteAsync(new CommandDefinition(deleteEntriesSql, new { VoucherId = v.Id }, transaction, cancellationToken: cancellationToken));
-
-            if (v.Entries.Count > 0)
+            foreach (var entry in voucher.Entries)
             {
-                await connection.ExecuteAsync(new CommandDefinition(entrySql, v.Entries, transaction, cancellationToken: cancellationToken));
+                entry.VoucherId = voucher.Id;
+                entries.Add(entry);
             }
+        }
 
-            if (exists) updated++;
-            else inserted++;
+        if (entries.Count > 0)
+        {
+            const string entrySql = @"
+                INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit, BillRefType, BillName)
+                VALUES (@Id, @VoucherId, @LedgerName, @Amount, @IsDebit, @BillRefType, @BillName);
+            ";
+
+            await connection.ExecuteAsync(
+                new CommandDefinition(
+                    entrySql,
+                    entries,
+                    transaction,
+                    cancellationToken: cancellationToken));
         }
 
         transaction.Commit();
+
+        var updated = vouchers.Count(v => existingIds.Contains(v.Id));
+        var inserted = vouchers.Count - updated;
         return (inserted, updated);
     }
 

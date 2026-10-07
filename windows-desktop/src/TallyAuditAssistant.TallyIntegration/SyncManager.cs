@@ -228,7 +228,7 @@ public class SyncManager : ISyncManager
 
             // PIPELINE STAGE 5: READ VOUCHERS
             SetStage(SyncStage.ReadVouchers, $"Streaming transaction vouchers from TallyPrime for '{companyName}'...");
-            EmitLog("Streaming voucher transactions (Low-RAM chunking active)...");
+            EmitLog("Streaming voucher transactions (7-day adaptive chunks, automatic retry/recovery, low-RAM mode)...");
 
             var booksFrom = profile.BooksBeginningFrom != default ? profile.BooksBeginningFrom : new DateTime(2025, 4, 1);
             var fromDate = booksFrom;
@@ -269,7 +269,7 @@ public class SyncManager : ISyncManager
             const int batchSize = 100;
             var totalVouchersCount = 0;
 
-            await foreach (var rawVoucher in _voucherService.StreamVouchersChunkedAsync(companyName, fromDate, toDate, 30, ct))
+            await foreach (var rawVoucher in _voucherService.StreamVouchersChunkedAsync(companyName, fromDate, toDate, 7, ct))
             {
                 await CheckPauseAsync(ct);
 
