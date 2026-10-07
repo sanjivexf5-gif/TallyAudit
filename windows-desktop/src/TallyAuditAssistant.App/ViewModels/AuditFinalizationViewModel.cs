@@ -122,8 +122,20 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
 
             _companyId = company.Id;
             ActiveCompanyName = company.TallyCompanyName;
-            FinancialYear = ResolveFinancialYear(DateTime.Today);
-            _financialPeriodId = $"FY-{FinancialYear}";
+            // Use the active company's persisted financial period. Do not derive
+            // the audit year from today's date because the selected Tally company
+            // may be opened for a different financial year.
+            var activePeriod = await _companyContext.GetActivePeriodAsync();
+            if (activePeriod != null)
+            {
+                FinancialYear = activePeriod.FinancialYear.Replace("FY ", "FY ");
+                _financialPeriodId = activePeriod.FinancialPeriodId;
+            }
+            else
+            {
+                FinancialYear = ResolveFinancialYear(company.BooksFromDate);
+                _financialPeriodId = $"FY-{FinancialYear}";
+            }
 
             var state = await _finalizationRepository.GetStateAsync(_companyId, _financialPeriodId);
             if (state == null)
@@ -150,10 +162,14 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
             var applicable = checklist.Count(x => x.Status != "Not Applicable");
             ChecklistCompletion = applicable == 0 ? 100 : (int)Math.Round(CompletedChecklist * 100.0 / applicable);
 
-            var exceptions = await _auditRepository.GetExceptionsAsync(company.Id, take: 5000);
-            PendingHighRisk = exceptions.Count(x =>
-                (x.Severity == SeverityLevel.Critical || x.Severity == SeverityLevel.High) &&
-                x.Status == ReviewStatus.Pending);
+            // Count directly in the repository instead of loading an arbitrary
+            // maximum of 5,000 exceptions. The old take=5000 made the dashboard
+            // display exactly 5,000 whenever the real count was higher.
+            PendingHighRisk =
+                await _auditRepository.GetExceptionCountAsync(
+                    company.Id,
+                    minSeverity: SeverityLevel.High,
+                    status: ReviewStatus.Pending);
 
             var openItems = await _finalizationRepository.GetOpenItemsAsync($"CHECKLIST-{company.Id}");
             OpenItems = openItems.Count(x => !string.Equals(x.Status, "Resolved", StringComparison.OrdinalIgnoreCase));
@@ -331,5 +347,5 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
     }
 
     private static string ResolveFinancialYear(DateTime date) =>
-        date.Month >= 4 ? $"{date.Year}-{(date.Year + 1) % 100:D2}" : $"{date.Year - 1}-{date.Year % 100:D2}";
+        $"FY {date.Year}-{(date.Year + 1) % 100:D2}";
 }
