@@ -134,7 +134,7 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
             else
             {
                 FinancialYear = ResolveFinancialYear(company.BooksFromDate);
-                _financialPeriodId = $"FY-{FinancialYear}";
+                _financialPeriodId = $"FY-{company.BooksFromDate.Year}";
             }
 
             var state = await _finalizationRepository.GetStateAsync(_companyId, _financialPeriodId);
