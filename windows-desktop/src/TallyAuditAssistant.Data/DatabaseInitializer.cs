@@ -364,7 +364,60 @@ public class DatabaseInitializer : IDatabaseInitializer
                 Notes TEXT
             );
 
-            -- 12. Audit Trail & Activity History
+            -- 12. Audit Planning & Working Papers
+            -- These tables are required by the working-paper, evidence and
+            -- audit-finalization workflows. Keep them in the core initializer
+            -- so existing installations are upgraded automatically.
+            CREATE TABLE IF NOT EXISTS AuditPlans (
+                Id TEXT PRIMARY KEY,
+                CompanyId TEXT NOT NULL REFERENCES Companies(Id) ON DELETE CASCADE,
+                FinancialPeriodId TEXT NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'In Progress',
+                MaterialityAmount DECIMAL(18,2) DEFAULT 0,
+                PerformanceMateriality DECIMAL(18,2) DEFAULT 0,
+                TrivialThreshold DECIMAL(18,2) DEFAULT 0,
+                IsFinalized INTEGER DEFAULT 0,
+                CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_auditplans_company_period
+                ON AuditPlans(CompanyId, FinancialPeriodId);
+
+            CREATE TABLE IF NOT EXISTS WorkingPapers (
+                Id TEXT PRIMARY KEY,
+                PlanId TEXT NOT NULL REFERENCES AuditPlans(Id) ON DELETE CASCADE,
+                AuditArea TEXT NOT NULL,
+                Title TEXT NOT NULL,
+                Objective TEXT NOT NULL,
+                ProcedurePerformed TEXT NOT NULL,
+                Conclusion TEXT NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'Draft',
+                PreparedBy TEXT NOT NULL,
+                PreparedDate DATE NOT NULL,
+                ReviewedBy TEXT,
+                ReviewedDate DATE,
+                RelatedFindingId TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_workingpapers_plan
+                ON WorkingPapers(PlanId);
+
+            CREATE TABLE IF NOT EXISTS WorkingPaperAttachments (
+                Id TEXT PRIMARY KEY,
+                WorkingPaperId TEXT NOT NULL REFERENCES WorkingPapers(Id) ON DELETE CASCADE,
+                FileName TEXT NOT NULL,
+                FilePath TEXT NOT NULL,
+                FileHash TEXT,
+                FileSizeBytes INTEGER NOT NULL DEFAULT 0,
+                AddedAt DATETIME NOT NULL,
+                AddedBy TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_workingpaperattachments_paper
+                ON WorkingPaperAttachments(WorkingPaperId);
+
+            -- 13. Audit Trail & Activity History
             CREATE TABLE IF NOT EXISTS AuditEvidence (
                 Id TEXT PRIMARY KEY,
                 PlanId TEXT NOT NULL,
