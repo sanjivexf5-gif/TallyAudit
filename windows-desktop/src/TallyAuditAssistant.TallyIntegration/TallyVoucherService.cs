@@ -129,30 +129,16 @@ public class TallyVoucherService : ITallyVoucherService
                     (currentEnd - currentStart).Days + 1,
                     attempt + 1);
 
+                IReadOnlyList<TallyVoucherDto>? chunk = null;
+
                 try
                 {
-                    var chunk = await GetVouchersAsync(
+                    chunk = await GetVouchersAsync(
                         companyName,
                         currentStart,
                         currentEnd,
                         null,
                         cancellationToken);
-
-                    foreach (var voucher in chunk)
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        yield return voucher;
-                    }
-
-                    // Once a smaller window succeeds, retain it for the rest of
-                    // the sync. This prevents repeated timeouts on the same server.
-                    if (requestedChunkDays < safeChunkDays)
-                    {
-                        safeChunkDays = requestedChunkDays;
-                    }
-
-                    currentStart = currentEnd.AddDays(1);
-                    break;
                 }
                 catch (TallySynchronizationException ex) when (IsRecoverableChunkFailure(ex))
                 {
@@ -216,6 +202,27 @@ public class TallyVoucherService : ITallyVoucherService
                     // that the error is surfaced with the exact stage/company context.
                     throw;
                 }
+
+                // Keep yield outside the try/catch. C# iterator methods cannot
+                // yield a value inside a try block that has a catch clause.
+                if (chunk != null)
+                {
+                    foreach (var voucher in chunk)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        yield return voucher;
+                    }
+                }
+
+                // Once a smaller window succeeds, retain it for the rest of
+                // the sync. This prevents repeated timeouts on the same server.
+                if (requestedChunkDays < safeChunkDays)
+                {
+                    safeChunkDays = requestedChunkDays;
+                }
+
+                currentStart = currentEnd.AddDays(1);
+                break;
             }
         }
     }
