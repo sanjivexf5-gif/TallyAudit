@@ -13,12 +13,33 @@
             <Setter Property="CornerRadius" Value="8"/>
         </Style>
 
-        <Style TargetType="ComboBox">
+        <!-- Local ComboBox theme. The application has a global ComboBox template;
+             the Finalization screen must not inherit its light popup/foreground
+             combination. Keep both the control and its item containers dark. -->
+        <Style x:Key="FinalizationComboBoxItemStyle" TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="#0F172A"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#1E3A5F"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimaryBrandBrush}"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="FinalizationComboBoxStyle" TargetType="ComboBox">
             <Setter Property="Background" Value="#0F172A"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource FinalizationComboBoxItemStyle}"/>
         </Style>
 
         <Style TargetType="TextBox">
@@ -80,7 +101,7 @@
                     <StackPanel>
                         <TextBlock Text="Auditor Conclusion" FontSize="18" FontWeight="Bold"/>
                         <TextBlock Text="Conclusion status" Margin="0,12,0,4" Foreground="{StaticResource TextMutedBrush}"/>
-                        <ComboBox ItemsSource="{Binding ConclusionStatuses}" SelectedItem="{Binding ConclusionStatus}" MinWidth="260"/>
+                        <ComboBox ItemsSource="{Binding ConclusionStatuses}" SelectedItem="{Binding ConclusionStatus}" MinWidth="260" Style="{StaticResource FinalizationComboBoxStyle}"/>
                         <TextBlock Text="Conclusion / basis" Margin="0,12,0,4" Foreground="{StaticResource TextMutedBrush}"/>
                         <TextBox Text="{Binding ConclusionText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="100"/>
                         <TextBlock Text="Reviewer name" Margin="0,12,0,4" Foreground="{StaticResource TextMutedBrush}"/>
