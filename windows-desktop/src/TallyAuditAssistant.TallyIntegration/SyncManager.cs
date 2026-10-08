@@ -130,10 +130,25 @@ public class SyncManager : ISyncManager
                     ct.ThrowIfCancellationRequested();
 
                     var result = await _connection.TestConnectionDetailedAsync(host, port, ct);
-                    if (result.IsResponsive)
+                    if (result?.IsResponsive == true)
                     {
                         verifiedEndpoint = result;
                         break;
+                    }
+
+                    // Some connection implementations only expose a boolean
+                    // connectivity check. Treat a successful basic check as a
+                    // valid endpoint rather than dereferencing a missing
+                    // diagnostic result.
+                    if (result == null)
+                    {
+                        var reachable = await _connection.TestConnectionAsync(host, port, ct);
+                        if (reachable)
+                        {
+                            verifiedEndpoint = _connection.ActiveEndpoint ??
+                                new TallyEndpointInfo(host, port, true, "TallyPrime");
+                            break;
+                        }
                     }
 
                     if (attempt < 3)
