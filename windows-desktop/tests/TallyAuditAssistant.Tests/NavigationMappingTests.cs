@@ -33,10 +33,11 @@ public class NavigationMappingTests
             ["AuditFinalization"] = ("AuditFinalizationViewModel", "AuditFinalizationView"),
             ["AuditReportPack"] = ("AuditReportPackViewModel", "AuditReportPackView"),
             ["AuditQueries"] = ("AuditQueriesViewModel", "AuditQueriesView"),
+            ["AuditQualityControl"] = ("AuditQualityControlViewModel", "AuditQualityControlView"),
         };
 
     [Fact]
-    public void VerifyMainWindowXamlSidebarContainsAllTwentyNavigationRoutes()
+    public void VerifyMainWindowXamlSidebarContainsAllTwentyOneNavigationRoutes()
     {
         var appDir = FindAppDirectory();
         var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
@@ -49,7 +50,7 @@ public class NavigationMappingTests
                         (e.Attribute("Command")?.Value.Contains("NavigateCommand") ?? false))
             .ToList();
 
-        Assert.Equal(20, buttons.Count);
+        Assert.Equal(21, buttons.Count);
 
         var registeredSections = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -96,7 +97,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyMainWindowXamlDataTemplatesMapAllTwentyViewModelsToCorrectViews()
+    public void VerifyMainWindowXamlDataTemplatesMapAllTwentyOneViewModelsToCorrectViews()
     {
         var appDir = FindAppDirectory();
         var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
@@ -106,7 +107,7 @@ public class NavigationMappingTests
             .Where(e => e.Name.LocalName == "DataTemplate" && e.Attribute("DataType") != null)
             .ToList();
 
-        Assert.True(dataTemplates.Count >= 20, $"Expected at least 20 DataTemplates, found {dataTemplates.Count}");
+        Assert.True(dataTemplates.Count >= 21, $"Expected at least 21 DataTemplates, found {dataTemplates.Count}");
 
         foreach (var kvp in ExpectedNavigationMappings)
         {
@@ -187,7 +188,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyMainWindowViewModelSourceCodeContainsCompleteTwentySectionRouting()
+    public void VerifyMainWindowViewModelSourceCodeContainsCompleteTwentyOneSectionRouting()
     {
         var appDir = FindAppDirectory();
         var vmPath = Path.Combine(appDir, "ViewModels", "MainWindowViewModel.cs");
@@ -208,7 +209,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyAllTwentyViewAndViewModelFilesExistPhysicallyOnDisk()
+    public void VerifyAllTwentyOneViewAndViewModelFilesExistPhysicallyOnDisk()
     {
         var appDir = FindAppDirectory();
 
