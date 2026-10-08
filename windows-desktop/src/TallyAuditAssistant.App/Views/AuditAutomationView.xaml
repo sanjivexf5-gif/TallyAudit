@@ -114,5 +114,4 @@
             </Border>
         </StackPanel>
     </ScrollViewer>
-}
 </UserControl>
