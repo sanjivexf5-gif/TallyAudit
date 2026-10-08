@@ -86,8 +86,24 @@ public class TallyConnectionMonitor : IDisposable
                 }
                 else
                 {
-                    UpdateState(ConnectionStatus.ProcessRunningPortClosed, null);
-                    await Task.Delay(TimeSpan.FromSeconds(backoffIntervalSeconds), cancellationToken);
+                    // Keep the last verified endpoint during a transient probe
+                    // failure. Tally can be busy processing a large XML request;
+                    // immediately replacing a healthy connection with "port
+                    // closed" makes the UI report a false disconnect.
+                    if (CurrentEndpoint?.IsResponsive == true)
+                    {
+                        _logger.LogWarning(
+                            "Tally probe temporarily failed, but retaining verified endpoint {Host}:{Port}.",
+                            CurrentEndpoint.Host,
+                            CurrentEndpoint.Port);
+
+                        await Task.Delay(TimeSpan.FromSeconds(normalIntervalSeconds), cancellationToken);
+                    }
+                    else
+                    {
+                        UpdateState(ConnectionStatus.ProcessRunningPortClosed, null);
+                        await Task.Delay(TimeSpan.FromSeconds(backoffIntervalSeconds), cancellationToken);
+                    }
                 }
             }
             catch (OperationCanceledException)

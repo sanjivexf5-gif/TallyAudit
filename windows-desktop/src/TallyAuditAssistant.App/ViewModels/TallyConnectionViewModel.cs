@@ -283,7 +283,15 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
             // endpoint. Prefer it before starting another discovery scan. This
             // prevents a transient second probe from replacing a healthy
             // connection with a false "Tally not detected" state.
+            // Prefer either the verified connection endpoint or the monitor's
+            // last known responsive endpoint. The monitor may have completed a
+            // successful probe while this manual discovery scan was starting.
             var endpoint = _tallyConnection.ActiveEndpoint;
+            if (endpoint?.IsResponsive != true)
+            {
+                endpoint = _connectionMonitor.CurrentEndpoint;
+            }
+
             if (endpoint?.IsResponsive != true)
             {
                 endpoint = await _tallyConnection.DiscoverTallyAsync(Host, Port, ScanRangeMax);
@@ -386,12 +394,27 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
             }
             else
             {
-                IsConnected = false;
-                StatusMessage = "Tally not detected";
-                DiagnosticReport = "✗ Discovery failed. TallyPrime is not responding on the scanned ports.";
-                if (IsProcessRunning)
+                // Do not overwrite a healthy connection with a transient scan
+                // failure. This is common when Tally is busy processing a request.
+                var knownEndpoint = _tallyConnection.ActiveEndpoint ?? _connectionMonitor.CurrentEndpoint;
+                if (knownEndpoint?.IsResponsive == true)
                 {
-                    DiagnosticReport += "\n⚠ Tally process is running but HTTP server is inaccessible.";
+                    IsConnected = true;
+                    Port = knownEndpoint.Port;
+                    Latency = $"{knownEndpoint.LatencyMs} ms";
+                    DetectedVersion = knownEndpoint.ServerVersion ?? "TallyPrime";
+                    StatusMessage = "Tally Connected";
+                    DiagnosticReport = "✓ TallyPrime is connected. Discovery scan returned a temporary failure; the verified connection was retained.";
+                }
+                else
+                {
+                    IsConnected = false;
+                    StatusMessage = "Tally not detected";
+                    DiagnosticReport = "✗ Discovery failed. TallyPrime is not responding on the scanned ports.";
+                    if (IsProcessRunning)
+                    {
+                        DiagnosticReport += "\n⚠ Tally process is running but HTTP server is inaccessible.";
+                    }
                 }
             }
         }

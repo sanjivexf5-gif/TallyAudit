@@ -189,13 +189,21 @@ public class TallyConnection : ITallyConnection
 
             if (responsive)
             {
-                return new TallyEndpointInfo(
+                var endpoint = new TallyEndpointInfo(
                     Host: normHost,
                     Port: normPort,
                     IsResponsive: true,
                     ServerVersion: "TallyPrime",
                     LatencyMs: sw.ElapsedMilliseconds
                 );
+
+                // A successful lightweight probe is already a verified endpoint.
+                // Keep it as the active endpoint so the background monitor cannot
+                // report "Tally not detected" while the UI is actually connected.
+                ActiveEndpoint = endpoint;
+                SetStatus(ConnectionStatus.Connected);
+
+                return endpoint;
             }
 
             return new TallyEndpointInfo(
