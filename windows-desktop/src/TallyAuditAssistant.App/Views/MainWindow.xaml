@@ -76,6 +76,9 @@
         <DataTemplate DataType="{x:Type vm:AuditQueriesViewModel}">
             <views:AuditQueriesView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AuditQualityControlViewModel}">
+            <views:AuditQualityControlView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:InvestigationViewModel}">
             <views:InvestigationView />
         </DataTemplate>
@@ -204,6 +207,7 @@
                     <Button Content="🔒  Finalize Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="AuditFinalization" Tag="AuditFinalization"/>
                     <Button Content="📦  Audit Report Pack" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="AuditReportPack" Tag="AuditReportPack"/>
                     <Button Content="💬  Audit Queries" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="AuditQueries" Tag="AuditQueries"/>
+                    <Button Content="🛡️  Quality Control" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="AuditQualityControl" Tag="AuditQualityControl"/>
                     <Button Content="⚙️  Settings" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Settings" Tag="Settings"/>
                     </StackPanel>
                 </ScrollViewer>
