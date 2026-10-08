@@ -541,6 +541,29 @@ CREATE TABLE IF NOT EXISTS AuditPlans (
         try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN LinkedEvidenceIds TEXT;", cancellationToken: cancellationToken)); } catch {}
         try { await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ExceptionInvestigations ADD COLUMN LinkedWorkingPaperIds TEXT;", cancellationToken: cancellationToken)); } catch {}
 
+        // Backward-compatible creation for databases upgraded from versions that
+        // did not have AuditPlans in the runtime initializer. Finalization, working
+        // papers and evidence all depend on this table.
+        await connection.ExecuteAsync(new CommandDefinition(@"
+            CREATE TABLE IF NOT EXISTS AuditPlans (
+                Id TEXT PRIMARY KEY,
+                CompanyId TEXT NOT NULL REFERENCES Companies(Id) ON DELETE CASCADE,
+                FinancialPeriodId TEXT NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'In Progress',
+                MaterialityAmount DECIMAL(18,2) NOT NULL DEFAULT 250000,
+                PerformanceMateriality DECIMAL(18,2) NOT NULL DEFAULT 187500,
+                TrivialThreshold DECIMAL(18,2) NOT NULL DEFAULT 12500,
+                IsFinalized INTEGER NOT NULL DEFAULT 0,
+                FinalizedAt DATETIME,
+                FinalizedBy TEXT,
+                AuditOpinion TEXT,
+                CreatedAt DATETIME NOT NULL,
+                UpdatedAt DATETIME NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_auditplans_company_period
+                ON AuditPlans(CompanyId, FinancialPeriodId);
+        ", cancellationToken: cancellationToken));
+
         // Audit query and management follow-up tracker.
         await connection.ExecuteAsync(new CommandDefinition(@"
             CREATE TABLE IF NOT EXISTS AuditQueries (
