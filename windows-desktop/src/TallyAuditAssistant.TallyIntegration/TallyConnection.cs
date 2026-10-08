@@ -75,13 +75,33 @@ public class TallyConnection : ITallyConnection
         }
 
         _logger.LogInformation("Attempting primary connection to TallyPrime at {Host}:{Port}...", host, targetPort);
-        
-        var primaryResult = await TestConnectionDetailedAsync(host, targetPort, cancellationToken);
-        if (primaryResult.IsResponsive)
+
+        // TallyPrime can briefly be busy while opening a company or processing a
+        // previous XML request. Retry the configured endpoint before declaring
+        // discovery failed; this also avoids a false "Tally not detected" state
+        // immediately after a successful connection.
+        TallyEndpointInfo primaryResult = default!;
+        for (var attempt = 1; attempt <= 3; attempt++)
         {
-            ActiveEndpoint = primaryResult;
-            SetStatus(ConnectionStatus.Connected);
-            return primaryResult;
+            primaryResult = await TestConnectionDetailedAsync(host, targetPort, cancellationToken);
+            if (primaryResult.IsResponsive)
+            {
+                ActiveEndpoint = primaryResult;
+                SetStatus(ConnectionStatus.Connected);
+                return primaryResult;
+            }
+
+            if (attempt < 3)
+            {
+                _logger.LogWarning(
+                    "Primary Tally probe failed on attempt {Attempt}/3 at {Host}:{Port}: {Error}. Retrying...",
+                    attempt,
+                    host,
+                    targetPort,
+                    primaryResult.ErrorMessage);
+
+                await Task.Delay(TimeSpan.FromMilliseconds(750), cancellationToken);
+            }
         }
 
         // 2. Not found at primary, scan common range (9000 to scanRangeMax)
