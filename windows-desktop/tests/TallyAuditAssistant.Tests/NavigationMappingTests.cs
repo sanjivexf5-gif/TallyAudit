@@ -15,6 +15,7 @@ public class NavigationMappingTests
         {
             ["Dashboard"] = ("DashboardViewModel", "DashboardView"),
             ["TallyConnection"] = ("TallyConnectionViewModel", "TallyConnectionView"),
+            ["Automation"] = ("AuditAutomationViewModel", "AuditAutomationView"),
             ["Companies"] = ("CompaniesViewModel", "CompaniesView"),
             ["Sync"] = ("SyncViewModel", "SyncView"),
             ["GST"] = ("GstAuditViewModel", "GstAuditView"),
