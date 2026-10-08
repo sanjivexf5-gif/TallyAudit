@@ -172,6 +172,27 @@ public class AuditFinalizationRepository : IAuditFinalizationRepository
     public async Task<string> GetOrCreateWorkingPaperPlanIdAsync(string companyId, string companyName, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+
+        // Self-heal legacy databases that predate the audit-planning schema.
+        // Finalization depends on AuditPlans for its evidence/query workspace,
+        // so a missing table must not make the whole Finalization screen fail.
+        await connection.ExecuteAsync(new CommandDefinition(@"
+            CREATE TABLE IF NOT EXISTS AuditPlans (
+                Id TEXT PRIMARY KEY,
+                CompanyId TEXT NOT NULL,
+                FinancialPeriodId TEXT NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'In Progress',
+                MaterialityAmount DECIMAL(18,2) DEFAULT 0,
+                PerformanceMateriality DECIMAL(18,2) DEFAULT 0,
+                TrivialThreshold DECIMAL(18,2) DEFAULT 0,
+                IsFinalized INTEGER DEFAULT 0,
+                CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_auditplans_company_period
+                ON AuditPlans(CompanyId, FinancialPeriodId);
+        ", cancellationToken: cancellationToken));
+
         const string findSql = "SELECT Id FROM AuditPlans WHERE CompanyId = @CompanyId AND FinancialPeriodId = 'WORKING-PAPER' LIMIT 1;";
         var existing = await connection.QuerySingleOrDefaultAsync<string>(new CommandDefinition(findSql, new { CompanyId = companyId }, cancellationToken: cancellationToken));
         if (!string.IsNullOrWhiteSpace(existing)) return existing;
