@@ -161,6 +161,11 @@ public class CompanySelectionSyncFlowTests
             _companyContext,
             null);
 
+        var auditAutomationVM = new AuditAutomationViewModel(
+            new Mock<IAuditAutomationService>().Object,
+            _navigationService,
+            _companyContext);
+
         return new MainWindowViewModel(
             _mockConnection.Object,
             _companyContext,
@@ -170,6 +175,7 @@ public class CompanySelectionSyncFlowTests
             dashboardVM,
             connVM,
             syncVM,
+            auditAutomationVM,
             settingsVM,
             companiesVM,
             gstVM,
