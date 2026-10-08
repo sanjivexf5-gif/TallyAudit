@@ -480,6 +480,15 @@ public class DatabaseInitializer : IDatabaseInitializer
 
         await connection.ExecuteAsync(new CommandDefinition(schemaSql, cancellationToken: cancellationToken));
 
+        // Explicit upgrade safety net for installations created before the
+        // Audit Planning / Working Papers schema was introduced. The main
+        // schema script already contains these tables, but older customer
+        // databases can reach this point without AuditPlans. Finalization,
+        // evidence and query tracking depend on that table, so ensure the
+        // complete support schema exists on every startup.
+        await EnsureAuditFinalizationSchemaAsync(connection, cancellationToken);
+
+
         // Backward-compatible migration for databases created before IntegrityHash was added.
         try
         {
@@ -564,6 +573,114 @@ public class DatabaseInitializer : IDatabaseInitializer
         }
 
         _logger.LogInformation("Database tables and indexes verified successfully.");
+    }
+
+
+    private static async Task EnsureAuditFinalizationSchemaAsync(
+        System.Data.Common.DbConnection connection,
+        CancellationToken cancellationToken)
+    {
+        const string sql = @"
+            CREATE TABLE IF NOT EXISTS AuditPlans (
+                Id TEXT PRIMARY KEY,
+                CompanyId TEXT NOT NULL,
+                FinancialPeriodId TEXT NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'In Progress',
+                MaterialityAmount DECIMAL(18,2) DEFAULT 0,
+                PerformanceMateriality DECIMAL(18,2) DEFAULT 0,
+                TrivialThreshold DECIMAL(18,2) DEFAULT 0,
+                IsFinalized INTEGER DEFAULT 0,
+                CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_auditplans_company_period
+                ON AuditPlans(CompanyId, FinancialPeriodId);
+
+            CREATE TABLE IF NOT EXISTS WorkingPapers (
+                Id TEXT PRIMARY KEY,
+                PlanId TEXT NOT NULL,
+                AuditArea TEXT NOT NULL,
+                Title TEXT NOT NULL,
+                Objective TEXT NOT NULL,
+                ProcedurePerformed TEXT NOT NULL,
+                Conclusion TEXT NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'Draft',
+                PreparedBy TEXT NOT NULL,
+                PreparedDate DATE NOT NULL,
+                ReviewedBy TEXT,
+                ReviewedDate DATE,
+                RelatedFindingId TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_workingpapers_plan
+                ON WorkingPapers(PlanId);
+
+            CREATE TABLE IF NOT EXISTS WorkingPaperAttachments (
+                Id TEXT PRIMARY KEY,
+                WorkingPaperId TEXT NOT NULL,
+                FileName TEXT NOT NULL,
+                FilePath TEXT NOT NULL,
+                FileHash TEXT,
+                FileSizeBytes INTEGER NOT NULL DEFAULT 0,
+                AddedAt DATETIME NOT NULL,
+                AddedBy TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_workingpaperattachments_paper
+                ON WorkingPaperAttachments(WorkingPaperId);
+
+            CREATE TABLE IF NOT EXISTS AuditEvidence (
+                Id TEXT PRIMARY KEY,
+                PlanId TEXT NOT NULL,
+                AuditArea TEXT NOT NULL,
+                ProcedureId TEXT,
+                FindingId TEXT,
+                EvidenceType TEXT NOT NULL,
+                Description TEXT NOT NULL,
+                ReferenceNumber TEXT,
+                FileName TEXT,
+                FilePath TEXT,
+                FileHash TEXT,
+                FileSizeBytes INTEGER,
+                DateReceived DATE,
+                UploadedAt DATETIME NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'Received',
+                AuditorRemarks TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_evidence_plan
+                ON AuditEvidence(PlanId, AuditArea);
+
+            CREATE TABLE IF NOT EXISTS AuditQueries (
+                Id TEXT PRIMARY KEY,
+                PlanId TEXT NOT NULL,
+                QueryNumber TEXT NOT NULL,
+                Title TEXT NOT NULL,
+                Details TEXT NOT NULL,
+                AuditArea TEXT NOT NULL,
+                FindingId TEXT,
+                ResponsiblePerson TEXT,
+                Priority TEXT NOT NULL DEFAULT 'Medium',
+                Status TEXT NOT NULL DEFAULT 'Open',
+                QueryDate DATETIME NOT NULL,
+                ResponseDate DATETIME,
+                DueDate DATETIME,
+                ManagementResponse TEXT,
+                AuditorRemarks TEXT,
+                CreatedAt DATETIME NOT NULL,
+                UpdatedAt DATETIME NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_auditqueries_plan_status
+                ON AuditQueries(PlanId, Status);
+
+            CREATE INDEX IF NOT EXISTS idx_auditqueries_due
+                ON AuditQueries(PlanId, DueDate);
+        ";
+
+        await connection.ExecuteAsync(
+            new CommandDefinition(sql, cancellationToken: cancellationToken));
     }
 
     private async Task SeedInitialRulesAsync(CancellationToken cancellationToken)
