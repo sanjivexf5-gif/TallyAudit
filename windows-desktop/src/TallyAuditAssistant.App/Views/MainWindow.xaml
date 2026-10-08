@@ -25,6 +25,9 @@
         <DataTemplate DataType="{x:Type vm:SyncViewModel}">
             <views:SyncView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AuditAutomationViewModel}">
+            <views:AuditAutomationView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <views:SettingsView />
         </DataTemplate>
@@ -194,6 +197,7 @@
                     <Button Content="📊  Dashboard" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Dashboard" Tag="Dashboard"/>
                     <Button Content="🔌  Tally Connection" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="TallyConnection" Tag="TallyConnection"/>
                     <Button Content="🏢  Companies" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Companies" Tag="Companies"/>
+                    <Button Content="⚡  Smart Automation" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Automation" Tag="Automation"/>
                     <Button Content="🔄  Synchronize" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Sync" Tag="Sync"/>
                     <Button Content="⚖️  GST Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="GST" Tag="GST"/>
                     <Button Content="📑  TDS Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="TDS" Tag="TDS"/>
