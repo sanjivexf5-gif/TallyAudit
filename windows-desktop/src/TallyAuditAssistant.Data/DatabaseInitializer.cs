@@ -43,6 +43,12 @@ public class DatabaseInitializer : IDatabaseInitializer
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
+        // Create the audit-planning/finalization support tables before the
+        // broader schema script. Older installations may have been created
+        // before AuditPlans was introduced; Finalization must never depend on
+        // a later statement in the startup schema batch succeeding.
+        await EnsureAuditFinalizationSchemaAsync(connection, cancellationToken);
+
         const string schemaSql = @"
             -- 1. Configuration & Settings
             CREATE TABLE IF NOT EXISTS Settings (
