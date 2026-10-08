@@ -143,6 +143,11 @@ public partial class AuditMaterialityViewModel : ObservableObject, INavigationAw
         await _repository.SaveAuditMaterialityPlanAsync(plan);
         Status = "Prepared";
         StatusMessage = "Materiality and sampling plan saved.";
-        await _auditTrail.RecordActivityAsync("Materiality plan saved", "AUDIT PLANNING", $"Materiality {OverallMateriality:N2}; sample {SuggestedSampleSize:N0}.", company.TallyCompanyName, System.Threading.CancellationToken.None);
+        await _auditTrail.RecordActivityAsync(
+            actionType: "Materiality plan saved",
+            module: "AUDIT PLANNING",
+            description: $"Materiality {OverallMateriality:N2}; sample {SuggestedSampleSize:N0}.",
+            companyName: company.TallyCompanyName,
+            ct: System.Threading.CancellationToken.None);
     }
 }

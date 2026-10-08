@@ -318,6 +318,15 @@ public class AuditFinalizationRepository : IAuditFinalizationRepository
         await connection.ExecuteAsync(new CommandDefinition(sql, plan, cancellationToken: cancellationToken));
     }
 
+    public async Task<int> GetVoucherCountAsync(string companyId, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        return await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+            "SELECT COUNT(*) FROM Vouchers WHERE CompanyId = @CompanyId;",
+            new { CompanyId = companyId },
+            cancellationToken: cancellationToken));
+    }
+
     public async Task<decimal> GetVoucherTotalAsync(string companyId, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);

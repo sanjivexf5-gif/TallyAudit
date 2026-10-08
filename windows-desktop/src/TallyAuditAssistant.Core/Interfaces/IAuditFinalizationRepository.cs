@@ -35,5 +35,6 @@ public interface IAuditFinalizationRepository
     Task SaveAmendmentAsync(AuditAmendment amendment, CancellationToken cancellationToken = default);
     Task<AuditMaterialityPlan?> GetAuditMaterialityPlanAsync(string companyId, string financialPeriodId, CancellationToken cancellationToken = default);
     Task SaveAuditMaterialityPlanAsync(AuditMaterialityPlan plan, CancellationToken cancellationToken = default);
+    Task<int> GetVoucherCountAsync(string companyId, CancellationToken cancellationToken = default);
     Task<decimal> GetVoucherTotalAsync(string companyId, CancellationToken cancellationToken = default);
 }
