@@ -35,6 +35,7 @@ public class NavigationMappingTests
             ["AuditQueries"] = ("AuditQueriesViewModel", "AuditQueriesView"),
             ["AuditQualityControl"] = ("AuditQualityControlViewModel", "AuditQualityControlView"),
             ["AuditMateriality"] = ("AuditMaterialityViewModel", "AuditMaterialityView"),
+            ["Automation"] = ("AuditAutomationViewModel", "AuditAutomationView"),
         };
 
     [Fact]
