@@ -34,10 +34,11 @@ public class NavigationMappingTests
             ["AuditReportPack"] = ("AuditReportPackViewModel", "AuditReportPackView"),
             ["AuditQueries"] = ("AuditQueriesViewModel", "AuditQueriesView"),
             ["AuditQualityControl"] = ("AuditQualityControlViewModel", "AuditQualityControlView"),
+            ["AuditMateriality"] = ("AuditMaterialityViewModel", "AuditMaterialityView"),
         };
 
     [Fact]
-    public void VerifyMainWindowXamlSidebarContainsAllTwentyTwoNavigationRoutes()
+    public void VerifyMainWindowXamlSidebarContainsAllNavigationRoutes()
     {
         var appDir = FindAppDirectory();
         var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
@@ -97,7 +98,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyMainWindowXamlDataTemplatesMapAllTwentyTwoViewModelsToCorrectViews()
+    public void VerifyMainWindowXamlDataTemplatesMapAllNavigationViewModelsToCorrectViews()
     {
         var appDir = FindAppDirectory();
         var mainWindowXamlPath = Path.Combine(appDir, "Views", "MainWindow.xaml");
@@ -188,7 +189,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyMainWindowViewModelSourceCodeContainsCompleteTwentyTwoSectionRouting()
+    public void VerifyMainWindowViewModelSourceCodeContainsCompleteNavigationSectionRouting()
     {
         var appDir = FindAppDirectory();
         var vmPath = Path.Combine(appDir, "ViewModels", "MainWindowViewModel.cs");
@@ -209,7 +210,7 @@ public class NavigationMappingTests
     }
 
     [Fact]
-    public void VerifyAllTwentyOneViewAndViewModelFilesExistPhysicallyOnDisk()
+    public void VerifyAllNavigationViewAndViewModelFilesExistPhysicallyOnDisk()
     {
         var appDir = FindAppDirectory();
 
