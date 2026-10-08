@@ -28,6 +28,7 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
     private readonly IApplicationDataPathService? _pathService;
     private bool _isUpdatingSelection = false;
     private long _companyOperationGeneration;
+    private readonly SemaphoreSlim _scanGate = new(1, 1);
 
     [ObservableProperty]
     private bool _isCommitting = false;
@@ -191,7 +192,9 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
             }
         };
 
-        _ = LoadSettingsAsync();
+        // This VM is a singleton. Do not start discovery from the constructor;
+        // navigation also initializes the VM and could otherwise launch two scans
+        // concurrently, allowing a slower failed scan to overwrite a successful one.
     }
 
     private void OnMonitorStatusChanged(object? sender, ConnectionStatus status)
@@ -247,12 +250,22 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
     {
         Host = await _settingsService.GetTallyHostAsync();
         Port = await _settingsService.GetTallyPortAsync();
+
+        // A singleton VM may be navigated to repeatedly. Discovery itself is
+        // serialized by _scanGate so only one active probe can update connection
+        // state at a time.
         await ScanForTallyAsync();
     }
 
     [RelayCommand]
     private async Task ScanForTallyAsync()
     {
+        if (!await _scanGate.WaitAsync(0))
+        {
+            StatusMessage = "Tally discovery already in progress...";
+            return;
+        }
+
         var generation = Interlocked.Increment(ref _companyOperationGeneration);
         IsScanning = true;
         StatusMessage = $"Scanning for TallyPrime (Port 9000 to {ScanRangeMax})...";
@@ -389,6 +402,8 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
             {
                 IsScanning = false;
             }
+
+            _scanGate.Release();
         }
     }
 
