@@ -174,12 +174,17 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
             var openItems = await _finalizationRepository.GetOpenItemsAsync($"CHECKLIST-{company.Id}");
             OpenItems = openItems.Count(x => !string.Equals(x.Status, "Resolved", StringComparison.OrdinalIgnoreCase));
 
-            var evidence = (await _finalizationRepository.GetAuditEvidenceAsync(
-                await _finalizationRepository.GetOrCreateWorkingPaperPlanIdAsync(company.Id, company.TallyCompanyName))).ToList();
+            // Finalization only reads evidence and query records. Do not make the
+            // screen depend on the optional AuditPlans table existing in an older
+            // local database. Working-paper records use the same deterministic plan
+            // ID, so existing data remains visible without forcing a planning-schema
+            // migration just to open Finalization.
+            var workingPaperPlanId = $"WP-PLAN-{company.Id}";
+            var evidence = (await _finalizationRepository.GetAuditEvidenceAsync(workingPaperPlanId)).ToList();
             TotalEvidence = evidence.Count;
             VerifiedEvidence = evidence.Count(x => string.Equals(x.Status, "Verified", StringComparison.OrdinalIgnoreCase));
             RejectedEvidence = evidence.Count(x => string.Equals(x.Status, "Rejected", StringComparison.OrdinalIgnoreCase));
-            var queries = await _finalizationRepository.GetAuditQueriesAsync(await _finalizationRepository.GetOrCreateWorkingPaperPlanIdAsync(company.Id, company.TallyCompanyName));
+            var queries = await _finalizationRepository.GetAuditQueriesAsync(workingPaperPlanId);
             OutstandingQueries = queries.Count(x => x.Status != "Closed" && x.Status != "Not Applicable");
 
             RebuildReadinessIssues();
