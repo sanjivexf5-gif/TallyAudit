@@ -39,6 +39,7 @@ public partial class MainWindowViewModel : ObservableObject
     public DashboardViewModel DashboardVM { get; }
     public TallyConnectionViewModel ConnectionVM { get; }
     public SyncViewModel SyncVM { get; }
+    public AuditAutomationViewModel AuditAutomationVM { get; }
     public SettingsViewModel SettingsVM { get; }
     public CompaniesViewModel CompaniesVM { get; }
     public GstAuditViewModel GstVM { get; }
@@ -69,6 +70,7 @@ public partial class MainWindowViewModel : ObservableObject
         DashboardViewModel dashboardVM,
         TallyConnectionViewModel connectionVM,
         SyncViewModel syncVM,
+        AuditAutomationViewModel auditAutomationVM,
         SettingsViewModel settingsVM,
         CompaniesViewModel companiesVM,
         GstAuditViewModel gstVM,
@@ -99,6 +101,7 @@ public partial class MainWindowViewModel : ObservableObject
         DashboardVM = dashboardVM;
         ConnectionVM = connectionVM;
         SyncVM = syncVM;
+        AuditAutomationVM = auditAutomationVM;
         SettingsVM = settingsVM;
         CompaniesVM = companiesVM;
         GstVM = gstVM;
@@ -231,6 +234,7 @@ public partial class MainWindowViewModel : ObservableObject
             "TallyConnection" => ConnectionVM,
             "Companies" => CompaniesVM,
             "Sync" => SyncVM,
+            "Automation" => AuditAutomationVM,
             "GST" => GstVM,
             "TDS" => TdsVM,
             "Vouchers" => VouchersVM,

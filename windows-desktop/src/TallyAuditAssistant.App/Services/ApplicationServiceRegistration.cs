@@ -68,6 +68,7 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<ITallyConnection, TallyConnection>();
         services.AddSingleton<TallyConnectionMonitor>();
         services.AddSingleton<ISyncManager, SyncManager>();
+        services.AddSingleton<IAuditAutomationService, AuditAutomationService>();
 
         services.AddAuditEngine();
         services.AddSingleton<INavigationService, NavigationService>();
@@ -76,6 +77,7 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<TallyConnectionViewModel>();
         services.AddSingleton<SyncViewModel>();
+        services.AddSingleton<AuditAutomationViewModel>();
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<CompaniesViewModel>();
         services.AddSingleton<GstAuditViewModel>();
