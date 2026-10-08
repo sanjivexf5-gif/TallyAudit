@@ -160,6 +160,9 @@ public class SyncManager : ISyncManager
                 port = verifiedEndpoint.Port;
             }
 
+            // Keep all downstream Tally services on the same verified endpoint.
+            await _settingsService.SetTallyHostAsync(host);
+            await _settingsService.SetTallyPortAsync(port);
             EmitLog($"Connection established successfully on {host}:{port}.");
 
             await CheckPauseAsync(ct);
