@@ -94,6 +94,7 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<AuditFinalizationViewModel>();
         services.AddSingleton<AuditReportPackViewModel>();
         services.AddSingleton<AuditQueriesViewModel>();
+        services.AddSingleton<AuditQualityControlViewModel>();
 
         services.AddSingleton<MainWindow>();
         return services;
