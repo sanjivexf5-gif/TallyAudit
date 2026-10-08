@@ -289,6 +289,43 @@ public class AuditFinalizationRepository : IAuditFinalizationRepository
         await connection.ExecuteAsync(new CommandDefinition(sql, query, cancellationToken: cancellationToken));
     }
 
+    public async Task<AuditMaterialityPlan?> GetAuditMaterialityPlanAsync(string companyId, string financialPeriodId, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = "SELECT * FROM AuditMaterialityPlans WHERE CompanyId = @CompanyId AND FinancialPeriodId = @FinancialPeriodId LIMIT 1;";
+        return await connection.QuerySingleOrDefaultAsync<AuditMaterialityPlan>(new CommandDefinition(sql, new { CompanyId = companyId, FinancialPeriodId = financialPeriodId }, cancellationToken: cancellationToken));
+    }
+
+    public async Task SaveAuditMaterialityPlanAsync(AuditMaterialityPlan plan, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = @"
+            INSERT INTO AuditMaterialityPlans
+            (Id, CompanyId, FinancialPeriodId, BenchmarkAmount, BenchmarkPercentage, OverallMateriality,
+             PerformanceMateriality, TrivialThreshold, PopulationCount, PopulationAmount, SuggestedSampleSize,
+             SamplingMethod, Rationale, PreparedBy, ReviewerName, Status, UpdatedAt)
+            VALUES
+            (@Id, @CompanyId, @FinancialPeriodId, @BenchmarkAmount, @BenchmarkPercentage, @OverallMateriality,
+             @PerformanceMateriality, @TrivialThreshold, @PopulationCount, @PopulationAmount, @SuggestedSampleSize,
+             @SamplingMethod, @Rationale, @PreparedBy, @ReviewerName, @Status, @UpdatedAt)
+            ON CONFLICT(Id) DO UPDATE SET
+             BenchmarkAmount=excluded.BenchmarkAmount, BenchmarkPercentage=excluded.BenchmarkPercentage,
+             OverallMateriality=excluded.OverallMateriality, PerformanceMateriality=excluded.PerformanceMateriality,
+             TrivialThreshold=excluded.TrivialThreshold, PopulationCount=excluded.PopulationCount,
+             PopulationAmount=excluded.PopulationAmount, SuggestedSampleSize=excluded.SuggestedSampleSize,
+             SamplingMethod=excluded.SamplingMethod, Rationale=excluded.Rationale, PreparedBy=excluded.PreparedBy,
+             ReviewerName=excluded.ReviewerName, Status=excluded.Status, UpdatedAt=excluded.UpdatedAt;";
+        await connection.ExecuteAsync(new CommandDefinition(sql, plan, cancellationToken: cancellationToken));
+    }
+
+    public async Task<decimal> GetVoucherTotalAsync(string companyId, CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        return await connection.ExecuteScalarAsync<decimal>(new CommandDefinition(
+            "SELECT COALESCE(SUM(TotalAmount), 0) FROM Vouchers WHERE CompanyId = @CompanyId;",
+            new { CompanyId = companyId }, cancellationToken: cancellationToken));
+    }
+
     public async Task SaveAmendmentAsync(AuditAmendment amendment, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);

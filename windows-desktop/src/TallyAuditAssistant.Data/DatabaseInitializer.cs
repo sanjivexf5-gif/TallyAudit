@@ -374,7 +374,27 @@ public class DatabaseInitializer : IDatabaseInitializer
             -- These tables are required by the working-paper, evidence and
             -- audit-finalization workflows. Keep them in the core initializer
             -- so existing installations are upgraded automatically.
-            CREATE TABLE IF NOT EXISTS AuditPlans (
+            CREATE TABLE IF NOT EXISTS AuditMaterialityPlans (
+ Id TEXT PRIMARY KEY,
+ CompanyId TEXT NOT NULL,
+ FinancialPeriodId TEXT NOT NULL,
+ BenchmarkAmount DECIMAL(18,2) DEFAULT 0,
+ BenchmarkPercentage DECIMAL(8,4) DEFAULT 5,
+ OverallMateriality DECIMAL(18,2) DEFAULT 0,
+ PerformanceMateriality DECIMAL(18,2) DEFAULT 0,
+ TrivialThreshold DECIMAL(18,2) DEFAULT 0,
+ PopulationCount INTEGER DEFAULT 0,
+ PopulationAmount DECIMAL(18,2) DEFAULT 0,
+ SuggestedSampleSize INTEGER DEFAULT 0,
+ SamplingMethod TEXT NOT NULL DEFAULT 'Risk-based',
+ Rationale TEXT DEFAULT '',
+ PreparedBy TEXT DEFAULT '',
+ ReviewerName TEXT DEFAULT '',
+ Status TEXT NOT NULL DEFAULT 'Draft',
+ UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_materiality_company_period ON AuditMaterialityPlans(CompanyId, FinancialPeriodId);
+CREATE TABLE IF NOT EXISTS AuditPlans (
                 Id TEXT PRIMARY KEY,
                 CompanyId TEXT NOT NULL REFERENCES Companies(Id) ON DELETE CASCADE,
                 FinancialPeriodId TEXT NOT NULL,
