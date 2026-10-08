@@ -108,16 +108,62 @@ public class SyncManager : ISyncManager
             if (string.IsNullOrEmpty(host)) host = "localhost";
             if (port <= 0) port = 9000;
 
-            var isConnected = await _connection.TestConnectionAsync(host, port, ct);
-            if (!isConnected)
+            // Prefer the endpoint already verified by the connection monitor/UI.
+            // This avoids a race where the monitor has a healthy Tally endpoint while
+            // the persisted settings still point to a stale port.
+            var activeEndpoint = _connection.ActiveEndpoint;
+            TallyEndpointInfo? verifiedEndpoint = null;
+
+            if (activeEndpoint?.IsResponsive == true)
             {
-                var endpoint = await _connection.ProbePortRangeAsync(host, port, port + 5, ct);
-                if (endpoint == null)
-                {
-                    throw new InvalidOperationException($"Could not connect to TallyPrime on {host}:{port}. Verify Tally is running.");
-                }
+                verifiedEndpoint = activeEndpoint;
+                host = activeEndpoint.Host;
+                port = activeEndpoint.Port;
+                EmitLog($"Using verified TallyPrime endpoint {host}:{port}.");
             }
-            EmitLog("Connection established successfully.");
+            else
+            {
+                // Retry the configured endpoint before doing a wider port scan.
+                // TallyPrime can be temporarily busy while serving a large request.
+                for (var attempt = 1; attempt <= 3 && verifiedEndpoint == null; attempt++)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    var result = await _connection.TestConnectionDetailedAsync(host, port, ct);
+                    if (result.IsResponsive)
+                    {
+                        verifiedEndpoint = result;
+                        break;
+                    }
+
+                    if (attempt < 3)
+                    {
+                        EmitLog($"Tally connection check did not respond. Retrying ({attempt}/3)...");
+                        await Task.Delay(TimeSpan.FromSeconds(2), ct);
+                    }
+                }
+
+                if (verifiedEndpoint == null)
+                {
+                    EmitLog($"Configured Tally endpoint {host}:{port} is unavailable. Scanning ports...");
+                    verifiedEndpoint = await _connection.ProbePortRangeAsync(host, port, Math.Max(port + 5, 9005), ct);
+                }
+
+                if (verifiedEndpoint == null)
+                {
+                    throw new InvalidOperationException(
+                        $"Could not connect to TallyPrime on {host}:{port}. " +
+                        "TallyPrime may be busy or its HTTP server may be temporarily unavailable. Please retry Sync.");
+                }
+
+                host = verifiedEndpoint.Host;
+                port = verifiedEndpoint.Port;
+            }
+
+            // Keep all downstream Tally services on the same verified endpoint.
+            await _settingsService.SetTallyHostAsync(host);
+            await _settingsService.SetTallyPortAsync(port);
+            EmitLog($"Connection established successfully on {host}:{port}.");
 
             await CheckPauseAsync(ct);
 
