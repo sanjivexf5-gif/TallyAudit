@@ -16,6 +16,7 @@ public class NavigationMappingTests
             ["Dashboard"] = ("DashboardViewModel", "DashboardView"),
             ["TallyConnection"] = ("TallyConnectionViewModel", "TallyConnectionView"),
             ["Companies"] = ("CompaniesViewModel", "CompaniesView"),
+            ["Automation"] = ("AuditAutomationViewModel", "AuditAutomationView"),
             ["Sync"] = ("SyncViewModel", "SyncView"),
             ["GST"] = ("GstAuditViewModel", "GstAuditView"),
             ["TDS"] = ("TdsAuditViewModel", "TdsAuditView"),
@@ -108,7 +109,7 @@ public class NavigationMappingTests
             .Where(e => e.Name.LocalName == "DataTemplate" && e.Attribute("DataType") != null)
             .ToList();
 
-        Assert.True(dataTemplates.Count >= ExpectedNavigationMappings.Count, $"Expected at least 21 DataTemplates, found {dataTemplates.Count}");
+        Assert.True(dataTemplates.Count >= ExpectedNavigationMappings.Count, $"Expected at least 22 DataTemplates, found {dataTemplates.Count}");
 
         foreach (var kvp in ExpectedNavigationMappings)
         {
