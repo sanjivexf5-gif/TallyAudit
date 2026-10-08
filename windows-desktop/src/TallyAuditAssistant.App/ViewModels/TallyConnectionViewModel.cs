@@ -278,7 +278,16 @@ public partial class TallyConnectionViewModel : ObservableObject, INavigationAwa
             Port = normalizedPort;
 
             IsProcessRunning = await _tallyConnection.CheckIfProcessRunningAsync();
-            var endpoint = await _tallyConnection.DiscoverTallyAsync(Host, Port, ScanRangeMax);
+
+            // The background connection monitor may already have a verified
+            // endpoint. Prefer it before starting another discovery scan. This
+            // prevents a transient second probe from replacing a healthy
+            // connection with a false "Tally not detected" state.
+            var endpoint = _tallyConnection.ActiveEndpoint;
+            if (endpoint?.IsResponsive != true)
+            {
+                endpoint = await _tallyConnection.DiscoverTallyAsync(Host, Port, ScanRangeMax);
+            }
 
             if (generation != Volatile.Read(ref _companyOperationGeneration))
             {
