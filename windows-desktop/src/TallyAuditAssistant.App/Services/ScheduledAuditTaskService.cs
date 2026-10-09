@@ -32,7 +32,7 @@ public sealed class ScheduledAuditTaskService
             ? new[] { "/SC", "WEEKLY", "/D", "MON" }
             : new[] { "/SC", "DAILY" };
 
-        var taskCommand = $"\\\"{executablePath}\\\" --scheduled-audit";
+        var taskCommand = $"\"{executablePath}\" --scheduled-audit";
         var arguments = new System.Collections.Generic.List<string> { "/Create" };
         arguments.AddRange(schedule);
         arguments.AddRange(new[] { "/ST", time, "/TN", TaskName, "/TR", taskCommand, "/F", "/IT" });
