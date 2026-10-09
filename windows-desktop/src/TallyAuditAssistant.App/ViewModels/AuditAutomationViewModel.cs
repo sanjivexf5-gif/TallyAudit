@@ -60,10 +60,10 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
         RefreshCompany();
     }
 
-    public Task OnNavigatedToAsync()
+    public async Task OnNavigatedToAsync()
     {
         RefreshCompany();
-        return Task.CompletedTask;
+        await RefreshScheduleAsync();
     }
 
     [RelayCommand]
@@ -180,6 +180,27 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
         finally
         {
             IsScheduleBusy = false;
+        }
+    }
+
+    private async Task RefreshScheduleAsync()
+    {
+        try
+        {
+            var schedule = await _scheduledAuditTaskService.GetScheduleAsync();
+            if (schedule is null)
+            {
+                ScheduleStatus = "No scheduled audit is configured.";
+                return;
+            }
+
+            ScheduleFrequency = schedule.Frequency;
+            ScheduleTime = schedule.Time;
+            ScheduleStatus = $"Existing schedule detected: {ScheduleFrequency} at {ScheduleTime}.";
+        }
+        catch (Exception ex)
+        {
+            ScheduleStatus = $"Could not read the saved schedule: {ex.Message}";
         }
     }
 
