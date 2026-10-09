@@ -66,6 +66,7 @@ public partial class MainWindowViewModel : ObservableObject
     public AuditQualityControlViewModel? AuditQualityControlVM => _services.GetRequiredService<AuditQualityControlViewModel>();
     public AuditMaterialityViewModel? AuditMaterialityVM => _services.GetRequiredService<AuditMaterialityViewModel>();
 
+    [ActivatorUtilitiesConstructor]
     public MainWindowViewModel(
         IServiceProvider services,
         ITallyConnection tallyConnection,
@@ -97,6 +98,81 @@ public partial class MainWindowViewModel : ObservableObject
         UpdateStatusDisplay(_tallyConnection.CurrentStatus);
 
         _ = RefreshActiveCompanyAsync();
+    }
+
+    // Compatibility overload for existing tests and callers that explicitly
+    // construct a shell with pre-created view models. The application DI container
+    // uses the IServiceProvider constructor above, preserving lazy loading.
+    public MainWindowViewModel(
+        ITallyConnection tallyConnection,
+        IActiveCompanyContext companyContext,
+        ITallyCompanyService companyService,
+        ISettingsService settingsService,
+        INavigationService navigationService,
+        DashboardViewModel dashboardVM,
+        TallyConnectionViewModel connectionVM,
+        SyncViewModel syncVM,
+        AuditAutomationViewModel auditAutomationVM,
+        SettingsViewModel settingsVM,
+        CompaniesViewModel companiesVM,
+        GstAuditViewModel gstVM,
+        TdsAuditViewModel tdsVM,
+        VouchersViewModel vouchersVM,
+        LedgersViewModel ledgersVM,
+        BankAuditViewModel bankVM,
+        ExceptionsViewModel exceptionsVM,
+        ReportsViewModel reportsVM,
+        WorkingPapersViewModel workingPapersVM,
+        AuditChecklistViewModel auditChecklistVM,
+        InvestigationViewModel investigationVM,
+        AuditTrailViewModel auditTrailVM)
+        : this(CreateViewModelProvider(
+            dashboardVM, connectionVM, syncVM, auditAutomationVM, settingsVM,
+            companiesVM, gstVM, tdsVM, vouchersVM, ledgersVM, bankVM,
+            exceptionsVM, reportsVM, workingPapersVM, auditChecklistVM,
+            investigationVM, auditTrailVM),
+            tallyConnection, companyContext, companyService, settingsService, navigationService)
+    {
+    }
+
+    private static IServiceProvider CreateViewModelProvider(
+        DashboardViewModel dashboardVM,
+        TallyConnectionViewModel connectionVM,
+        SyncViewModel syncVM,
+        AuditAutomationViewModel auditAutomationVM,
+        SettingsViewModel settingsVM,
+        CompaniesViewModel companiesVM,
+        GstAuditViewModel gstVM,
+        TdsAuditViewModel tdsVM,
+        VouchersViewModel vouchersVM,
+        LedgersViewModel ledgersVM,
+        BankAuditViewModel bankVM,
+        ExceptionsViewModel exceptionsVM,
+        ReportsViewModel reportsVM,
+        WorkingPapersViewModel workingPapersVM,
+        AuditChecklistViewModel auditChecklistVM,
+        InvestigationViewModel investigationVM,
+        AuditTrailViewModel auditTrailVM)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(dashboardVM);
+        services.AddSingleton(connectionVM);
+        services.AddSingleton(syncVM);
+        services.AddSingleton(auditAutomationVM);
+        services.AddSingleton(settingsVM);
+        services.AddSingleton(companiesVM);
+        services.AddSingleton(gstVM);
+        services.AddSingleton(tdsVM);
+        services.AddSingleton(vouchersVM);
+        services.AddSingleton(ledgersVM);
+        services.AddSingleton(bankVM);
+        services.AddSingleton(exceptionsVM);
+        services.AddSingleton(reportsVM);
+        services.AddSingleton(workingPapersVM);
+        services.AddSingleton(auditChecklistVM);
+        services.AddSingleton(investigationVM);
+        services.AddSingleton(auditTrailVM);
+        return services.BuildServiceProvider();
     }
 
     private static async Task NotifyNavigationAsync(INavigationAware navAware, string section)
