@@ -108,11 +108,20 @@ public partial class App : Application
                             break;
                         }
 
-                        Log.Warning("Scheduled audit attempt {Attempt}/3 failed: {Reason}", attempt, result.ErrorMessage);
-                        if (attempt < 3)
+                        var reason = result.ErrorMessage ?? string.Empty;
+                        var retryable = reason.Contains("connection", StringComparison.OrdinalIgnoreCase)
+                            || reason.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+                            || reason.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+                            || reason.Contains("temporar", StringComparison.OrdinalIgnoreCase)
+                            || reason.Contains("HTTP 5", StringComparison.OrdinalIgnoreCase);
+
+                        if (!retryable || attempt == 3)
                         {
-                            await Task.Delay(TimeSpan.FromSeconds(30));
+                            break;
                         }
+
+                        Log.Warning("Scheduled audit attempt {Attempt}/3 failed transiently; retrying in 30 seconds: {Reason}", attempt, reason);
+                        await Task.Delay(TimeSpan.FromSeconds(30));
                     }
 
                     if (result?.IsSuccess == true)
