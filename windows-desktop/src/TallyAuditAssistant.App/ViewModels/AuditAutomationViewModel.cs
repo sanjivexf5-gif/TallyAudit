@@ -18,6 +18,7 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
     private readonly AuditReportPackViewModel? _reportPackViewModel;
     private readonly ScheduledAuditTaskService _scheduledAuditTaskService;
     private readonly AutomationRunHistoryService _runHistoryService;
+    private readonly AutomationReadinessService? _readinessService;
 
     public ObservableCollection<AutomationRunHistoryEntry> RecentRuns { get; } = new();
 
@@ -35,6 +36,8 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
     [ObservableProperty] private string _scheduleFrequency = "Daily";
     [ObservableProperty] private string _scheduleStatus = "No scheduled audit is configured.";
     [ObservableProperty] private bool _isScheduleBusy;
+    [ObservableProperty] private bool _isCheckingReadiness;
+    [ObservableProperty] private string _readinessMessage = "Check automation readiness before starting to verify TallyPrime, company, audit period, and local storage.";
 
     private DateTime _startedAt;
 
@@ -44,7 +47,8 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
         IActiveCompanyContext companyContext,
         AuditReportPackViewModel? reportPackViewModel = null,
         ScheduledAuditTaskService? scheduledAuditTaskService = null,
-        AutomationRunHistoryService? runHistoryService = null)
+        AutomationRunHistoryService? runHistoryService = null,
+        AutomationReadinessService? readinessService = null)
     {
         _automationService = automationService;
         _navigationService = navigationService;
@@ -52,6 +56,7 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
         _reportPackViewModel = reportPackViewModel;
         _scheduledAuditTaskService = scheduledAuditTaskService ?? new ScheduledAuditTaskService();
         _runHistoryService = runHistoryService ?? new AutomationRunHistoryService();
+        _readinessService = readinessService;
         RefreshRunHistory();
 
         _automationService.ProgressChanged += OnProgressChanged;
@@ -64,6 +69,38 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
     {
         RefreshCompany();
         await RefreshScheduleAsync();
+    }
+
+    [RelayCommand]
+    private async Task CheckReadinessAsync()
+    {
+        if (IsCheckingReadiness || IsRunning)
+        {
+            return;
+        }
+
+        if (_readinessService == null)
+        {
+            ReadinessMessage = "Automation readiness checks are unavailable. Restart the application and try again.";
+            return;
+        }
+
+        IsCheckingReadiness = true;
+        ReadinessMessage = "Checking TallyPrime connection, active company, audit period, and local storage...";
+
+        try
+        {
+            var result = await _readinessService.CheckAsync();
+            ReadinessMessage = result.Report;
+        }
+        catch (Exception ex)
+        {
+            ReadinessMessage = $"Readiness check could not complete: {ex.Message}";
+        }
+        finally
+        {
+            IsCheckingReadiness = false;
+        }
     }
 
     [RelayCommand]
