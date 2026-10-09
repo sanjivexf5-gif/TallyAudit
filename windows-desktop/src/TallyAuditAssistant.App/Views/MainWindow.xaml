@@ -195,10 +195,7 @@
                               CanContentScroll="True">
                     <StackPanel Margin="8,12">
                     <Button Content="📊  Dashboard" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Dashboard" Tag="Dashboard"/>
-                    <Button Content="🔌  Tally Connection" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="TallyConnection" Tag="TallyConnection"/>
-                    <Button Content="🏢  Companies" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Companies" Tag="Companies"/>
                     <Button Content="⚡  Smart Automation" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Automation" Tag="Automation"/>
-                    <Button Content="🔄  Synchronize" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Sync" Tag="Sync"/>
                     <Button Content="⚖️  GST Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="GST" Tag="GST"/>
                     <Button Content="📑  TDS Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="TDS" Tag="TDS"/>
                     <Button Content="📜  Vouchers" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Vouchers" Tag="Vouchers"/>
