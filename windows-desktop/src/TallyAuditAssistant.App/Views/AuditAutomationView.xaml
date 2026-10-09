@@ -148,6 +148,47 @@
                 <TextBlock Text="Automation is designed to save auditor time by removing repetitive navigation and data-preparation steps. It does not post, edit, delete or otherwise modify TallyPrime data."
                            Foreground="#A7F3D0" TextWrapping="Wrap" FontSize="12"/>
             </Border>
+
+            <Border Margin="0,16,0,0" Padding="18" Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="10">
+                <StackPanel>
+                    <TextBlock Text="RECENT AUTOMATION RUNS" FontSize="15" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="The latest 10 manual and scheduled runs are kept locally for troubleshooting. Failed runs include their error details; no accounting data is sent externally."
+                               FontSize="12" Foreground="#94A3B8" Margin="0,5,0,12" TextWrapping="Wrap"/>
+                    <ItemsControl ItemsSource="{Binding RecentRuns}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="10" Margin="0,0,0,7" Background="#0F172A" CornerRadius="6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="150"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding StartedAtDisplay}" Foreground="#CBD5E1" FontSize="11"/>
+                                            <TextBlock Text="{Binding Trigger}" Foreground="#94A3B8" FontSize="10"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="10,0,8,0">
+                                            <TextBlock Text="{Binding CompanyName}" Foreground="White" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding Details}" Foreground="#FCA5A5" FontSize="11" TextWrapping="Wrap"/>
+                                            <TextBlock Foreground="#94A3B8" FontSize="11">
+                                                <Run Text="Records: "/><Run Text="{Binding RecordsSynchronized}"/>
+                                                <Run Text="   Findings: "/><Run Text="{Binding FindingsGenerated}"/>
+                                                <Run Text="   Duration: "/><Run Text="{Binding DurationDisplay}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <Border Grid.Column="2" Padding="8,4" CornerRadius="4" VerticalAlignment="Top"
+                                                Background="#334155">
+                                            <TextBlock Text="{Binding Status}" Foreground="White" FontWeight="Bold" FontSize="10"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
