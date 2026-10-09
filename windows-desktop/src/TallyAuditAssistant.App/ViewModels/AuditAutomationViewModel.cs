@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TallyAuditAssistant.Core.Domain.Audit;
+using TallyAuditAssistant.App.Services;
 using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.App.ViewModels;
@@ -14,6 +15,7 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
     private readonly INavigationService _navigationService;
     private readonly IActiveCompanyContext _companyContext;
     private readonly AuditReportPackViewModel? _reportPackViewModel;
+    private readonly ScheduledAuditTaskService _scheduledAuditTaskService;
 
     [ObservableProperty] private bool _isRunning;
     [ObservableProperty] private string _companyName = "No Company Selected";
@@ -25,6 +27,10 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
     [ObservableProperty] private string _elapsedTime = "00:00";
     [ObservableProperty] private bool _generateReport = true;
     [ObservableProperty] private bool _goToFindingsWhenComplete = true;
+    [ObservableProperty] private string _scheduleTime = "02:00";
+    [ObservableProperty] private string _scheduleFrequency = "Daily";
+    [ObservableProperty] private string _scheduleStatus = "No scheduled audit is configured.";
+    [ObservableProperty] private bool _isScheduleBusy;
 
     private DateTime _startedAt;
 
@@ -32,12 +38,14 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
         IAuditAutomationService automationService,
         INavigationService navigationService,
         IActiveCompanyContext companyContext,
-        AuditReportPackViewModel? reportPackViewModel = null)
+        AuditReportPackViewModel? reportPackViewModel = null,
+        ScheduledAuditTaskService? scheduledAuditTaskService = null)
     {
         _automationService = automationService;
         _navigationService = navigationService;
         _companyContext = companyContext;
         _reportPackViewModel = reportPackViewModel;
+        _scheduledAuditTaskService = scheduledAuditTaskService ?? new ScheduledAuditTaskService();
 
         _automationService.ProgressChanged += OnProgressChanged;
         _companyContext.ActiveCompanyChanged += OnCompanyChanged;
@@ -113,6 +121,54 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
         finally
         {
             IsRunning = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task SaveScheduleAsync()
+    {
+        if (IsScheduleBusy)
+        {
+            return;
+        }
+
+        IsScheduleBusy = true;
+        try
+        {
+            await _scheduledAuditTaskService.CreateOrUpdateAsync(ScheduleFrequency, ScheduleTime);
+            ScheduleStatus = $"Scheduled audit saved: {ScheduleFrequency} at {ScheduleTime}. It can run while this app is closed, provided you are signed in to Windows and TallyPrime is available.";
+        }
+        catch (Exception ex)
+        {
+            ScheduleStatus = $"Could not save schedule: {ex.Message}";
+        }
+        finally
+        {
+            IsScheduleBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task RemoveScheduleAsync()
+    {
+        if (IsScheduleBusy)
+        {
+            return;
+        }
+
+        IsScheduleBusy = true;
+        try
+        {
+            await _scheduledAuditTaskService.RemoveAsync();
+            ScheduleStatus = "Scheduled audit task removed.";
+        }
+        catch (Exception ex)
+        {
+            ScheduleStatus = $"Could not remove schedule: {ex.Message}";
+        }
+        finally
+        {
+            IsScheduleBusy = false;
         }
     }
 
