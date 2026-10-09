@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
@@ -30,12 +31,16 @@ public partial class App : Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        var scheduledAuditMode = e.Args.Any(arg => string.Equals(arg, "--scheduled-audit", StringComparison.OrdinalIgnoreCase));
         const string mutexName = "Local\\TallyAuditAssistant.SingleInstance";
         _singleInstanceMutex = new Mutex(true, mutexName, out bool isOnlyInstance);
         if (!isOnlyInstance)
         {
-            MessageBox.Show("Tally Audit Assistant is already running.", "Tally Audit Assistant", MessageBoxButton.OK, MessageBoxImage.Information);
-            Shutdown();
+            if (!scheduledAuditMode)
+            {
+                MessageBox.Show("Tally Audit Assistant is already running.", "Tally Audit Assistant", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            Shutdown(scheduledAuditMode ? 2 : 0);
             return;
         }
 
@@ -86,6 +91,63 @@ public partial class App : Application
 
             var monitor = _host.Services.GetRequiredService<TallyConnectionMonitor>();
             monitor.StartMonitoring(normalIntervalSeconds: 15, backoffIntervalSeconds: 30);
+
+            if (scheduledAuditMode)
+            {
+                try
+                {
+                    var automation = _host.Services.GetRequiredService<IAuditAutomationService>();
+                    TallyAuditAssistant.Core.Domain.Audit.AuditAutomationResult? result = null;
+
+                    // Retry the safe workflow after temporary server/network failures.
+                    for (var attempt = 1; attempt <= 3; attempt++)
+                    {
+                        result = await automation.RunAsync(runIncrementalSync: true, runFullAudit: true);
+                        if (result.IsSuccess)
+                        {
+                            break;
+                        }
+
+                        Log.Warning("Scheduled audit attempt {Attempt}/3 failed: {Reason}", attempt, result.ErrorMessage);
+                        if (attempt < 3)
+                        {
+                            await Task.Delay(TimeSpan.FromSeconds(30));
+                        }
+                    }
+
+                    if (result?.IsSuccess == true)
+                    {
+                        var reportPack = _host.Services.GetRequiredService<AuditReportPackViewModel>();
+                        await reportPack.GeneratePackAsync();
+                        if (reportPack.IsError)
+                        {
+                            Log.Error("Scheduled audit completed, but report pack generation failed: {Reason}", reportPack.StatusMessage);
+                            Shutdown(1);
+                            return;
+                        }
+
+                        Log.Information(
+                            "Scheduled audit completed for {Company}. Records synchronized: {Records}. Findings: {Findings}.",
+                            result.CompanyName,
+                            result.RecordsSynchronized,
+                            result.FindingsGenerated);
+                        Shutdown(0);
+                    }
+                    else
+                    {
+                        Log.Error("Scheduled audit failed after retries: {Reason}", result?.ErrorMessage ?? "No result returned.");
+                        Shutdown(1);
+                    }
+                }
+                catch (Exception scheduledException)
+                {
+                    WriteDiagnostic("SCHEDULED AUDIT FAILURE", scheduledException);
+                    Log.Error(scheduledException, "Scheduled audit execution failed.");
+                    Shutdown(1);
+                }
+
+                return;
+            }
 
             var mainWindow = _host.Services.GetRequiredService<MainWindow>();
             mainWindow.Show();
