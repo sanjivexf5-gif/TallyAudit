@@ -77,6 +77,42 @@
             <Border Padding="18" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1" CornerRadius="10" Margin="0,0,0,16">
                 <StackPanel>
+                    <TextBlock Text="SCHEDULED AUTOMATION (RUNS WITH APP CLOSED)" FontSize="15" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="Windows Task Scheduler launches a background audit at the selected time. Stay signed in to Windows and keep TallyPrime available; the desktop app itself may be closed."
+                               FontSize="12" Foreground="#94A3B8" Margin="0,5,0,12" TextWrapping="Wrap"/>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="120"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Frequency" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="White"/>
+                        <ComboBox Grid.Column="1" SelectedValuePath="Content" SelectedValue="{Binding ScheduleFrequency, UpdateSourceTrigger=PropertyChanged}"
+                                  Height="32" Padding="6,4" VerticalContentAlignment="Center">
+                            <ComboBoxItem Content="Daily"/>
+                            <ComboBoxItem Content="Weekly (Monday)"/>
+                        </ComboBox>
+                        <TextBlock Grid.Column="2" Text="Time (24-hour)" VerticalAlignment="Center" Margin="16,0,8,0" Foreground="White"/>
+                        <TextBox Grid.Column="3" Text="{Binding ScheduleTime, UpdateSourceTrigger=PropertyChanged}"
+                                 Height="32" Padding="8,5" VerticalContentAlignment="Center"/>
+                    </Grid>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="SAVE SCHEDULE" Command="{Binding SaveScheduleCommand}"
+                                IsEnabled="{Binding IsScheduleBusy, Converter={StaticResource InverseBooleanConverter}}"
+                                Background="#0D9488" Foreground="White" FontWeight="Bold" Padding="16,9" Margin="0,0,10,0"/>
+                        <Button Content="REMOVE SCHEDULE" Command="{Binding RemoveScheduleCommand}"
+                                IsEnabled="{Binding IsScheduleBusy, Converter={StaticResource InverseBooleanConverter}}"
+                                Background="#475569" Foreground="White" Padding="16,9"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding ScheduleStatus}" Foreground="#A7F3D0" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Padding="18" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="10" Margin="0,0,0,16">
+                <StackPanel>
                     <Grid>
                         <TextBlock Text="{Binding StageTitle}" FontSize="13" FontWeight="Bold" Foreground="#38BDF8"/>
                         <TextBlock Text="{Binding ProgressPercentage, StringFormat={}{0:F0}%}" HorizontalAlignment="Right"
