@@ -133,10 +133,12 @@ public partial class App : Application
                         if (reportPack.IsError)
                         {
                             Log.Error("Scheduled audit completed, but report pack generation failed: {Reason}", reportPack.StatusMessage);
+                            RecordScheduledRun(result, "Failed", "Report pack generation failed: " + reportPack.StatusMessage);
                             Shutdown(1);
                             return;
                         }
 
+                        RecordScheduledRun(result, "Success", null);
                         Log.Information(
                             "Scheduled audit completed for {Company}. Records synchronized: {Records}. Findings: {Findings}.",
                             result.CompanyName,
@@ -146,13 +148,16 @@ public partial class App : Application
                     }
                     else
                     {
-                        Log.Error("Scheduled audit failed after retries: {Reason}", result?.ErrorMessage ?? "No result returned.");
+                        var reason = result?.ErrorMessage ?? "No result returned.";
+                        RecordScheduledRun(result, "Failed", reason);
+                        Log.Error("Scheduled audit failed after retries: {Reason}", reason);
                         Shutdown(1);
                     }
                 }
                 catch (Exception scheduledException)
                 {
                     WriteDiagnostic("SCHEDULED AUDIT FAILURE", scheduledException);
+                    RecordScheduledRun(null, "Failed", scheduledException.Message);
                     Log.Error(scheduledException, "Scheduled audit execution failed.");
                     Shutdown(1);
                 }
@@ -173,6 +178,30 @@ public partial class App : Application
                     "Fatal Startup Error", MessageBoxButton.OK, MessageBoxImage.Stop);
             }
             Shutdown(1);
+        }
+    }
+
+    private static void RecordScheduledRun(
+        TallyAuditAssistant.Core.Domain.Audit.AuditAutomationResult? result,
+        string status,
+        string? details)
+    {
+        try
+        {
+            new AutomationRunHistoryService().RecordRun(new AutomationRunHistoryEntry(
+                DateTime.Now,
+                result?.CompanyName ?? "Unknown company",
+                "Scheduled",
+                status,
+                result?.RecordsSynchronized ?? 0,
+                result?.FindingsGenerated ?? 0,
+                result?.Duration.TotalSeconds ?? 0,
+                details));
+        }
+        catch (Exception ex)
+        {
+            // A local history write must not prevent scheduled task shutdown/reporting.
+            Log.Warning(ex, "Could not persist scheduled automation history.");
         }
     }
 
