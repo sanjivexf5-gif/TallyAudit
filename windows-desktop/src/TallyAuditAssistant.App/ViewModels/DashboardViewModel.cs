@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Domain.Tally;
@@ -24,6 +25,7 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
     private readonly IAuditAssistantService _aiService;
     private readonly IActiveCompanyContext _companyContext;
     private readonly ILogger<DashboardViewModel> _logger;
+    private readonly IServiceProvider? _services;
 
     [ObservableProperty]
     private string _aiExplanationText = string.Empty;
@@ -54,6 +56,15 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
 
     [ObservableProperty]
     private string _activeCompanyName = string.Empty;
+
+    [ObservableProperty]
+    private ObservableObject? _selectedOperationsViewModel;
+
+    [ObservableProperty]
+    private string _operationsWorkspaceTitle = "Choose a workspace above";
+
+    [ObservableProperty]
+    private string _operationsStatusText = "Connection, company selection, and synchronization are grouped here for a simpler workflow.";
 
     [ObservableProperty]
     private string _financialYear = "FY 2025-26";
@@ -186,7 +197,8 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
         ITallyDrillDownService drillDownService,
         IAuditAssistantService aiService,
         IActiveCompanyContext companyContext,
-        ILogger<DashboardViewModel> logger)
+        ILogger<DashboardViewModel> logger,
+        IServiceProvider? services = null)
     {
         _repository = repository;
         _tallyConnection = tallyConnection;
@@ -196,6 +208,7 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
         _aiService = aiService;
         _companyContext = companyContext;
         _logger = logger;
+        _services = services;
 
         _companyContext.ActiveCompanyChanged += async (s, c) =>
         {
@@ -208,6 +221,62 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
     public async Task OnNavigatedToAsync()
     {
         await LoadDashboardDataAsync();
+    }
+
+    [RelayCommand]
+    private void ShowConnectionWorkspace()
+    {
+        OpenOperationsWorkspace("TallyConnection");
+    }
+
+    [RelayCommand]
+    private void ShowCompaniesWorkspace()
+    {
+        OpenOperationsWorkspace("Companies");
+    }
+
+    [RelayCommand]
+    private void ShowSynchronizationWorkspace()
+    {
+        OpenOperationsWorkspace("Sync");
+    }
+
+    private void OpenOperationsWorkspace(string section)
+    {
+        if (_services == null)
+        {
+            OperationsWorkspaceTitle = "Workspace unavailable";
+            OperationsStatusText = "The workspace services are not available in this context. Restart the application and try again.";
+            SelectedOperationsViewModel = null;
+            return;
+        }
+
+        try
+        {
+            SelectedOperationsViewModel = section switch
+            {
+                "TallyConnection" => _services.GetRequiredService<TallyConnectionViewModel>(),
+                "Companies" => _services.GetRequiredService<CompaniesViewModel>(),
+                "Sync" => _services.GetRequiredService<SyncViewModel>(),
+                _ => throw new ArgumentOutOfRangeException(nameof(section), section, "Unknown dashboard workspace.")
+            };
+
+            OperationsWorkspaceTitle = section switch
+            {
+                "TallyConnection" => "TallyPrime connection",
+                "Companies" => "Company datasets",
+                "Sync" => "Data synchronization",
+                _ => section
+            };
+            OperationsStatusText = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            SelectedOperationsViewModel = null;
+            OperationsWorkspaceTitle = "Workspace could not be opened";
+            OperationsStatusText = $"Unable to open {section}: {ex.Message}";
+            _logger.LogError(ex, "Dashboard operations workspace {Section} could not be opened.", section);
+        }
     }
 
     [RelayCommand]

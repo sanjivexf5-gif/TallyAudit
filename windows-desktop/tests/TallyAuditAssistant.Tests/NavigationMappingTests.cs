@@ -52,7 +52,11 @@ public class NavigationMappingTests
                         (e.Attribute("Command")?.Value.Contains("NavigateCommand") ?? false))
             .ToList();
 
-        Assert.Equal(ExpectedNavigationMappings.Count, buttons.Count);
+        var dashboardManagedSections = new HashSet<string>(new[] { "TallyConnection", "Companies", "Sync" }, StringComparer.OrdinalIgnoreCase);
+        var expectedSidebarSections = ExpectedNavigationMappings.Keys
+            .Where(section => !dashboardManagedSections.Contains(section))
+            .ToArray();
+        Assert.Equal(expectedSidebarSections.Length, buttons.Count);
 
         var registeredSections = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -70,10 +74,35 @@ public class NavigationMappingTests
             registeredSections.Add(param);
         }
 
-        foreach (var expectedSection in ExpectedNavigationMappings.Keys)
+        foreach (var expectedSection in expectedSidebarSections)
         {
             Assert.Contains(expectedSection, registeredSections);
         }
+
+        foreach (var dashboardSection in dashboardManagedSections)
+        {
+            Assert.DoesNotContain(dashboardSection, registeredSections);
+        }
+    }
+
+    [Fact]
+    public void VerifyDashboardConsolidatesTallyConnectionCompaniesAndSynchronization()
+    {
+        var appDir = FindAppDirectory();
+        var dashboardXamlPath = Path.Combine(appDir, "Views", "DashboardView.xaml");
+        Assert.True(File.Exists(dashboardXamlPath), $"DashboardView.xaml not found at: {dashboardXamlPath}");
+
+        var dashboardXaml = File.ReadAllText(dashboardXamlPath);
+        var doc = XDocument.Parse(dashboardXaml);
+        var workspaceTab = doc.Descendants().FirstOrDefault(e =>
+            e.Name.LocalName == "TabItem" &&
+            (e.Attribute("Header")?.Value.Contains("Connection, Company", StringComparison.OrdinalIgnoreCase) ?? false));
+
+        Assert.NotNull(workspaceTab);
+        Assert.Contains("ShowConnectionWorkspaceCommand", workspaceTab!.ToString());
+        Assert.Contains("ShowCompaniesWorkspaceCommand", workspaceTab.ToString());
+        Assert.Contains("ShowSynchronizationWorkspaceCommand", workspaceTab.ToString());
+        Assert.Contains("SelectedOperationsViewModel", workspaceTab.ToString());
     }
 
     [Fact]
