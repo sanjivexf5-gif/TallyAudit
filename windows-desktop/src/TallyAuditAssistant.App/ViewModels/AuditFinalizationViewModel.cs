@@ -174,12 +174,13 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
             var openItems = await _finalizationRepository.GetOpenItemsAsync($"CHECKLIST-{company.Id}");
             OpenItems = openItems.Count(x => !string.Equals(x.Status, "Resolved", StringComparison.OrdinalIgnoreCase));
 
-            // Finalization only reads evidence and query records. Do not make the
-            // screen depend on the optional AuditPlans table existing in an older
-            // local database. Working-paper records use the same deterministic plan
-            // ID, so existing data remains visible without forcing a planning-schema
-            // migration just to open Finalization.
-            var workingPaperPlanId = $"WP-PLAN-{company.Id}";
+            // Self-heal older local databases before querying evidence and audit
+            // queries. Some earlier installations did not create AuditPlans at
+            // startup, so using the deterministic ID alone still allowed a
+            // "no such table: AuditPlans" error in related workspace operations.
+            var workingPaperPlanId = await _finalizationRepository.GetOrCreateWorkingPaperPlanIdAsync(
+                company.Id,
+                company.TallyCompanyName);
             var evidence = (await _finalizationRepository.GetAuditEvidenceAsync(workingPaperPlanId)).ToList();
             TotalEvidence = evidence.Count;
             VerifiedEvidence = evidence.Count(x => string.Equals(x.Status, "Verified", StringComparison.OrdinalIgnoreCase));
