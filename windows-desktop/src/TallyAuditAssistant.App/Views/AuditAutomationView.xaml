@@ -59,6 +59,15 @@
                         </Border>
                     </Grid>
 
+                    <StackPanel Margin="0,0,0,14">
+                        <Button Content="✓ CHECK AUTOMATION READINESS" Command="{Binding CheckReadinessCommand}"
+                                IsEnabled="{Binding IsCheckingReadiness, Converter={StaticResource InverseBooleanConverter}}"
+                                HorizontalAlignment="Left" Background="#334155" Foreground="White"
+                                FontWeight="Bold" Padding="16,9"/>
+                        <TextBlock Text="{Binding ReadinessMessage}" Foreground="#CBD5E1"
+                                   Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+
                     <StackPanel Orientation="Horizontal">
                         <Button Content="⚡ START AUTOMATED AUDIT" Command="{Binding StartAutomatedAuditCommand}"
                                 IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBooleanConverter}}"
