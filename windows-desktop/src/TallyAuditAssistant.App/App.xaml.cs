@@ -28,10 +28,12 @@ public partial class App : Application
     private static Mutex? _singleInstanceMutex;
     private IHost? _host;
     private int _diagnosticDialogShown;
+    private bool _scheduledAuditMode;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
         var scheduledAuditMode = e.Args.Any(arg => string.Equals(arg, "--scheduled-audit", StringComparison.OrdinalIgnoreCase));
+        _scheduledAuditMode = scheduledAuditMode;
         const string mutexName = "Local\\TallyAuditAssistant.SingleInstance";
         _singleInstanceMutex = new Mutex(true, mutexName, out bool isOnlyInstance);
         if (!isOnlyInstance)
@@ -165,8 +167,11 @@ public partial class App : Application
         {
             WriteDiagnostic("STARTUP FAILURE", ex);
             Log.Fatal(ex, "Application startup failed critically.");
-            MessageBox.Show($"Application could not start:\n{ex.Message}\n\nDiagnostic file:\n{GetDiagnosticPath()}",
-                "Fatal Startup Error", MessageBoxButton.OK, MessageBoxImage.Stop);
+            if (!scheduledAuditMode)
+            {
+                MessageBox.Show($"Application could not start:\n{ex.Message}\n\nDiagnostic file:\n{GetDiagnosticPath()}",
+                    "Fatal Startup Error", MessageBoxButton.OK, MessageBoxImage.Stop);
+            }
             Shutdown(1);
         }
     }
@@ -177,7 +182,7 @@ public partial class App : Application
         Log.Error(args.Exception, "Unhandled UI Thread Exception");
 
         // Suppress duplicate popup storms. The first exception is the useful one.
-        if (Interlocked.Exchange(ref _diagnosticDialogShown, 1) == 0)
+        if (!_scheduledAuditMode && Interlocked.Exchange(ref _diagnosticDialogShown, 1) == 0)
         {
             MessageBox.Show(
                 "Tally Audit Assistant captured an unexpected error.\n\n" +
