@@ -39,10 +39,26 @@ public class TallyClient : ITallyClient
         try
         {
             using var content = new StringContent(payload, Encoding.UTF8, mediaType);
-            using var response = await _httpClient.PostAsync(endpointUrl, content, cancellationToken);
-            sw.Stop();
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpointUrl)
+            {
+                Content = content
+            };
 
-            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            // Avoid HttpClient's default ResponseContentRead buffering, which can
+            // temporarily keep both a byte[] response and the decoded string in
+            // memory for large voucher exports. Read the response stream directly.
+            using var response = await _httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+
+            await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var responseReader = new StreamReader(
+                responseStream,
+                Encoding.UTF8,
+                detectEncodingFromByteOrderMarks: true);
+            var responseBody = await responseReader.ReadToEndAsync(cancellationToken);
+            sw.Stop();
 
             if (!response.IsSuccessStatusCode)
             {

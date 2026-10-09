@@ -1,0 +1,36 @@
+name: Pull Request Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test Windows solution
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore windows-desktop/TallyAuditAssistant.sln
+
+      - name: Build solution
+        run: dotnet build windows-desktop/TallyAuditAssistant.sln -c Release --no-restore
+
+      - name: Run automated tests
+        run: dotnet test windows-desktop/tests/TallyAuditAssistant.Tests/TallyAuditAssistant.Tests.csproj -c Release --no-build --verbosity normal
