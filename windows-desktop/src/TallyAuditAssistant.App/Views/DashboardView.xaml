@@ -51,6 +51,47 @@
 
         <!-- Multi-tab Workspace -->
         <TabControl Grid.Row="1" Background="#0F172A" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+
+            <!-- Consolidated company setup and synchronization workspace -->
+            <TabItem Header="⚙️ Connection, Company &amp; Sync">
+                <Grid Margin="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                        <TextBlock Text="Company Setup &amp; Data" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                        <TextBlock Text="Connect TallyPrime, select the active company, and synchronize accounting data without leaving the Dashboard."
+                                   FontSize="12" Foreground="#94A3B8" Margin="0,5,0,12" TextWrapping="Wrap"/>
+                        <UniformGrid Columns="3">
+                            <Button Content="🔌 TALLY CONNECTION" Command="{Binding ShowConnectionWorkspaceCommand}"
+                                    Background="#1D4ED8" Foreground="White" FontWeight="Bold" Padding="12,10" Margin="0,0,8,0"/>
+                            <Button Content="🏢 COMPANIES" Command="{Binding ShowCompaniesWorkspaceCommand}"
+                                    Background="#0F766E" Foreground="White" FontWeight="Bold" Padding="12,10" Margin="4,0"/>
+                            <Button Content="🔄 SYNCHRONIZE" Command="{Binding ShowSynchronizationWorkspaceCommand}"
+                                    Background="#0E7490" Foreground="White" FontWeight="Bold" Padding="12,10" Margin="8,0,0,0"/>
+                        </UniformGrid>
+                    </StackPanel>
+
+                    <Border Grid.Row="1" Padding="12" Background="#111827" BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" CornerRadius="8">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="0" Margin="0,0,0,8">
+                                <TextBlock Text="{Binding OperationsWorkspaceTitle}" FontSize="14" FontWeight="Bold" Foreground="#38BDF8"/>
+                                <TextBlock Text="{Binding OperationsStatusText}" Foreground="#CBD5E1" FontSize="11"
+                                           Margin="0,4,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <ContentControl Grid.Row="1" Content="{Binding SelectedOperationsViewModel}"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
             
             <!-- Tab 1: Audit Findings & Working Papers Workspace -->
             <TabItem Header="📋 Audit Exceptions Workspace">
