@@ -173,9 +173,9 @@
                                             <TextBlock Text="{Binding CompanyName}" Foreground="White" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                             <TextBlock Text="{Binding Details}" Foreground="#FCA5A5" FontSize="11" TextWrapping="Wrap"/>
                                             <TextBlock Foreground="#94A3B8" FontSize="11">
-                                                <Run Text="Records: "/><Run Text="{Binding Mode=OneWay, RecordsSynchronized}"/>
-                                                <Run Text="   Findings: "/><Run Text="{Binding Mode=OneWay, FindingsGenerated}"/>
-                                                <Run Text="   Duration: "/><Run Text="{Binding Mode=OneWay, DurationDisplay}"/>
+                                                <Run Text="Records: "/><Run Text="{Binding Path=RecordsSynchronized, Mode=OneWay}"/>
+                                                <Run Text="   Findings: "/><Run Text="{Binding Path=FindingsGenerated, Mode=OneWay}"/>
+                                                <Run Text="   Duration: "/><Run Text="{Binding Path=DurationDisplay, Mode=OneWay}"/>
                                             </TextBlock>
                                         </StackPanel>
                                         <Border Grid.Column="2" Padding="8,4" CornerRadius="4" VerticalAlignment="Top"
