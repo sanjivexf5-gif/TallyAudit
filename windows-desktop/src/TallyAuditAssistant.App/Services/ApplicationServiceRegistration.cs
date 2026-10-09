@@ -74,7 +74,15 @@ public static class ApplicationServiceRegistration
         services.AddAuditEngine();
         services.AddSingleton<INavigationService, NavigationService>();
 
-        services.AddSingleton<MainWindowViewModel>();
+        // Use an explicit factory because the view model retains a compatibility constructor
+        // for tests; constructor selection by the default DI activator would be ambiguous.
+        services.AddSingleton<MainWindowViewModel>(sp => new MainWindowViewModel(
+            sp,
+            sp.GetRequiredService<ITallyConnection>(),
+            sp.GetRequiredService<IActiveCompanyContext>(),
+            sp.GetRequiredService<ITallyCompanyService>(),
+            sp.GetRequiredService<ISettingsService>(),
+            sp.GetRequiredService<INavigationService>()));
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<TallyConnectionViewModel>();
         services.AddSingleton<SyncViewModel>();
