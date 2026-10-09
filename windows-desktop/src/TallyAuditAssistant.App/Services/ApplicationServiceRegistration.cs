@@ -69,6 +69,7 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<TallyConnectionMonitor>();
         services.AddSingleton<ISyncManager, SyncManager>();
         services.AddSingleton<IAuditAutomationService, AuditAutomationService>();
+        services.AddSingleton<ScheduledAuditTaskService>();
 
         services.AddAuditEngine();
         services.AddSingleton<INavigationService, NavigationService>();
