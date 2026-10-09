@@ -1,3 +1,4 @@
+using System.IO;
 using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.Logging;
@@ -132,11 +133,40 @@ public class TallyClient : ITallyClient
 
             var body = await response.Content.ReadAsStringAsync(cts.Token);
             
-            // Basic Tally XML validation
-            return body.Contains("<ENVELOPE>", StringComparison.OrdinalIgnoreCase) && 
-                   (body.Contains("<TALLYRESPONSE>", StringComparison.OrdinalIgnoreCase) || 
-                    body.Contains("<VERSION>", StringComparison.OrdinalIgnoreCase) ||
-                    body.Contains("<SVCSVERSION>", StringComparison.OrdinalIgnoreCase));
+            // TallyPrime's response schema varies by request and version. Some
+            // valid System Information responses contain ENVELOPE plus STATUS,
+            // LINEERROR, or other fields rather than the specific tags below.
+            // Validate well-formed XML and the root element instead of requiring
+            // a narrow set of response child tags, which caused false negatives
+            // even when the HTTP/XML server was reachable.
+            try
+            {
+                using var reader = System.Xml.XmlReader.Create(
+                    new StringReader(body),
+                    new System.Xml.XmlReaderSettings
+                    {
+                        DtdProcessing = System.Xml.DtdProcessing.Prohibit,
+                        XmlResolver = null
+                    });
+
+                while (reader.Read())
+                {
+                    if (reader.NodeType == System.Xml.XmlNodeType.Element)
+                    {
+                        return string.Equals(
+                            reader.LocalName,
+                            "ENVELOPE",
+                            StringComparison.OrdinalIgnoreCase);
+                    }
+                }
+
+                return false;
+            }
+            catch (System.Xml.XmlException ex)
+            {
+                _logger.LogDebug(ex, "Tally connectivity probe returned non-XML content.");
+                return false;
+            }
         }
         catch
         {
