@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -7,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Domain.Sync;
 using TallyAuditAssistant.Core.Interfaces;
+using System.Windows.Threading;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
@@ -17,6 +19,11 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
     private readonly ISettingsService _settingsService;
     private readonly IActiveCompanyContext _companyContext;
     private long _loadGeneration;
+    private const int MaxVisibleLogs = 200;
+    private const int MaxPendingLogs = 200;
+    private readonly ConcurrentQueue<string> _pendingLogs = new();
+    private int _pendingLogCount;
+    private int _logDrainScheduled;
 
     [ObservableProperty]
     private string _companyName = string.Empty;
@@ -457,13 +464,56 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
 
     private void OnLogEmitted(object? sender, string log)
     {
-        App.Current?.Dispatcher.Invoke(() =>
+        // Keep only a bounded number of queued log lines and schedule one
+        // dispatcher drain for a burst instead of blocking the sync worker
+        // once per log message.
+        _pendingLogs.Enqueue($"[{DateTime.Now:HH:mm:ss}] {log}");
+        var pending = Interlocked.Increment(ref _pendingLogCount);
+        while (pending > MaxPendingLogs && _pendingLogs.TryDequeue(out _))
         {
-            LiveLogs.Insert(0, $"[{DateTime.Now:HH:mm:ss}] {log}");
-            if (LiveLogs.Count > 200)
+            pending = Interlocked.Decrement(ref _pendingLogCount);
+        }
+
+        ScheduleLogDrain();
+    }
+
+    private void ScheduleLogDrain()
+    {
+        if (Interlocked.Exchange(ref _logDrainScheduled, 1) != 0)
+        {
+            return;
+        }
+
+        var dispatcher = App.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.HasShutdownStarted)
+        {
+            Interlocked.Exchange(ref _logDrainScheduled, 0);
+            return;
+        }
+
+        dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            try
             {
-                LiveLogs.RemoveAt(LiveLogs.Count - 1);
+                while (_pendingLogs.TryDequeue(out var line))
+                {
+                    Interlocked.Decrement(ref _pendingLogCount);
+                    LiveLogs.Insert(0, line);
+                }
+
+                while (LiveLogs.Count > MaxVisibleLogs)
+                {
+                    LiveLogs.RemoveAt(LiveLogs.Count - 1);
+                }
             }
-        });
+            finally
+            {
+                Interlocked.Exchange(ref _logDrainScheduled, 0);
+                if (!_pendingLogs.IsEmpty)
+                {
+                    ScheduleLogDrain();
+                }
+            }
+        }));
     }
 }
