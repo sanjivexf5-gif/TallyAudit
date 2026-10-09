@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -16,6 +17,9 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
     private readonly IActiveCompanyContext _companyContext;
     private readonly AuditReportPackViewModel? _reportPackViewModel;
     private readonly ScheduledAuditTaskService _scheduledAuditTaskService;
+    private readonly AutomationRunHistoryService _runHistoryService;
+
+    public ObservableCollection<AutomationRunHistoryEntry> RecentRuns { get; } = new();
 
     [ObservableProperty] private bool _isRunning;
     [ObservableProperty] private string _companyName = "No Company Selected";
@@ -39,13 +43,16 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
         INavigationService navigationService,
         IActiveCompanyContext companyContext,
         AuditReportPackViewModel? reportPackViewModel = null,
-        ScheduledAuditTaskService? scheduledAuditTaskService = null)
+        ScheduledAuditTaskService? scheduledAuditTaskService = null,
+        AutomationRunHistoryService? runHistoryService = null)
     {
         _automationService = automationService;
         _navigationService = navigationService;
         _companyContext = companyContext;
         _reportPackViewModel = reportPackViewModel;
         _scheduledAuditTaskService = scheduledAuditTaskService ?? new ScheduledAuditTaskService();
+        _runHistoryService = runHistoryService ?? new AutomationRunHistoryService();
+        RefreshRunHistory();
 
         _automationService.ProgressChanged += OnProgressChanged;
         _companyContext.ActiveCompanyChanged += OnCompanyChanged;
@@ -104,6 +111,8 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
                     StatusMessage = $"Automation complete. {Findings:N0} finding(s) generated and report pack prepared.";
                 }
 
+                RecordRun("Success", null);
+
                 if (GoToFindingsWhenComplete)
                 {
                     _navigationService.Navigate("Exceptions");
@@ -112,11 +121,13 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
             else
             {
                 StatusMessage = result.ErrorMessage ?? "Automation did not complete.";
+                RecordRun("Failed", StatusMessage);
             }
         }
         catch (Exception ex)
         {
             StatusMessage = $"Automation failed: {ex.Message}";
+            RecordRun("Failed", ex.Message);
         }
         finally
         {
@@ -182,6 +193,38 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
 
         StatusMessage = "Stopping automation safely...";
         await _automationService.CancelAsync();
+    }
+
+    private void RecordRun(string status, string? details)
+    {
+        try
+        {
+            _runHistoryService.RecordRun(new AutomationRunHistoryEntry(
+                _startedAt == default ? DateTime.Now : _startedAt,
+                CompanyName,
+                "Manual",
+                status,
+                RecordsSynchronized,
+                Findings,
+                _startedAt == default ? 0 : (DateTime.Now - _startedAt).TotalSeconds,
+                details));
+
+            RefreshRunHistory();
+        }
+        catch (Exception ex)
+        {
+            // History must never interrupt or turn a completed audit into a failure.
+            StatusMessage += $" Run history could not be saved: {ex.Message}";
+        }
+    }
+
+    private void RefreshRunHistory()
+    {
+        RecentRuns.Clear();
+        foreach (var entry in _runHistoryService.GetRecentRuns(10))
+        {
+            RecentRuns.Add(entry);
+        }
     }
 
     private void OnProgressChanged(object? sender, AuditAutomationProgress progress)
