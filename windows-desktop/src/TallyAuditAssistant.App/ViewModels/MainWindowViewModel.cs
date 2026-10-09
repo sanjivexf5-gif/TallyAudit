@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
@@ -11,6 +12,7 @@ namespace TallyAuditAssistant.App.ViewModels;
 
 public partial class MainWindowViewModel : ObservableObject
 {
+    private readonly IServiceProvider _services;
     private readonly ITallyConnection _tallyConnection;
     private readonly IActiveCompanyContext _companyContext;
     private readonly ITallyCompanyService _companyService;
@@ -36,31 +38,71 @@ public partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private string _currentSection = "Dashboard";
 
-    public DashboardViewModel DashboardVM { get; }
-    public TallyConnectionViewModel ConnectionVM { get; }
-    public SyncViewModel SyncVM { get; }
-    public AuditAutomationViewModel AuditAutomationVM { get; }
-    public SettingsViewModel SettingsVM { get; }
-    public CompaniesViewModel CompaniesVM { get; }
-    public GstAuditViewModel GstVM { get; }
-    public TdsAuditViewModel TdsVM { get; }
-    public VouchersViewModel VouchersVM { get; }
-    public LedgersViewModel LedgersVM { get; }
-    public BankAuditViewModel BankVM { get; }
-    public ExceptionsViewModel ExceptionsVM { get; }
-    public ReportsViewModel ReportsVM { get; }
-    public WorkingPapersViewModel WorkingPapersVM { get; }
-    public AuditChecklistViewModel AuditChecklistVM { get; }
-    public InvestigationViewModel InvestigationVM { get; }
-    public AuditTrailViewModel AuditTrailVM { get; }
-    public ManagementRepresentationLetterViewModel? ManagementRepresentationLetterVM { get; }
-    public AuditEvidenceViewModel? AuditEvidenceVM { get; }
-    public AuditFinalizationViewModel? AuditFinalizationVM { get; }
-    public AuditReportPackViewModel? AuditReportPackVM { get; }
-    public AuditQueriesViewModel? AuditQueriesVM { get; }
-    public AuditQualityControlViewModel? AuditQualityControlVM { get; }
-    public AuditMaterialityViewModel? AuditMaterialityVM { get; }
+    // View models are resolved on first navigation, not all at application startup.
+    // This avoids running database loads and keeping every screen's data in memory
+    // when the user is only using a small part of the application.
+    public DashboardViewModel DashboardVM => _services.GetRequiredService<DashboardViewModel>();
+    public TallyConnectionViewModel ConnectionVM => _services.GetRequiredService<TallyConnectionViewModel>();
+    public SyncViewModel SyncVM => _services.GetRequiredService<SyncViewModel>();
+    public AuditAutomationViewModel AuditAutomationVM => _services.GetRequiredService<AuditAutomationViewModel>();
+    public SettingsViewModel SettingsVM => _services.GetRequiredService<SettingsViewModel>();
+    public CompaniesViewModel CompaniesVM => _services.GetRequiredService<CompaniesViewModel>();
+    public GstAuditViewModel GstVM => _services.GetRequiredService<GstAuditViewModel>();
+    public TdsAuditViewModel TdsVM => _services.GetRequiredService<TdsAuditViewModel>();
+    public VouchersViewModel VouchersVM => _services.GetRequiredService<VouchersViewModel>();
+    public LedgersViewModel LedgersVM => _services.GetRequiredService<LedgersViewModel>();
+    public BankAuditViewModel BankVM => _services.GetRequiredService<BankAuditViewModel>();
+    public ExceptionsViewModel ExceptionsVM => _services.GetRequiredService<ExceptionsViewModel>();
+    public ReportsViewModel ReportsVM => _services.GetRequiredService<ReportsViewModel>();
+    public WorkingPapersViewModel WorkingPapersVM => _services.GetRequiredService<WorkingPapersViewModel>();
+    public AuditChecklistViewModel AuditChecklistVM => _services.GetRequiredService<AuditChecklistViewModel>();
+    public InvestigationViewModel InvestigationVM => _services.GetRequiredService<InvestigationViewModel>();
+    public AuditTrailViewModel AuditTrailVM => _services.GetRequiredService<AuditTrailViewModel>();
+    public ManagementRepresentationLetterViewModel? ManagementRepresentationLetterVM => _services.GetRequiredService<ManagementRepresentationLetterViewModel>();
+    public AuditEvidenceViewModel? AuditEvidenceVM => _services.GetRequiredService<AuditEvidenceViewModel>();
+    public AuditFinalizationViewModel? AuditFinalizationVM => _services.GetRequiredService<AuditFinalizationViewModel>();
+    public AuditReportPackViewModel? AuditReportPackVM => _services.GetRequiredService<AuditReportPackViewModel>();
+    public AuditQueriesViewModel? AuditQueriesVM => _services.GetRequiredService<AuditQueriesViewModel>();
+    public AuditQualityControlViewModel? AuditQualityControlVM => _services.GetRequiredService<AuditQualityControlViewModel>();
+    public AuditMaterialityViewModel? AuditMaterialityVM => _services.GetRequiredService<AuditMaterialityViewModel>();
 
+    [ActivatorUtilitiesConstructor]
+    public MainWindowViewModel(
+        IServiceProvider services,
+        ITallyConnection tallyConnection,
+        IActiveCompanyContext companyContext,
+        ITallyCompanyService companyService,
+        ISettingsService settingsService,
+        INavigationService navigationService)
+    {
+        _services = services;
+        _tallyConnection = tallyConnection;
+        _companyContext = companyContext;
+        _companyService = companyService;
+        _settingsService = settingsService;
+        _navigationService = navigationService;
+
+        _currentViewModel = DashboardVM;
+
+        _navigationService.Navigated += (s, sec) =>
+        {
+            if (CurrentSection != sec)
+            {
+                Navigate(sec);
+            }
+        };
+
+        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
+
+        _tallyConnection.StatusChanged += OnTallyStatusChanged;
+        UpdateStatusDisplay(_tallyConnection.CurrentStatus);
+
+        _ = RefreshActiveCompanyAsync();
+    }
+
+    // Compatibility overload for existing tests and callers that explicitly
+    // construct a shell with pre-created view models. The application DI container
+    // uses the IServiceProvider constructor above, preserving lazy loading.
     public MainWindowViewModel(
         ITallyConnection tallyConnection,
         IActiveCompanyContext companyContext,
@@ -83,62 +125,54 @@ public partial class MainWindowViewModel : ObservableObject
         WorkingPapersViewModel workingPapersVM,
         AuditChecklistViewModel auditChecklistVM,
         InvestigationViewModel investigationVM,
-        AuditTrailViewModel auditTrailVM,
-        ManagementRepresentationLetterViewModel? managementRepresentationLetterVM = null,
-        AuditEvidenceViewModel? auditEvidenceVM = null,
-        AuditFinalizationViewModel? auditFinalizationVM = null,
-        AuditReportPackViewModel? auditReportPackVM = null,
-        AuditQueriesViewModel? auditQueriesVM = null,
-        AuditQualityControlViewModel? auditQualityControlVM = null,
-        AuditMaterialityViewModel? auditMaterialityVM = null)
+        AuditTrailViewModel auditTrailVM)
+        : this(CreateViewModelProvider(
+            dashboardVM, connectionVM, syncVM, auditAutomationVM, settingsVM,
+            companiesVM, gstVM, tdsVM, vouchersVM, ledgersVM, bankVM,
+            exceptionsVM, reportsVM, workingPapersVM, auditChecklistVM,
+            investigationVM, auditTrailVM),
+            tallyConnection, companyContext, companyService, settingsService, navigationService)
     {
-        _tallyConnection = tallyConnection;
-        _companyContext = companyContext;
-        _companyService = companyService;
-        _settingsService = settingsService;
-        _navigationService = navigationService;
+    }
 
-        DashboardVM = dashboardVM;
-        ConnectionVM = connectionVM;
-        SyncVM = syncVM;
-        AuditAutomationVM = auditAutomationVM;
-        SettingsVM = settingsVM;
-        CompaniesVM = companiesVM;
-        GstVM = gstVM;
-        TdsVM = tdsVM;
-        VouchersVM = vouchersVM;
-        LedgersVM = ledgersVM;
-        BankVM = bankVM;
-        ExceptionsVM = exceptionsVM;
-        ReportsVM = reportsVM;
-        WorkingPapersVM = workingPapersVM;
-        AuditChecklistVM = auditChecklistVM;
-        InvestigationVM = investigationVM;
-        AuditTrailVM = auditTrailVM;
-        ManagementRepresentationLetterVM = managementRepresentationLetterVM;
-        AuditEvidenceVM = auditEvidenceVM;
-        AuditFinalizationVM = auditFinalizationVM;
-        AuditReportPackVM = auditReportPackVM;
-        AuditQueriesVM = auditQueriesVM;
-        AuditQualityControlVM = auditQualityControlVM;
-        AuditMaterialityVM = auditMaterialityVM;
-
-        _currentViewModel = dashboardVM;
-
-        _navigationService.Navigated += (s, sec) =>
-        {
-            if (CurrentSection != sec)
-            {
-                Navigate(sec);
-            }
-        };
-
-        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
-
-        _tallyConnection.StatusChanged += OnTallyStatusChanged;
-        UpdateStatusDisplay(_tallyConnection.CurrentStatus);
-
-        _ = RefreshActiveCompanyAsync();
+    private static IServiceProvider CreateViewModelProvider(
+        DashboardViewModel dashboardVM,
+        TallyConnectionViewModel connectionVM,
+        SyncViewModel syncVM,
+        AuditAutomationViewModel auditAutomationVM,
+        SettingsViewModel settingsVM,
+        CompaniesViewModel companiesVM,
+        GstAuditViewModel gstVM,
+        TdsAuditViewModel tdsVM,
+        VouchersViewModel vouchersVM,
+        LedgersViewModel ledgersVM,
+        BankAuditViewModel bankVM,
+        ExceptionsViewModel exceptionsVM,
+        ReportsViewModel reportsVM,
+        WorkingPapersViewModel workingPapersVM,
+        AuditChecklistViewModel auditChecklistVM,
+        InvestigationViewModel investigationVM,
+        AuditTrailViewModel auditTrailVM)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(dashboardVM);
+        services.AddSingleton(connectionVM);
+        services.AddSingleton(syncVM);
+        services.AddSingleton(auditAutomationVM);
+        services.AddSingleton(settingsVM);
+        services.AddSingleton(companiesVM);
+        services.AddSingleton(gstVM);
+        services.AddSingleton(tdsVM);
+        services.AddSingleton(vouchersVM);
+        services.AddSingleton(ledgersVM);
+        services.AddSingleton(bankVM);
+        services.AddSingleton(exceptionsVM);
+        services.AddSingleton(reportsVM);
+        services.AddSingleton(workingPapersVM);
+        services.AddSingleton(auditChecklistVM);
+        services.AddSingleton(investigationVM);
+        services.AddSingleton(auditTrailVM);
+        return services.BuildServiceProvider();
     }
 
     private static async Task NotifyNavigationAsync(INavigationAware navAware, string section)
