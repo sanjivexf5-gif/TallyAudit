@@ -56,7 +56,7 @@ public partial class MainWindowViewModel : ObservableObject
     public ReportsViewModel ReportsVM => _services.GetRequiredService<ReportsViewModel>();
     public WorkingPapersViewModel WorkingPapersVM => _services.GetRequiredService<WorkingPapersViewModel>();
     public AuditChecklistViewModel AuditChecklistVM => _services.GetRequiredService<AuditChecklistViewModel>();
-    public RiskDashboardViewModel RiskDashboardVM => _services.GetRequiredService<RiskDashboardViewModel>();
+    public RiskDashboardViewModel? RiskDashboardVM => _services.GetService<RiskDashboardViewModel>();
     public InvestigationViewModel InvestigationVM => _services.GetRequiredService<InvestigationViewModel>();
     public AuditTrailViewModel AuditTrailVM => _services.GetRequiredService<AuditTrailViewModel>();
     public ManagementRepresentationLetterViewModel? ManagementRepresentationLetterVM => _services.GetRequiredService<ManagementRepresentationLetterViewModel>();
