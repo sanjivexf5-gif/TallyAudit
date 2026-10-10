@@ -158,14 +158,36 @@ public class TdsAuditEngineTests : IAsyncLifetime
         using var conn = await _factory.CreateConnectionAsync();
         await conn.ExecuteAsync(@"
             INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName, AlterId)
-            VALUES ('V-194J-EXACT-50K', @Comp, 'Purchase', 'Purchase', 'J-EXACT-50K', '2025-08-15', 50000, 'Legal & Tax Associates LLP', 10002);
+            VALUES ('V-194J-EXACT-50K', @Comp, 'Purchase', 'Purchase', 'J-EXACT-50K', '2025-08-15', 50000, 'Exact Threshold Professional Vendor', 10002);
             INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit)
             VALUES ('E-194J-EXACT-50K', 'V-194J-EXACT-50K', 'Legal & Professional Fees', 50000, 1);
         ", new { Comp = _companyId });
 
         var results = await new ThresholdMonitoringRule(_factory).EvaluateAsync(CreateContext());
 
-        Assert.DoesNotContain(results, r => r.VoucherNumber == "J-EXACT-50K");
+        Assert.DoesNotContain(results, r => r.PartyLedgerName == "Exact Threshold Professional Vendor");
+    }
+
+    [Fact]
+    public async Task Check02_ThresholdMonitoring_FlagsAnnualProfessionalFeesSpreadAcrossInvoices()
+    {
+        using var conn = await _factory.CreateConnectionAsync();
+        await conn.ExecuteAsync(@"
+            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName, AlterId)
+            VALUES
+                ('V-194J-AGG-1', @Comp, 'Purchase', 'Purchase', 'J-AGG-30K', '2025-05-15', 30000, 'Split Fee Vendor', 10003),
+                ('V-194J-AGG-2', @Comp, 'Purchase', 'Purchase', 'J-AGG-25K', '2025-08-15', 25000, 'Split Fee Vendor', 10004);
+            INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit)
+            VALUES
+                ('E-194J-AGG-1', 'V-194J-AGG-1', 'Legal & Professional Fees', 30000, 1),
+                ('E-194J-AGG-2', 'V-194J-AGG-2', 'Legal & Professional Fees', 25000, 1);
+        ", new { Comp = _companyId });
+
+        var results = await new ThresholdMonitoringRule(_factory).EvaluateAsync(CreateContext());
+
+        var result = Assert.Single(results.Where(r => r.PartyLedgerName == "Split Fee Vendor" && r.Section == "194J"));
+        Assert.Equal(55000m, result.TransactionAmount);
+        Assert.Contains("financial year beginning", result.Explanation);
     }
 
     [Fact]
