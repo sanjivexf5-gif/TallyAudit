@@ -107,6 +107,22 @@ public class NavigationMappingTests
     }
 
     [Fact]
+    public void VerifyRiskDashboardExposesUserInitiatedCsvExport()
+    {
+        var appDir = FindAppDirectory();
+        var viewPath = Path.Combine(appDir, "Views", "RiskDashboardView.xaml");
+        Assert.True(File.Exists(viewPath), $"RiskDashboardView.xaml not found at: {viewPath}");
+
+        var doc = XDocument.Parse(File.ReadAllText(viewPath));
+        var exportButton = doc.Descendants().FirstOrDefault(e =>
+            e.Name.LocalName == "Button" &&
+            (e.Attribute("Command")?.Value.Contains("ExportCsvCommand", StringComparison.OrdinalIgnoreCase) ?? false));
+
+        Assert.NotNull(exportButton);
+        Assert.Contains("Export CSV", exportButton!.Attribute("Content")?.Value ?? string.Empty);
+    }
+
+    [Fact]
     public void VerifyMainWindowXamlSidebarIsVerticallyScrollable()
     {
         var appDir = FindAppDirectory();
