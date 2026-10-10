@@ -51,7 +51,7 @@ public class LicenseInfo
         ? Math.Max(0, (int)(ExpiryDate.Date - DateTime.UtcNow.Date).TotalDays)
         : 0;
 
-    public bool IsUsable => Status == LicenseStatus.Active || (Status == LicenseStatus.Trial && RemainingTrialDays > 0);
+    public bool IsUsable => (Status == LicenseStatus.Active && ExpiryDate > DateTime.UtcNow) || (Status == LicenseStatus.Trial && RemainingTrialDays > 0);
 }
 
 public class LicenseActivationResult
