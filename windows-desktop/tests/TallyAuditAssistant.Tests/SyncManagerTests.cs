@@ -111,18 +111,27 @@ public class SyncManagerTests
         mockCompany.Setup(c => c.GetCompanyProfileTypedAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
                    .ReturnsAsync(new TallyCompanyProfile { Name = "Inc Co" });
 
+        var mockAuditRepo = new Mock<IAuditRepository>();
+        mockAuditRepo.Setup(r => r.GetCompanyByIdAsync("Inc Co", It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new Company
+                     {
+                         Id = "Inc Co",
+                         TallyCompanyName = "Inc Co",
+                         LastAlterId = 125
+                     });
+
         var mockMaster = new Mock<ITallyMasterService>();
         mockMaster.Setup(m => m.GetGroupsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<string>());
         mockMaster.Setup(m => m.GetLedgersAsync(It.IsAny<string>(), It.IsAny<long?>(), It.IsAny<CancellationToken>())).ReturnsAsync(new List<TallyLedgerDto>());
 
         var mockVoucher = new Mock<ITallyVoucherService>();
         async IAsyncEnumerable<TallyVoucherDto> EmptyStream() { await Task.Yield(); yield break; }
-        mockVoucher.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        mockVoucher.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>(), It.IsAny<long?>()))
                    .Returns(EmptyStream());
 
         var syncManager = new SyncManager(
             mockConn.Object, mockCompany.Object, mockMaster.Object, mockVoucher.Object,
-            new Mock<ISyncRepository>().Object, new Mock<IAuditRepository>().Object, new Mock<ISettingsService>().Object, _logger);
+            new Mock<ISyncRepository>().Object, mockAuditRepo.Object, new Mock<ISettingsService>().Object, _logger);
 
         SyncMetrics? lastEmittedMetrics = null;
         syncManager.ProgressChanged += (s, m) => lastEmittedMetrics = new SyncMetrics
@@ -139,6 +148,10 @@ public class SyncManagerTests
         Assert.NotNull(lastEmittedMetrics);
         Assert.Equal(SyncStage.Complete, lastEmittedMetrics.CurrentStage);
         Assert.Equal(100.0, lastEmittedMetrics.ProgressPercentage);
+        mockVoucher.Verify(
+            v => v.StreamVouchersChunkedAsync("Inc Co", It.IsAny<DateTime>(), It.IsAny<DateTime>(), 7,
+                It.IsAny<CancellationToken>(), 125),
+            Times.Once);
     }
 
     [Fact]
