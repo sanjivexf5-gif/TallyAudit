@@ -1,6 +1,7 @@
 using System.IO;
 using System.Security.Cryptography;
 using Dapper;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using TallyAuditAssistant.Core.Domain.Backup;
 using TallyAuditAssistant.Core.Domain.Security;
@@ -86,8 +87,33 @@ public class BackupService : IBackupService
             }
         }
 
-        // Copy file safely via temporary file
-        File.Copy(_databaseFilePath, tempFilePath, overwrite: true);
+        // Use SQLite's online backup API. Copying only the main .db file can omit
+        // committed pages that are still in the WAL when another connection is active.
+        if (File.Exists(tempFilePath))
+        {
+            File.Delete(tempFilePath);
+        }
+
+        using (var source = await _connectionFactory.CreateConnectionAsync(ct))
+        {
+            var destinationBuilder = new SqliteConnectionStringBuilder
+            {
+                DataSource = tempFilePath,
+                Mode = SqliteOpenMode.ReadWriteCreate,
+                Cache = SqliteCacheMode.Private
+            };
+
+            using var destination = new SqliteConnection(destinationBuilder.ToString());
+            await destination.OpenAsync(ct);
+            source.BackupDatabase(destination);
+        }
+
+        if (!await ValidateBackupIntegrityAsync(tempFilePath, ct))
+        {
+            try { File.Delete(tempFilePath); } catch { }
+            throw new InvalidDataException("SQLite backup failed its integrity check. The backup was not published.");
+        }
+
         File.Move(tempFilePath, targetFilePath, overwrite: true);
 
         var fileInfo = new FileInfo(targetFilePath);
@@ -153,31 +179,55 @@ public class BackupService : IBackupService
         return _backupRepository.GetAllAsync(ct);
     }
 
-    public Task<bool> ValidateBackupIntegrityAsync(string backupFilePath, CancellationToken ct = default)
+    public async Task<bool> ValidateBackupIntegrityAsync(string backupFilePath, CancellationToken ct = default)
     {
         if (!File.Exists(backupFilePath))
-            return Task.FromResult(false);
+            return false;
 
         try
         {
-            var info = new FileInfo(backupFilePath);
-            if (info.Length < 100) return Task.FromResult(false);
+            ct.ThrowIfCancellationRequested();
 
-            // Verify SQLite file header: "SQLite format 3\0"
-            byte[] header = new byte[16];
-            using (var stream = File.OpenRead(backupFilePath))
+            var builder = new SqliteConnectionStringBuilder
             {
-                int read = stream.Read(header, 0, 16);
-                if (read < 16) return Task.FromResult(false);
+                DataSource = Path.GetFullPath(backupFilePath),
+                Mode = SqliteOpenMode.ReadOnly,
+                Cache = SqliteCacheMode.Private
+            };
+
+            using var connection = new SqliteConnection(builder.ToString());
+            await connection.OpenAsync(ct);
+
+            // The SQLite file signature alone does not prove the page tree is usable.
+            // Require a clean integrity_check and the core tables expected by this app.
+            var integrityRows = (await connection.QueryAsync<string>(
+                new CommandDefinition("PRAGMA integrity_check;", cancellationToken: ct))).ToList();
+
+            if (integrityRows.Count != 1 ||
+                !string.Equals(integrityRows[0], "ok", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning(
+                    "Backup integrity check failed for {Path}: {Result}",
+                    backupFilePath,
+                    string.Join("; ", integrityRows.Take(3)));
+                return false;
             }
 
-            string headerString = System.Text.Encoding.ASCII.GetString(header);
-            return Task.FromResult(headerString.StartsWith("SQLite format 3"));
+            var coreTableCount = await connection.ExecuteScalarAsync<int>(
+                new CommandDefinition(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('Companies', 'Vouchers');",
+                    cancellationToken: ct));
+
+            return coreTableCount == 2;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed validating backup file {Path}", backupFilePath);
-            return Task.FromResult(false);
+            return false;
         }
     }
 
