@@ -138,7 +138,7 @@ public class TallyVoucherService : ITallyVoucherService
                         companyName,
                         currentStart,
                         currentEnd,
-                        null,
+                        fromAlterId,
                         cancellationToken);
                 }
                 catch (TallySynchronizationException ex) when (IsRecoverableChunkFailure(ex))
