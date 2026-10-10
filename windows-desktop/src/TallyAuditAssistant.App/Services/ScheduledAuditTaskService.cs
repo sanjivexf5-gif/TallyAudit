@@ -28,9 +28,7 @@ public sealed class ScheduledAuditTaskService
             throw new InvalidOperationException("Could not determine the installed Tally Audit Assistant executable path.");
         }
 
-        var schedule = string.Equals(frequency, "Weekly (Monday)", StringComparison.OrdinalIgnoreCase)
-            ? new[] { "/SC", "WEEKLY", "/D", "MON" }
-            : new[] { "/SC", "DAILY" };
+        var schedule = BuildFrequencyArguments(frequency);
 
         var taskCommand = $"\"{executablePath}\" --scheduled-audit";
         var arguments = new System.Collections.Generic.List<string> { "/Create" };
@@ -38,6 +36,57 @@ public sealed class ScheduledAuditTaskService
         arguments.AddRange(new[] { "/ST", time, "/TN", TaskName, "/TR", taskCommand, "/F", "/IT" });
 
         await RunSchtasksAsync(arguments);
+    }
+
+    /// <summary>Returns the Windows Task Scheduler recurrence arguments for a supported frequency.</summary>
+    public static IReadOnlyList<string> BuildFrequencyArguments(string frequency)
+    {
+        if (string.Equals(frequency, "Daily", StringComparison.OrdinalIgnoreCase))
+        {
+            return new[] { "/SC", "DAILY" };
+        }
+
+        if (string.Equals(frequency, "Weekly (Monday)", StringComparison.OrdinalIgnoreCase))
+        {
+            return new[] { "/SC", "WEEKLY", "/D", "MON" };
+        }
+
+        if (string.Equals(frequency, "Monthly (1st day)", StringComparison.OrdinalIgnoreCase))
+        {
+            return new[] { "/SC", "MONTHLY", "/D", "1" };
+        }
+
+        throw new ArgumentException(
+            "Select Daily, Weekly (Monday), or Monthly (1st day).",
+            nameof(frequency));
+    }
+
+    /// <summary>Parses the XML emitted by schtasks so the saved recurrence is reflected in the UI.</summary>
+    public static ScheduledAuditConfiguration ParseScheduleDefinition(string xml)
+    {
+        var document = XDocument.Parse(xml);
+        XNamespace ns = "http://schemas.microsoft.com/windows/2004/02/mit/task";
+        var trigger = document.Descendants(ns + "CalendarTrigger").FirstOrDefault();
+        var startBoundary = trigger?.Element(ns + "StartBoundary")?.Value
+            ?? document.Descendants(ns + "StartBoundary").FirstOrDefault()?.Value;
+
+        if (string.IsNullOrWhiteSpace(startBoundary) ||
+            !DateTimeOffset.TryParse(startBoundary, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var start))
+        {
+            return new ScheduledAuditConfiguration("Daily", "02:00");
+        }
+
+        var isMonthly = trigger?.Element(ns + "ScheduleByMonth") is not null;
+        var isWeekly = trigger?.Element(ns + "ScheduleByWeek") is not null;
+        var frequency = isMonthly
+            ? "Monthly (1st day)"
+            : isWeekly
+                ? "Weekly (Monday)"
+                : "Daily";
+
+        return new ScheduledAuditConfiguration(
+            frequency,
+            start.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture));
     }
 
     public async Task RemoveAsync()
@@ -51,21 +100,7 @@ public sealed class ScheduledAuditTaskService
         try
         {
             var xml = await RunSchtasksAsync(new[] { "/Query", "/TN", TaskName, "/XML" });
-            var document = XDocument.Parse(xml);
-            XNamespace ns = "http://schemas.microsoft.com/windows/2004/02/mit/task";
-            var trigger = document.Descendants(ns + "CalendarTrigger").FirstOrDefault();
-            var startBoundary = trigger?.Element(ns + "StartBoundary")?.Value
-                ?? document.Descendants(ns + "StartBoundary").FirstOrDefault()?.Value;
-
-            if (string.IsNullOrWhiteSpace(startBoundary) ||
-                !DateTimeOffset.TryParse(startBoundary, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var start))
-            {
-                return new ScheduledAuditConfiguration("Daily", "02:00");
-            }
-
-            var isWeekly = trigger?.Element(ns + "ScheduleByWeek") is not null;
-            var frequency = isWeekly ? "Weekly (Monday)" : "Daily";
-            return new ScheduledAuditConfiguration(frequency, start.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture));
+            return ParseScheduleDefinition(xml);
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.Xml.XmlException or FormatException)
         {
