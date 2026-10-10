@@ -100,7 +100,8 @@ public class BackupService : IBackupService
             {
                 DataSource = tempFilePath,
                 Mode = SqliteOpenMode.ReadWriteCreate,
-                Cache = SqliteCacheMode.Private
+                Cache = SqliteCacheMode.Private,
+                Pooling = false
             };
 
             using var destination = new SqliteConnection(destinationBuilder.ToString());
@@ -192,7 +193,8 @@ public class BackupService : IBackupService
             {
                 DataSource = Path.GetFullPath(backupFilePath),
                 Mode = SqliteOpenMode.ReadOnly,
-                Cache = SqliteCacheMode.Private
+                Cache = SqliteCacheMode.Private,
+                Pooling = false
             };
 
             using var connection = new SqliteConnection(builder.ToString());
