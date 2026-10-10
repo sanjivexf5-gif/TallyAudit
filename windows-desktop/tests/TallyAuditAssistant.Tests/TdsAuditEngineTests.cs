@@ -141,8 +141,8 @@ public class TdsAuditEngineTests : IAsyncLifetime
     {
         using var conn = await _factory.CreateConnectionAsync();
         await conn.ExecuteAsync(@"
-            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName)
-            VALUES ('V-OUTSIDE-TDS-PERIOD', @Comp, 'Payment', 'Payment', 'OLD-TDS-01', '2024-02-15', 80000, 'Apex Transport Contractors');
+            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName, AlterId)
+            VALUES ('V-OUTSIDE-TDS-PERIOD', @Comp, 'Payment', 'Payment', 'OLD-TDS-01', '2024-02-15', 80000, 'Apex Transport Contractors', 10001);
             INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit)
             VALUES ('E-OUTSIDE-TDS-PERIOD', 'V-OUTSIDE-TDS-PERIOD', 'Freight & Transport Charges', 80000, 1);
         ", new { Comp = _companyId });
@@ -157,8 +157,8 @@ public class TdsAuditEngineTests : IAsyncLifetime
     {
         using var conn = await _factory.CreateConnectionAsync();
         await conn.ExecuteAsync(@"
-            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName)
-            VALUES ('V-194J-EXACT-50K', @Comp, 'Purchase', 'Purchase', 'J-EXACT-50K', '2025-08-15', 50000, 'Legal & Tax Associates LLP');
+            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName, AlterId)
+            VALUES ('V-194J-EXACT-50K', @Comp, 'Purchase', 'Purchase', 'J-EXACT-50K', '2025-08-15', 50000, 'Legal & Tax Associates LLP', 10002);
             INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit)
             VALUES ('E-194J-EXACT-50K', 'V-194J-EXACT-50K', 'Legal & Professional Fees', 50000, 1);
         ", new { Comp = _companyId });
@@ -173,14 +173,14 @@ public class TdsAuditEngineTests : IAsyncLifetime
     {
         using var conn = await _factory.CreateConnectionAsync();
         await conn.ExecuteAsync(@"
-            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName)
+            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName, AlterId)
             VALUES
-                ('V-COMM-1', @Comp, 'Payment', 'Payment', 'COMM-01', '2025-05-05', 12000, 'Commission Vendor A'),
-                ('V-COMM-2', @Comp, 'Payment', 'Payment', 'COMM-02', '2025-05-15', 9000, 'Commission Vendor A'),
-                ('V-COMM-3', @Comp, 'Payment', 'Payment', 'COMM-EQUAL', '2025-05-15', 20000, 'Commission Vendor Equal'),
-                ('V-RENT-1', @Comp, 'Payment', 'Payment', 'RENT-01', '2025-05-10', 30000, 'Landlord A'),
-                ('V-RENT-2', @Comp, 'Payment', 'Payment', 'RENT-02', '2025-05-20', 25000, 'Landlord A'),
-                ('V-RENT-3', @Comp, 'Payment', 'Payment', 'RENT-OUTSIDE-MONTH', '2025-06-01', 30000, 'Landlord A');
+                ('V-COMM-1', @Comp, 'Payment', 'Payment', 'COMM-01', '2025-05-05', 12000, 'Commission Vendor A', 20001),
+                ('V-COMM-2', @Comp, 'Payment', 'Payment', 'COMM-02', '2025-05-15', 9000, 'Commission Vendor A', 20002),
+                ('V-COMM-3', @Comp, 'Payment', 'Payment', 'COMM-EQUAL', '2025-05-15', 20000, 'Commission Vendor Equal', 20003),
+                ('V-RENT-1', @Comp, 'Payment', 'Payment', 'RENT-01', '2025-05-10', 30000, 'Landlord A', 20004),
+                ('V-RENT-2', @Comp, 'Payment', 'Payment', 'RENT-02', '2025-05-20', 25000, 'Landlord A', 20005),
+                ('V-RENT-3', @Comp, 'Payment', 'Payment', 'RENT-OUTSIDE-MONTH', '2025-06-01', 30000, 'Landlord A', 20006);
             INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit)
             VALUES
                 ('E-COMM-1', 'V-COMM-1', 'Commission Expense', 12000, 1),
@@ -206,11 +206,11 @@ public class TdsAuditEngineTests : IAsyncLifetime
     {
         using var conn = await _factory.CreateConnectionAsync();
         await conn.ExecuteAsync(@"
-            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName)
+            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName, AlterId)
             VALUES
-                ('V-CON-AGG-1', @Comp, 'Payment', 'Payment', 'CON-AGG-01', '2025-05-05', 55000, 'Apex Transport Contractors'),
-                ('V-CON-AGG-2', @Comp, 'Payment', 'Payment', 'CON-AGG-02', '2025-06-05', 50000, 'Apex Transport Contractors'),
-                ('V-GENERAL-AGG', @Comp, 'Purchase', 'Purchase', 'GENERAL-AGG', '2025-06-05', 250000, 'General Supplier');
+                ('V-CON-AGG-1', @Comp, 'Payment', 'Payment', 'CON-AGG-01', '2025-05-05', 55000, 'Apex Transport Contractors', 30001),
+                ('V-CON-AGG-2', @Comp, 'Payment', 'Payment', 'CON-AGG-02', '2025-06-05', 50000, 'Apex Transport Contractors', 30002),
+                ('V-GENERAL-AGG', @Comp, 'Purchase', 'Purchase', 'GENERAL-AGG', '2025-06-05', 250000, 'General Supplier', 30003);
             INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit)
             VALUES
                 ('E-CON-AGG-1', 'V-CON-AGG-1', 'Freight & Transport Charges', 55000, 1),
