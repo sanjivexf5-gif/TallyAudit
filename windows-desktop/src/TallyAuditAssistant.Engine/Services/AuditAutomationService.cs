@@ -156,6 +156,37 @@ public sealed class AuditAutomationService : IAuditAutomationService
 
                 findings = results.Count;
 
+                var failedRules = _auditEngine.LastExecutionFailures ?? Array.Empty<AuditRuleFailure>();
+                if (failedRules.Count > 0)
+                {
+                    var failedRuleDetails = string.Join("; ", failedRules.Select(f =>
+                        string.IsNullOrWhiteSpace(f.ErrorMessage)
+                            ? $"{f.RuleId} ({f.RuleName})"
+                            : $"{f.RuleId} ({f.RuleName}): {f.ErrorMessage}"));
+                    var incompleteMessage =
+                        $"AUDIT INCOMPLETE: {failedRules.Count} rule(s) failed: {failedRuleDetails}. " +
+                        $"{findings:N0} finding(s) were retained, but audit coverage is incomplete. Review the failures and rerun before relying on the results.";
+
+                    _logger.LogError(
+                        "Automated audit incomplete for company {Company}: {FailedRuleCount} rule(s) failed: {FailedRules}",
+                        company.TallyCompanyName,
+                        failedRules.Count,
+                        string.Join(", ", failedRules.Select(f => f.RuleId)));
+
+                    await RecordAsync("Automated audit workflow incomplete", incompleteMessage);
+                    SetProgress(AuditAutomationStage.Incomplete, "AUDIT INCOMPLETE", incompleteMessage, 100, findings);
+                    stopwatch.Stop();
+
+                    return new AuditAutomationResult(
+                        false,
+                        company.TallyCompanyName,
+                        _syncManager.CurrentMetrics.RecordsProcessed,
+                        findings,
+                        stopwatch.Elapsed,
+                        incompleteMessage,
+                        IsIncomplete: true);
+                }
+
                 SetProgress(AuditAutomationStage.PreparingResults, "PREPARING RESULTS",
                     $"Audit analysis completed. {findings:N0} finding(s) generated.", 90, findings);
             }
