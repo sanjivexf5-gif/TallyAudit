@@ -1,0 +1,101 @@
+<UserControl x:Class="TallyAuditAssistant.App.Views.RiskDashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d">
+    <Grid Margin="0,0,10,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <StackPanel>
+                <TextBlock Text="Audit Risk Dashboard" FontSize="24" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="Company-level risk, exception severity, audit progress and review coverage." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                <TextBlock Text="{Binding ActiveCompanyName}" FontSize="13" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,8,0,0"/>
+            </StackPanel>
+            <Button Content="↻ Refresh" Command="{Binding RefreshCommand}" HorizontalAlignment="Right" Padding="14,7"/>
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Background="#422006" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,0,8,0">
+                <StackPanel>
+                    <TextBlock Text="RISK SCORE" Foreground="#FBBF24" FontSize="11" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding RiskScore, StringFormat={}{0}/100}" Foreground="White" FontSize="30" FontWeight="Bold"/>
+                    <TextBlock Text="{Binding RiskLabel}" Foreground="#FBBF24" FontSize="13" FontWeight="Bold"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="4,0,4,0">
+                <StackPanel><TextBlock Text="CRITICAL" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><TextBlock Text="{Binding CriticalCount}" Foreground="#EF4444" FontSize="26" FontWeight="Bold"/></StackPanel>
+            </Border>
+            <Border Grid.Column="2" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="4,0,4,0">
+                <StackPanel><TextBlock Text="HIGH" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><TextBlock Text="{Binding HighCount}" Foreground="#F59E0B" FontSize="26" FontWeight="Bold"/></StackPanel>
+            </Border>
+            <Border Grid.Column="3" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="4,0,4,0">
+                <StackPanel><TextBlock Text="MEDIUM" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><TextBlock Text="{Binding MediumCount}" Foreground="#38BDF8" FontSize="26" FontWeight="Bold"/></StackPanel>
+            </Border>
+            <Border Grid.Column="4" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="4,0,0,0">
+                <StackPanel><TextBlock Text="PENDING REVIEW" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/><TextBlock Text="{Binding PendingCount}" Foreground="White" FontSize="26" FontWeight="Bold"/></StackPanel>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="1.15*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Margin="0,0,10,0">
+                <StackPanel>
+                    <Border Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Risk by Audit Area" FontSize="17" FontWeight="Bold" Foreground="White" Margin="0,0,0,14"/>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/><ColumnDefinition Width="45"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="GST" Foreground="White"/><ProgressBar Grid.Column="1" Maximum="{Binding TotalFindings}" Value="{Binding GstCount}" Height="8" Margin="8,4"/><TextBlock Grid.Column="2" Text="{Binding GstCount}" Foreground="#38BDF8" HorizontalAlignment="Right"/></Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/><ColumnDefinition Width="45"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="TDS" Foreground="White"/><ProgressBar Grid.Column="1" Maximum="{Binding TotalFindings}" Value="{Binding TdsCount}" Height="8" Margin="8,4"/><TextBlock Grid.Column="2" Text="{Binding TdsCount}" Foreground="#38BDF8" HorizontalAlignment="Right"/></Grid>
+                            <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/><ColumnDefinition Width="45"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Accounting" Foreground="White"/><ProgressBar Grid.Column="1" Maximum="{Binding TotalFindings}" Value="{Binding AccountingCount}" Height="8" Margin="8,4"/><TextBlock Grid.Column="2" Text="{Binding AccountingCount}" Foreground="#38BDF8" HorizontalAlignment="Right"/></Grid>
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="110"/><ColumnDefinition Width="*"/><ColumnDefinition Width="45"/></Grid.ColumnDefinitions>
+                                <TextBlock Text="Banking" Foreground="White"/><ProgressBar Grid.Column="1" Maximum="{Binding TotalFindings}" Value="{Binding BankingCount}" Height="8" Margin="8,4"/><TextBlock Grid.Column="2" Text="{Binding BankingCount}" Foreground="#38BDF8" HorizontalAlignment="Right"/></Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
+                        <StackPanel>
+                            <TextBlock Text="Audit Program Progress" FontSize="17" FontWeight="Bold" Foreground="White"/>
+                            <TextBlock Text="{Binding ChecklistPercent, StringFormat={}{0}% complete}" FontSize="28" FontWeight="Bold" Foreground="#38BDF8" Margin="0,8,0,4"/>
+                            <ProgressBar Maximum="100" Value="{Binding ChecklistPercent}" Height="10" Margin="0,4,0,8"/>
+                            <TextBlock Text="{Binding ChecklistCompleted, StringFormat='Completed: {0}'}" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding ChecklistApplicable, StringFormat='Applicable procedures: {0}'}" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Text="Checklist status is maintained locally; TallyPrime remains read-only." Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Border Grid.Column="1" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="Top Risk Findings" FontSize="17" FontWeight="Bold" Foreground="White"/>
+                        <TextBlock Text="{Binding TotalFindings, StringFormat='Total findings: {0}'}" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,12"/>
+                    </StackPanel>
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding TopRisks}" AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="75"/>
+                            <DataGridTextColumn Header="Finding" Binding="{Binding RuleName}" Width="*"/>
+                            <DataGridTextColumn Header="Area" Binding="{Binding Category}" Width="110"/>
+                            <DataGridTextColumn Header="Voucher" Binding="{Binding VoucherNumber}" Width="90"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="85"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Grid.Row="2" Text="{Binding StatusMessage}" Foreground="#F59E0B" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

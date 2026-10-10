@@ -24,6 +24,7 @@ public class NavigationMappingTests
             ["Ledgers"] = ("LedgersViewModel", "LedgersView"),
             ["Bank"] = ("BankAuditViewModel", "BankAuditView"),
             ["Exceptions"] = ("ExceptionsViewModel", "ExceptionsView"),
+            ["RiskDashboard"] = ("RiskDashboardViewModel", "RiskDashboardView"),
             ["Reports"] = ("ReportsViewModel", "ReportsView"),
             ["WorkingPapers"] = ("WorkingPapersViewModel", "WorkingPapersView"),
             ["AuditChecklist"] = ("AuditChecklistViewModel", "AuditChecklistView"),
