@@ -107,8 +107,6 @@ public class AuditEngine : IAuditEngine
             }
         }
 
-        _lastExecutionFailures = failures.AsReadOnly();
-
         // Persist discovered audit results to SQLite database
         _logger.LogInformation("Saving {Count} discovered exceptions to local repository...", allResults.Count);
         await _resultRepository.SaveResultsBatchAsync(allResults, cancellationToken);
@@ -118,7 +116,14 @@ public class AuditEngine : IAuditEngine
             _logger.LogInformation("Executing cross-dataset reconciliations...");
             var reconciliationResults = await _reconciliationEngine.ExecuteReconciliationsAsync(context, cancellationToken);
             allResults.AddRange(reconciliationResults);
+            var reconciliationFailures = _reconciliationEngine.LastExecutionFailures ?? Array.Empty<AuditRuleFailure>();
+            if (reconciliationFailures.Count > 0)
+            {
+                failures.AddRange(reconciliationFailures);
+            }
         }
+
+        _lastExecutionFailures = failures.AsReadOnly();
 
         if (_auditTrailService != null)
         {

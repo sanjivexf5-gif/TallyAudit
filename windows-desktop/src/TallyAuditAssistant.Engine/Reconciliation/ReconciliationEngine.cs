@@ -15,8 +15,10 @@ public class ReconciliationEngine : IReconciliationEngine
     private readonly List<IReconciliationRule> _rules = new();
     private readonly IAuditResultRepository _resultRepository;
     private readonly ILogger<ReconciliationEngine> _logger;
+    private IReadOnlyList<AuditRuleFailure> _lastExecutionFailures = Array.Empty<AuditRuleFailure>();
 
     public IReadOnlyList<IReconciliationRule> RegisteredRules => _rules.AsReadOnly();
+    public IReadOnlyList<AuditRuleFailure> LastExecutionFailures => _lastExecutionFailures;
 
     public ReconciliationEngine(
         IAuditResultRepository resultRepository,
@@ -48,6 +50,8 @@ public class ReconciliationEngine : IReconciliationEngine
     {
         _logger.LogInformation("Starting cross-dataset reconciliation execution for company {Company} across {Count} registered rules...", context.CompanyId, _rules.Count);
 
+        _lastExecutionFailures = Array.Empty<AuditRuleFailure>();
+        var failures = new List<AuditRuleFailure>();
         var allResults = new List<AuditResult>();
         var enabledRules = _rules.Where(r => r.IsEnabled).ToList();
         var totalRules = enabledRules.Count;
@@ -69,8 +73,11 @@ public class ReconciliationEngine : IReconciliationEngine
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to run reconciliation rule {RuleId}", rule.RuleId);
+                failures.Add(new AuditRuleFailure(rule.RuleId, rule.RuleName, ex.Message));
             }
         }
+
+        _lastExecutionFailures = failures.AsReadOnly();
 
         // Persist findings batch
         if (allResults.Count > 0)
