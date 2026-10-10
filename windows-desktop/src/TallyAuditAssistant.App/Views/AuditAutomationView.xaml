@@ -162,8 +162,14 @@
             <Border Margin="0,16,0,0" Padding="18" Background="{StaticResource CardBackgroundBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="10">
                 <StackPanel>
-                    <TextBlock Text="RECENT AUTOMATION RUNS" FontSize="15" FontWeight="Bold" Foreground="White"/>
-                    <TextBlock Text="The latest 10 manual and scheduled runs are kept locally for troubleshooting. Failed runs include their error details; no accounting data is sent externally."
+                    <Grid>
+                        <TextBlock Text="RECENT AUTOMATION RUNS" FontSize="15" FontWeight="Bold" Foreground="White"
+                                   VerticalAlignment="Center"/>
+                        <Button Content="EXPORT CSV" Command="{Binding ExportRunHistoryCommand}"
+                                HorizontalAlignment="Right" Background="#334155" Foreground="White"
+                                FontWeight="Bold" Padding="12,7"/>
+                    </Grid>
+                    <TextBlock Text="The latest 10 manual and scheduled runs appear here. Export up to 100 locally stored runs, including failure details, for troubleshooting. The export stays on your computer unless you choose to share it."
                                FontSize="12" Foreground="#94A3B8" Margin="0,5,0,12" TextWrapping="Wrap"/>
                     <ItemsControl ItemsSource="{Binding RecentRuns}">
                         <ItemsControl.ItemTemplate>
