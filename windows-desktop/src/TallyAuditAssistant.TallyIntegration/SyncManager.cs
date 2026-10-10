@@ -330,7 +330,8 @@ public class SyncManager : ISyncManager
             const int batchSize = 100;
             var totalVouchersCount = 0;
 
-            await foreach (var rawVoucher in _voucherService.StreamVouchersChunkedAsync(companyName, fromDate, toDate, 7, ct))
+            var voucherAlterId = mode == SyncMode.Incremental ? fromAlterId : null;
+            await foreach (var rawVoucher in _voucherService.StreamVouchersChunkedAsync(companyName, fromDate, toDate, 7, ct, voucherAlterId))
             {
                 await CheckPauseAsync(ct);
 
