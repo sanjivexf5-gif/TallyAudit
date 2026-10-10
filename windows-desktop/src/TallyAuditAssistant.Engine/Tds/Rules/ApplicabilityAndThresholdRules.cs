@@ -474,17 +474,18 @@ public class VendorCumulativeAnalysisRule : BaseTdsRule
         using var connection = await ConnectionFactory.CreateConnectionAsync(cancellationToken);
         var contractThreshold = GetParam("ContractAggregateThreshold", 100000m);
 
+        // Fetch only expense lines relevant to contractor screening and perform the
+        // decimal threshold comparison in C#. SQLite provider affinity can otherwise
+        // make decimal aggregate/HAVING comparisons depend on parameter storage type.
         const string sql = @"
-            SELECT v.PartyLedgerName, l.PAN AS PartyPan,
-                   SUM(ABS(e.Amount)) AS CumulativeAmount,
-                   COUNT(DISTINCT v.Id) AS VoucherCount,
-                   MAX(v.VoucherDate) AS LatestDate,
-                   MAX(v.VoucherNumber) AS LatestVoucher,
-                   COUNT(DISTINCT CASE WHEN EXISTS (
+            SELECT v.Id AS VoucherId, v.PartyLedgerName, l.PAN AS PartyPan,
+                   v.VoucherDate, v.VoucherNumber, e.LedgerName AS ExpenseHead,
+                   ABS(e.Amount) AS ExpenseAmount,
+                   CASE WHEN EXISTS (
                        SELECT 1 FROM VoucherEntries t
                        WHERE t.VoucherId = v.Id
                          AND (t.LedgerName LIKE '%TDS%' OR t.LedgerName LIKE '%Tax Deducted%')
-                   ) THEN v.Id END) AS VouchersWithTds
+                   ) THEN 1 ELSE 0 END AS HasTdsEntry
             FROM Vouchers v
             JOIN VoucherEntries e ON e.VoucherId = v.Id
             LEFT JOIN Ledgers l ON l.CompanyId = v.CompanyId AND l.Name = v.PartyLedgerName
@@ -497,8 +498,7 @@ public class VendorCumulativeAnalysisRule : BaseTdsRule
                    OR e.LedgerName LIKE '%Freight%'
                    OR e.LedgerName LIKE '%Fabrication%')
               AND DATE(v.VoucherDate) BETWEEN DATE(@FromDate) AND DATE(@ToDate)
-            GROUP BY v.PartyLedgerName
-            HAVING SUM(ABS(e.Amount)) > @Threshold;
+            ORDER BY v.PartyLedgerName, v.VoucherDate;
         ";
 
         var rows = await connection.QueryAsync(new CommandDefinition(
@@ -506,40 +506,71 @@ public class VendorCumulativeAnalysisRule : BaseTdsRule
             new
             {
                 context.CompanyId,
-                Threshold = contractThreshold,
                 FromDate = context.FromDate.ToString("yyyy-MM-dd"),
                 ToDate = context.ToDate.ToString("yyyy-MM-dd")
             },
             cancellationToken: cancellationToken));
 
-        var results = new List<TdsCheckResult>();
+        var expenseLines = new List<VendorExpenseLine>();
         foreach (var row in rows)
         {
-            var amount = GetDecimal(row, "CumulativeAmount");
-            var voucherCount = Convert.ToInt32(GetCol(row, "VoucherCount") ?? 0);
-            var vouchersWithTds = Convert.ToInt32(GetCol(row, "VouchersWithTds") ?? 0);
-            if (voucherCount <= 0 || vouchersWithTds >= voucherCount)
+            DateTime? date = GetDateTime((object)row, "VoucherDate");
+            var payee = GetString((object)row, "PartyLedgerName");
+            var voucherId = GetString((object)row, "VoucherId");
+            if (!date.HasValue || string.IsNullOrWhiteSpace(payee) || string.IsNullOrWhiteSpace(voucherId))
             {
                 continue;
             }
 
-            var latestDate = GetDateTime(row, "LatestDate") ?? context.ToDate;
-            var latestVoucher = GetString(row, "LatestVoucher");
-            var payee = GetString(row, "PartyLedgerName") ?? "(payee not mapped)";
-            var statutoryReference = latestDate >= new DateTime(2026, 4, 1)
+            expenseLines.Add(new VendorExpenseLine(
+                voucherId,
+                GetString((object)row, "VoucherNumber"),
+                date.Value.Date,
+                payee,
+                GetString((object)row, "PartyPan"),
+                GetDecimal((object)row, "ExpenseAmount"),
+                Convert.ToInt32(GetCol((object)row, "HasTdsEntry") ?? 0) != 0));
+        }
+
+        var results = new List<TdsCheckResult>();
+        foreach (var payeeGroup in expenseLines.GroupBy(x => x.PartyLedgerName, StringComparer.OrdinalIgnoreCase))
+        {
+            var lines = payeeGroup.OrderBy(x => x.VoucherDate).ToArray();
+            var amount = lines.Sum(x => x.Amount);
+            if (amount <= contractThreshold)
+            {
+                continue;
+            }
+
+            var distinctVouchers = lines
+                .GroupBy(x => x.VoucherId, StringComparer.Ordinal)
+                .Select(g => g.First())
+                .ToArray();
+            var vouchersWithTds = distinctVouchers.Count(x => x.HasTdsEntry);
+            if (distinctVouchers.Length == 0 || vouchersWithTds >= distinctVouchers.Length)
+            {
+                continue;
+            }
+
+            var latest = lines[^1];
+            var statutoryReference = latest.VoucherDate >= new DateTime(2026, 4, 1)
                 ? "Income-tax Act, 2025 section 393 framework"
                 : "Income-tax Act, 1961 section 194C(5)";
             var explanation =
-                $"Potential section 194C aggregate-threshold screening flag: contractor/freight expense postings for payee '{payee}' total {amount:C2} across {voucherCount} voucher(s) in the selected audit period, exceeding {contractThreshold:C2}. " +
+                $"Potential section 194C aggregate-threshold screening flag: contractor/freight expense postings for payee '{latest.PartyLedgerName}' total {amount:C2} across {distinctVouchers.Length} voucher(s) in the selected audit period, exceeding {contractThreshold:C2}. " +
                 $"A TDS-ledger line was found in {vouchersWithTds} of those vouchers. Separate TDS journals, credit/payment timing, payer/payee applicability and statutory exceptions must be checked before concluding.";
+
             results.Add(CreateResult(
                 context.CompanyId,
                 explanation,
                 Severity,
                 TdsCheckStatus.Exception,
-                voucherNumber: latestVoucher,
-                partyLedgerName: payee,
-                partyPan: GetString(row, "PartyPan"),
+                voucherId: latest.VoucherId,
+                voucherNumber: latest.VoucherNumber,
+                voucherDate: latest.VoucherDate,
+                partyLedgerName: latest.PartyLedgerName,
+                partyPan: latest.PartyPan,
+                expenseLedgerName: string.Join(" / ", lines.Select(x => x.ExpenseHead).Distinct(StringComparer.Ordinal).Take(5)),
                 transactionAmount: amount,
                 cumulativeVendorAmount: amount,
                 sectionThreshold: contractThreshold,
@@ -547,9 +578,9 @@ public class VendorCumulativeAnalysisRule : BaseTdsRule
                 {
                     Section = "194C(5)",
                     StatutoryReference = statutoryReference,
-                    Payee = payee,
+                    Payee = latest.PartyLedgerName,
                     CumulativeContractExpense = amount,
-                    VoucherCount = voucherCount,
+                    VoucherCount = distinctVouchers.Length,
                     VouchersWithTdsEntry = vouchersWithTds,
                     Threshold = contractThreshold,
                     PeriodFrom = context.FromDate.ToString("yyyy-MM-dd"),
@@ -560,6 +591,15 @@ public class VendorCumulativeAnalysisRule : BaseTdsRule
 
         return results;
     }
+
+    private sealed record VendorExpenseLine(
+        string VoucherId,
+        string? VoucherNumber,
+        DateTime VoucherDate,
+        string PartyLedgerName,
+        string? PartyPan,
+        decimal Amount,
+        bool HasTdsEntry);
 }
 
 // 13. Transactions Around Statutory Thresholds (Threshold Border Analysis)
