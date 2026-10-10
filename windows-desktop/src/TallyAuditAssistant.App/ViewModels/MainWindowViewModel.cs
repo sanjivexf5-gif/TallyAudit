@@ -56,6 +56,7 @@ public partial class MainWindowViewModel : ObservableObject
     public ReportsViewModel ReportsVM => _services.GetRequiredService<ReportsViewModel>();
     public WorkingPapersViewModel WorkingPapersVM => _services.GetRequiredService<WorkingPapersViewModel>();
     public AuditChecklistViewModel AuditChecklistVM => _services.GetRequiredService<AuditChecklistViewModel>();
+    public RiskDashboardViewModel RiskDashboardVM => _services.GetRequiredService<RiskDashboardViewModel>();
     public InvestigationViewModel InvestigationVM => _services.GetRequiredService<InvestigationViewModel>();
     public AuditTrailViewModel AuditTrailVM => _services.GetRequiredService<AuditTrailViewModel>();
     public ManagementRepresentationLetterViewModel? ManagementRepresentationLetterVM => _services.GetRequiredService<ManagementRepresentationLetterViewModel>();
@@ -125,12 +126,13 @@ public partial class MainWindowViewModel : ObservableObject
         WorkingPapersViewModel workingPapersVM,
         AuditChecklistViewModel auditChecklistVM,
         InvestigationViewModel investigationVM,
-        AuditTrailViewModel auditTrailVM)
+        AuditTrailViewModel auditTrailVM,
+        RiskDashboardViewModel? riskDashboardVM = null)
         : this(CreateViewModelProvider(
             dashboardVM, connectionVM, syncVM, auditAutomationVM, settingsVM,
             companiesVM, gstVM, tdsVM, vouchersVM, ledgersVM, bankVM,
             exceptionsVM, reportsVM, workingPapersVM, auditChecklistVM,
-            investigationVM, auditTrailVM),
+            investigationVM, auditTrailVM, riskDashboardVM),
             tallyConnection, companyContext, companyService, settingsService, navigationService)
     {
     }
@@ -152,7 +154,8 @@ public partial class MainWindowViewModel : ObservableObject
         WorkingPapersViewModel workingPapersVM,
         AuditChecklistViewModel auditChecklistVM,
         InvestigationViewModel investigationVM,
-        AuditTrailViewModel auditTrailVM)
+        AuditTrailViewModel auditTrailVM,
+        RiskDashboardViewModel? riskDashboardVM = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton(dashboardVM);
@@ -172,6 +175,7 @@ public partial class MainWindowViewModel : ObservableObject
         services.AddSingleton(auditChecklistVM);
         services.AddSingleton(investigationVM);
         services.AddSingleton(auditTrailVM);
+        if (riskDashboardVM != null) services.AddSingleton(riskDashboardVM);
         return services.BuildServiceProvider();
     }
 
@@ -279,6 +283,7 @@ public partial class MainWindowViewModel : ObservableObject
             "Reports" => ReportsVM,
             "WorkingPapers" => WorkingPapersVM,
             "AuditChecklist" => AuditChecklistVM,
+            "RiskDashboard" => RiskDashboardVM,
             "Settings" => SettingsVM,
             "AuditTrail" => AuditTrailVM,
             "ManagementLetter" => ManagementRepresentationLetterVM,
