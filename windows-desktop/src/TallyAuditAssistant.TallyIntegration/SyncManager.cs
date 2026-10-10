@@ -480,6 +480,7 @@ public class SyncManager : ISyncManager
         catch (Exception ex)
         {
             stopwatch.Stop();
+            var failedStage = CurrentMetrics.CurrentStage.ToString();
             CurrentStatus = SyncStatus.Failed;
             CurrentMetrics.Errors++;
             SetStage(SyncStage.Failed, $"Sync failed: {ex.Message}");
@@ -497,7 +498,7 @@ public class SyncManager : ISyncManager
             }
 
             await RecordFailureHistoryAsync(companyId, companyName, mode, stopwatch.ElapsedMilliseconds, ex.Message);
-            return new SyncResult(false, mode, CurrentMetrics.RecordsProcessed, CurrentMetrics.RecordsInserted, CurrentMetrics.RecordsUpdated, CurrentMetrics.RecordsSkipped, CurrentMetrics.Errors, stopwatch.Elapsed, ex.Message);
+            return new SyncResult(false, mode, CurrentMetrics.RecordsProcessed, CurrentMetrics.RecordsInserted, CurrentMetrics.RecordsUpdated, CurrentMetrics.RecordsSkipped, CurrentMetrics.Errors, stopwatch.Elapsed, ex.Message, failedStage);
         }
     }
 
