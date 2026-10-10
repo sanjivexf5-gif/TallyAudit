@@ -352,18 +352,21 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
             
             AuditStatusText = "Executing automated GST, TDS, accounting hygiene, and duplicate detection rules...";
             var results = await _auditEngine.ExecuteAuditAsync(context);
+            var failedRules = _auditEngine.LastExecutionFailures;
 
             AuditStatusText = "Saving audit findings...";
-            // Update Run Record
+            // A run with any failed rule is retained for troubleshooting but is not recorded as complete.
             run.EndTime = DateTime.UtcNow;
             run.FindingsGenerated = results.Count;
-            run.Status = "Completed";
+            run.Status = failedRules.Count == 0 ? "Completed" : "Incomplete";
             await _repository.SaveAuditRunAsync(run);
 
             AuditStatusText = "Refreshing dashboard...";
             await LoadDashboardDataAsync();
 
-            AuditStatusText = $"Audit run complete! Discovered {results.Count} potential exceptions.";
+            AuditStatusText = failedRules.Count == 0
+                ? $"Audit run complete! Discovered {results.Count} potential exceptions."
+                : $"AUDIT INCOMPLETE: {failedRules.Count} rule(s) failed ({string.Join(", ", failedRules.Select(f => f.RuleId))}). {results.Count} findings were retained. Review logs and re-run before relying on audit coverage.";
         }
         catch (Exception ex)
         {
