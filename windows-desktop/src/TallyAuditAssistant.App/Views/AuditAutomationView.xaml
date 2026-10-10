@@ -78,7 +78,7 @@
                     BorderThickness="1" CornerRadius="10" Margin="0,0,0,16">
                 <StackPanel>
                     <TextBlock Text="SCHEDULED AUTOMATION (RUNS WITH APP CLOSED)" FontSize="15" FontWeight="Bold" Foreground="White"/>
-                    <TextBlock Text="Windows Task Scheduler launches a background audit at the selected time. Stay signed in to Windows and keep TallyPrime available; the desktop app itself may be closed."
+                    <TextBlock Text="Run daily, every Monday, or on the first day of each month. Windows Task Scheduler launches the audit at the selected time; stay signed in to Windows and keep TallyPrime available. The desktop window may be closed."
                                FontSize="12" Foreground="#94A3B8" Margin="0,5,0,12" TextWrapping="Wrap"/>
                     <Grid Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>
@@ -93,6 +93,7 @@
                                   Height="32" Padding="6,4" VerticalContentAlignment="Center">
                             <ComboBoxItem Content="Daily"/>
                             <ComboBoxItem Content="Weekly (Monday)"/>
+                            <ComboBoxItem Content="Monthly (1st day)"/>
                         </ComboBox>
                         <TextBlock Grid.Column="2" Text="Time (24-hour)" VerticalAlignment="Center" Margin="16,0,8,0" Foreground="White"/>
                         <TextBox Grid.Column="3" Text="{Binding ScheduleTime, UpdateSourceTrigger=PropertyChanged}"
