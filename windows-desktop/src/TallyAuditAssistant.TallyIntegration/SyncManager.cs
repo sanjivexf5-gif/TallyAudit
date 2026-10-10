@@ -229,12 +229,16 @@ public class SyncManager : ISyncManager
                 IsMock = isMock
             };
 
+            var financialYearStart = profile.BooksBeginningFrom;
+            var financialYearEnd = financialYearStart.AddYears(1).AddDays(-1);
+            // A stable key makes sync idempotent for the same company/books period.
+            // A random GUID here inserted a duplicate FinancialYears row on every sync.
             var fyEntity = new FinancialYear
             {
-                Id = Guid.NewGuid().ToString(),
+                Id = $"{companyId}:FY:{financialYearStart:yyyyMMdd}:{financialYearEnd:yyyyMMdd}",
                 CompanyId = companyId,
-                StartDate = profile.BooksBeginningFrom,
-                EndDate = profile.BooksBeginningFrom.AddYears(1).AddDays(-1)
+                StartDate = financialYearStart,
+                EndDate = financialYearEnd
             };
 
             await _syncRepository.UpsertCompanyAsync(compEntity, fyEntity, ct);

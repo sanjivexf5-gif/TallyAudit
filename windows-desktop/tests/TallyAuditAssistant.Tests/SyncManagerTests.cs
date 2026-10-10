@@ -155,6 +155,63 @@ public class SyncManagerTests
     }
 
     [Fact]
+    public async Task RepeatedSync_UsesStableFinancialYearId_ForSameCompanyAndBooksPeriod()
+    {
+        var mockConn = new Mock<ITallyConnection>();
+        mockConn.Setup(c => c.TestConnectionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+
+        var mockCompany = new Mock<ITallyCompanyService>();
+        mockCompany.Setup(c => c.GetCompanyProfileTypedAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                   .ReturnsAsync(new TallyCompanyProfile
+                   {
+                       Name = "Repeat Co",
+                       BooksBeginningFrom = new DateTime(2020, 4, 1),
+                       AlterId = 50
+                   });
+
+        var mockMaster = new Mock<ITallyMasterService>();
+        mockMaster.Setup(m => m.GetGroupsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(new List<string>());
+        mockMaster.Setup(m => m.GetLedgersAsync(It.IsAny<string>(), It.IsAny<long?>(), It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(new List<TallyLedgerDto>());
+
+        var mockVoucher = new Mock<ITallyVoucherService>();
+        async IAsyncEnumerable<TallyVoucherDto> EmptyStream()
+        {
+            await Task.Yield();
+            yield break;
+        }
+        mockVoucher.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                   .Returns(EmptyStream());
+
+        var financialYearIds = new List<string>();
+        var mockSyncRepo = new Mock<ISyncRepository>();
+        mockSyncRepo.Setup(r => r.UpsertCompanyAsync(It.IsAny<Company>(), It.IsAny<FinancialYear>(), It.IsAny<CancellationToken>()))
+                    .Callback<Company, FinancialYear, CancellationToken>((_, fy, _) => financialYearIds.Add(fy.Id))
+                    .Returns(Task.CompletedTask);
+
+        var syncManager = new SyncManager(
+            mockConn.Object,
+            mockCompany.Object,
+            mockMaster.Object,
+            mockVoucher.Object,
+            mockSyncRepo.Object,
+            new Mock<IAuditRepository>().Object,
+            new Mock<ISettingsService>().Object,
+            _logger);
+
+        var first = await syncManager.StartSyncAsync("Repeat Co", SyncMode.Full);
+        var second = await syncManager.StartSyncAsync("Repeat Co", SyncMode.Full);
+
+        Assert.True(first.IsSuccess);
+        Assert.True(second.IsSuccess);
+        Assert.Equal(4, financialYearIds.Count); // two metadata upserts per sync
+        Assert.All(financialYearIds, id => Assert.Equal(financialYearIds[0], id));
+        Assert.Equal("Repeat Co:FY:20200401:20210331", financialYearIds[0]);
+    }
+
+    [Fact]
     public async Task RetrySync_Reaches_100Percent_On_Completion()
     {
         var mockConn = new Mock<ITallyConnection>();
