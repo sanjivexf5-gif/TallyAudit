@@ -8,5 +8,6 @@ namespace TallyAuditAssistant.Core.Interfaces;
 public interface IReconciliationEngine
 {
     IReadOnlyList<IReconciliationRule> RegisteredRules { get; }
+    IReadOnlyList<AuditRuleFailure> LastExecutionFailures { get; }
     Task<IReadOnlyList<AuditResult>> ExecuteReconciliationsAsync(AuditExecutionContext context, CancellationToken cancellationToken = default);
 }
