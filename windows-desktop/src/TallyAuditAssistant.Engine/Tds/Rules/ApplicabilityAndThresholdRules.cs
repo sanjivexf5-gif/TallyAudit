@@ -174,7 +174,7 @@ public class ThresholdMonitoringRule : BaseTdsRule
         var expenseLines = new List<ThresholdExpenseLine>();
         foreach (var row in rows)
         {
-            var date = GetDateTime(row, "VoucherDate");
+            DateTime? date = GetDateTime((object)row, "VoucherDate");
             var head = GetString(row, "ExpenseHead") ?? string.Empty;
             var section = ClassifyExpenseHead(head);
             if (!date.HasValue || section == null)
