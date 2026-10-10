@@ -57,7 +57,7 @@ public sealed class AutomationRunHistoryCsvExporterTests
             Entry(company: "=HYPERLINK(\"https://example.invalid\",\"click\")")
         });
 
-        Assert.Contains("\"'=HYPERLINK(\"\"https://example.invalid\"", csv);
+        Assert.Contains("\"'=HYPERLINK(\"\"https://example.invalid\"\"", csv);
         Assert.DoesNotContain(",=HYPERLINK(", csv);
     }
 
