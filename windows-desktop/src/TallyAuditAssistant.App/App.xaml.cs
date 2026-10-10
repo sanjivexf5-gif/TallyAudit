@@ -105,8 +105,10 @@ public partial class App : Application
                     for (var attempt = 1; attempt <= 3; attempt++)
                     {
                         result = await automation.RunAsync(runIncrementalSync: true, runFullAudit: true);
-                        if (result.IsSuccess)
+                        if (result.IsSuccess || result.IsIncomplete)
                         {
+                            // Partial audit coverage is not a transient connection failure.
+                            // Do not rerun the whole scheduled workflow as a retry.
                             break;
                         }
 
@@ -149,9 +151,18 @@ public partial class App : Application
                     else
                     {
                         var reason = result?.ErrorMessage ?? "No result returned.";
-                        RecordScheduledRun(result, "Failed", reason);
-                        Log.Error("Scheduled audit failed after retries: {Reason}", reason);
-                        Shutdown(1);
+                        if (result?.IsIncomplete == true)
+                        {
+                            RecordScheduledRun(result, "Incomplete", reason);
+                            Log.Warning("Scheduled audit finished with incomplete rule coverage: {Reason}", reason);
+                            Shutdown(2);
+                        }
+                        else
+                        {
+                            RecordScheduledRun(result, "Failed", reason);
+                            Log.Error("Scheduled audit failed after retries: {Reason}", reason);
+                            Shutdown(1);
+                        }
                     }
                 }
                 catch (Exception scheduledException)
