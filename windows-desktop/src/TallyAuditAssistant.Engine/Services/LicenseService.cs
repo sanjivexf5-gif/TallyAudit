@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TallyAuditAssistant.Core.Common;
 using TallyAuditAssistant.Core.Interfaces;
@@ -13,15 +16,21 @@ public class LicenseService : ILicenseService
     private LicenseInfo? _cachedLicense;
 
     private const string LicenseStorageKey = "AppLicense_MasterToken";
+    private const string TrialStartedStorageKey = "AppLicense_TrialStartedAt";
+    private readonly string? _licensePublicKeyPem;
 
     public LicenseService(
         ISecureStorage secureStorage,
         IAuditTrailService auditTrailService,
-        ILogger<LicenseService> logger)
+        ILogger<LicenseService> logger,
+        string? licensePublicKeyPem = null)
     {
         _secureStorage = secureStorage;
         _auditTrailService = auditTrailService;
         _logger = logger;
+        _licensePublicKeyPem = string.IsNullOrWhiteSpace(licensePublicKeyPem)
+            ? Environment.GetEnvironmentVariable("TALLY_AUDIT_LICENSE_PUBLIC_KEY")
+            : licensePublicKeyPem;
     }
 
     public async Task<LicenseInfo> GetCurrentLicenseAsync(CancellationToken ct = default)
@@ -67,75 +76,147 @@ public class LicenseService : ILicenseService
 
     public async Task<LicenseActivationResult> ActivateLicenseAsync(string licenseKey, string? offlineActivationToken = null, CancellationToken ct = default)
     {
-        _logger.LogInformation("Attempting license activation for key format {KeyPrefix}****", licenseKey.Length > 8 ? licenseKey[..8] : "KEY");
+        var normalizedKey = (licenseKey ?? string.Empty).Trim().ToUpperInvariant();
+        if (normalizedKey.Length == 0)
+        {
+            return new LicenseActivationResult { Success = false, Message = "License key cannot be empty." };
+        }
 
-        if (string.IsNullOrWhiteSpace(licenseKey))
+        if (string.IsNullOrWhiteSpace(offlineActivationToken))
         {
             return new LicenseActivationResult
             {
                 Success = false,
-                Message = "License key cannot be empty."
+                Message = "A signed offline activation token is required. A license key alone cannot be validated."
             };
         }
 
-        var normalizedKey = licenseKey.Trim().ToUpperInvariant();
-
-        // Determine license type from key structure
-        LicenseType type = LicenseType.Professional;
-        if (normalizedKey.Contains("ENT"))
-            type = LicenseType.Enterprise;
-        else if (normalizedKey.Contains("PRO"))
-            type = LicenseType.Professional;
-
-        var license = new LicenseInfo
+        if (string.IsNullOrWhiteSpace(_licensePublicKeyPem))
         {
-            LicenseKey = normalizedKey,
-            LicenseType = type,
-            Status = LicenseStatus.Active,
-            RegisteredTo = "Licensed Statutory Auditor",
-            Organization = "Audit Practice",
-            IssuedDate = DateTime.UtcNow,
-            ExpiryDate = DateTime.UtcNow.AddYears(1),
-            MachineBindingId = "DPAPI-DEVICE-BOUND-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant(),
-            IsOfflineValidated = true,
-            SupportPlan = type == LicenseType.Enterprise ? "Enterprise 24/7 SLA" : "Priority Standard Support",
-            Entitlements = new LicenseFeatureEntitlements
+            return new LicenseActivationResult
             {
-                MaxCompanies = -1,
-                MaxAuditPeriods = -1,
-                AllowGstAudit = true,
-                AllowTdsAudit = true,
-                AllowDuplicateEngine = true,
-                AllowReconciliation = true,
-                AllowSampling = true,
-                AllowWorkingPapers = true,
-                AllowPdfExcelExport = true,
-                AllowComparativeYoY = true,
-                AllowMultiUserRbac = true,
-                AllowAiAuditAssistant = true
-            }
-        };
+                Success = false,
+                Message = "Secure license verification is not configured on this installation. Set TALLY_AUDIT_LICENSE_PUBLIC_KEY to the issuer's RSA public key; the supplied key has not been activated."
+            };
+        }
 
-        _cachedLicense = license;
-        var token = SerializeLicenseToken(license);
-        _secureStorage.SetSecret(LicenseStorageKey, token);
-
-        await _auditTrailService.RecordActivityAsync(
-            actionType: "LICENSE_ACTIVATION",
-            module: "SYSTEM",
-            description: $"Application successfully activated with {type} license key.",
-            ct: ct);
-
-        return new LicenseActivationResult
+        try
         {
-            Success = true,
-            Message = $"License successfully activated! Product Edition: {type}.",
-            License = license
-        };
+            var separator = offlineActivationToken.IndexOf('.');
+            if (separator <= 0 || separator != offlineActivationToken.LastIndexOf('.') ||
+                separator == offlineActivationToken.Length - 1)
+            {
+                return InvalidActivationResult("The signed activation token has an invalid format.");
+            }
+
+            var payloadBytes = DecodeBase64Url(offlineActivationToken[..separator]);
+            var signatureBytes = DecodeBase64Url(offlineActivationToken[(separator + 1)..]);
+
+            using var rsa = RSA.Create();
+            rsa.ImportFromPem(_licensePublicKeyPem);
+            if (!rsa.VerifyData(payloadBytes, signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1))
+            {
+                return InvalidActivationResult("The activation token signature is invalid.");
+            }
+
+            var license = JsonSerializer.Deserialize<LicenseInfo>(payloadBytes, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            if (license == null)
+            {
+                return InvalidActivationResult("The activation token payload is empty or invalid.");
+            }
+
+            var signedLicenseKey = (license.LicenseKey ?? string.Empty).Trim().ToUpperInvariant();
+            if (!string.Equals(signedLicenseKey, normalizedKey, StringComparison.Ordinal))
+            {
+                return InvalidActivationResult("The activation token does not match the supplied license key.");
+            }
+
+            var now = DateTime.UtcNow;
+            if (license.LicenseType is not (LicenseType.Professional or LicenseType.Enterprise) ||
+                license.Status != LicenseStatus.Active ||
+                license.IssuedDate > now.AddMinutes(5) ||
+                license.ExpiryDate <= now ||
+                license.ExpiryDate <= license.IssuedDate ||
+                string.IsNullOrWhiteSpace(license.RegisteredTo) ||
+                string.IsNullOrWhiteSpace(license.Organization) ||
+                string.IsNullOrWhiteSpace(license.MachineBindingId) ||
+                license.Entitlements == null)
+            {
+                return InvalidActivationResult("The signed license claims are incomplete, not yet valid, expired, or unsupported.");
+            }
+
+            license.LicenseKey = normalizedKey;
+            license.IsOfflineValidated = true;
+            _cachedLicense = license;
+            _secureStorage.SetSecret(LicenseStorageKey, SerializeLicenseToken(license));
+
+            await _auditTrailService.RecordActivityAsync(
+                actionType: "LICENSE_ACTIVATION",
+                module: "SYSTEM",
+                description: $"Successfully activated a signature-verified {license.LicenseType} license.",
+                ct: ct);
+
+            return new LicenseActivationResult
+            {
+                Success = true,
+                Message = $"License successfully verified and activated. Product Edition: {license.LicenseType}.",
+                License = license
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Secure offline license activation was rejected.");
+            return InvalidActivationResult("The activation token could not be verified. Confirm the token and issuer public key.");
+        }
+    }
+
+    private static LicenseActivationResult InvalidActivationResult(string message) =>
+        new() { Success = false, Message = message };
+
+    private static byte[] DecodeBase64Url(string value)
+    {
+        var base64 = value.Replace('-', '+').Replace('_', '/');
+        base64 += new string('=', (4 - base64.Length % 4) % 4);
+        return Convert.FromBase64String(base64);
     }
 
     public async Task<LicenseActivationResult> StartTrialAsync(string organizationName, string contactEmail, CancellationToken ct = default)
     {
+        if (!string.IsNullOrWhiteSpace(_secureStorage.GetSecret(TrialStartedStorageKey)))
+        {
+            return new LicenseActivationResult
+            {
+                Success = false,
+                Message = "A trial has already been started on this installation. Please activate a valid signed license to continue."
+            };
+        }
+
+        var existingLicense = await GetCurrentLicenseAsync(ct);
+        if (existingLicense.Status == LicenseStatus.Active)
+        {
+            return new LicenseActivationResult
+            {
+                Success = false,
+                Message = "An active license is already installed; a separate trial cannot be started."
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(organizationName) || string.IsNullOrWhiteSpace(contactEmail))
+        {
+            return new LicenseActivationResult
+            {
+                Success = false,
+                Message = "Organization name and contact email are required to start a trial."
+            };
+        }
+
         _logger.LogInformation("Starting 14-day evaluation trial for {Org}", organizationName);
 
         var trialLicense = new LicenseInfo
@@ -143,8 +224,8 @@ public class LicenseService : ILicenseService
             LicenseKey = "TAA-TRIAL-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant(),
             LicenseType = LicenseType.Trial,
             Status = LicenseStatus.Trial,
-            RegisteredTo = contactEmail,
-            Organization = organizationName,
+            RegisteredTo = contactEmail.Trim(),
+            Organization = organizationName.Trim(),
             IssuedDate = DateTime.UtcNow,
             ExpiryDate = DateTime.UtcNow.AddDays(14),
             MachineBindingId = "DPAPI-TRIAL-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant(),
@@ -168,13 +249,13 @@ public class LicenseService : ILicenseService
         };
 
         _cachedLicense = trialLicense;
-        var token = SerializeLicenseToken(trialLicense);
-        _secureStorage.SetSecret(LicenseStorageKey, token);
+        _secureStorage.SetSecret(TrialStartedStorageKey, trialLicense.IssuedDate.ToString("O"));
+        _secureStorage.SetSecret(LicenseStorageKey, SerializeLicenseToken(trialLicense));
 
         await _auditTrailService.RecordActivityAsync(
             actionType: "TRIAL_ACTIVATION",
             module: "SYSTEM",
-            description: $"14-day evaluation trial started for {organizationName} ({contactEmail}).",
+            description: $"14-day evaluation trial started for {trialLicense.Organization}.",
             ct: ct);
 
         return new LicenseActivationResult
@@ -203,7 +284,7 @@ public class LicenseService : ILicenseService
             "ComparativeYoY" => license.Entitlements.AllowComparativeYoY,
             "MultiUserRbac" => license.Entitlements.AllowMultiUserRbac,
             "AiAssistant" => license.Entitlements.AllowAiAuditAssistant,
-            _ => true
+            _ => false
         };
     }
 
@@ -229,37 +310,42 @@ public class LicenseService : ILicenseService
         return Task.FromResult(license.IsUsable);
     }
 
-    private static string SerializeLicenseToken(LicenseInfo info)
-    {
-        return $"{info.LicenseKey}|{(int)info.LicenseType}|{(int)info.Status}|{info.RegisteredTo}|{info.Organization}|{info.IssuedDate:O}|{info.ExpiryDate:O}|{info.MachineBindingId}";
-    }
+    private static string SerializeLicenseToken(LicenseInfo info) =>
+        JsonSerializer.Serialize(info);
 
     private static LicenseInfo ParseLicenseToken(string token)
     {
-        var parts = token.Split('|');
-        if (parts.Length < 8)
+        // Legacy pipe-delimited tokens were unsigned and could be created from any
+        // non-empty key. Do not continue trusting those unverifiable tokens.
+        if (string.IsNullOrWhiteSpace(token) || !token.TrimStart().StartsWith("{", StringComparison.Ordinal))
         {
-            return new LicenseInfo { Status = LicenseStatus.Invalid };
+            return new LicenseInfo
+            {
+                Status = LicenseStatus.Invalid,
+                IsOfflineValidated = false,
+                LicenseKey = string.Empty
+            };
         }
 
-        var license = new LicenseInfo
+        try
         {
-            LicenseKey = parts[0],
-            LicenseType = Enum.TryParse<LicenseType>(parts[1], out var lt) ? lt : LicenseType.Professional,
-            Status = Enum.TryParse<LicenseStatus>(parts[2], out var ls) ? ls : LicenseStatus.Active,
-            RegisteredTo = parts[3],
-            Organization = parts[4],
-            IssuedDate = DateTime.TryParse(parts[5], out var id) ? id : DateTime.UtcNow,
-            ExpiryDate = DateTime.TryParse(parts[6], out var ed) ? ed : DateTime.UtcNow.AddYears(1),
-            MachineBindingId = parts[7],
-            IsOfflineValidated = true
-        };
+            var license = JsonSerializer.Deserialize<LicenseInfo>(token, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            if (license == null || string.IsNullOrWhiteSpace(license.LicenseKey))
+            {
+                return new LicenseInfo { Status = LicenseStatus.Invalid, IsOfflineValidated = false };
+            }
 
-        if (license.ExpiryDate < DateTime.UtcNow)
-        {
-            license.Status = LicenseStatus.Expired;
+            if (license.ExpiryDate <= DateTime.UtcNow)
+                license.Status = LicenseStatus.Expired;
+
+            return license;
         }
-
-        return license;
+        catch (JsonException)
+        {
+            return new LicenseInfo { Status = LicenseStatus.Invalid, IsOfflineValidated = false };
+        }
     }
 }
