@@ -10,7 +10,8 @@ public enum AuditAutomationStage
     PreparingResults = 5,
     Completed = 6,
     Failed = 7,
-    Cancelled = 8
+    Cancelled = 8,
+    Incomplete = 9
 }
 
 public record AuditAutomationProgress(
@@ -26,4 +27,5 @@ public record AuditAutomationResult(
     int RecordsSynchronized,
     int FindingsGenerated,
     TimeSpan Duration,
-    string? ErrorMessage = null);
+    string? ErrorMessage = null,
+    bool IsIncomplete = false);
