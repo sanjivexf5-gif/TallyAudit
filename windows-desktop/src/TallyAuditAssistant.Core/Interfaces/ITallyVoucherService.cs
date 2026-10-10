@@ -16,5 +16,6 @@ public interface ITallyVoucherService
         DateTime fromDate, 
         DateTime toDate, 
         int chunkDays = 30, 
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        long? fromAlterId = null);
 }
