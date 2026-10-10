@@ -92,7 +92,8 @@ public class TallyVoucherService : ITallyVoucherService
         DateTime fromDate,
         DateTime toDate,
         int chunkDays = 7,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default,
+        long? fromAlterId = null)
     {
         // Large financial years are deliberately read in small windows. A slow
         // TallyPrime/server connection should never require one huge XML response.
