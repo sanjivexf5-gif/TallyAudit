@@ -63,8 +63,12 @@ public class AuditQualityControlService : IAuditQualityControlService
         var openItems = await _finalizationRepository.GetOpenItemsAsync(state.Id, cancellationToken);
         var reviewNotes = await _finalizationRepository.GetReviewNotesAsync(state.Id, cancellationToken);
         
-        // Fetch up to 1000 exceptions safely
-        var exceptions = await _auditRepository.GetExceptionsAsync(companyId, take: 1000, cancellationToken: cancellationToken);
+        // Count pending findings in SQL so large engagements cannot be reported as reviewed
+        // merely because older unresolved items fall outside the dashboard's display limit.
+        var unreviewedCount = await _auditRepository.GetExceptionCountAsync(
+            companyId,
+            status: ReviewStatus.Pending,
+            cancellationToken: cancellationToken);
         var vouchersCount = await _auditRepository.GetVoucherCountAsync(companyId, cancellationToken);
 
         var checks = new List<QualityControlCheckItem>();
@@ -135,7 +139,6 @@ public class AuditQualityControlService : IAuditQualityControlService
         });
 
         // Check 6: Unreviewed Findings (SA 250)
-        int unreviewedCount = exceptions.Count(e => e.Status == ReviewStatus.Pending);
         checks.Add(new QualityControlCheckItem
         {
             Name = "Findings and Exceptions Review",
