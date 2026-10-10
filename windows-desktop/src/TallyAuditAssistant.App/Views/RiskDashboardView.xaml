@@ -17,7 +17,10 @@
                 <TextBlock Text="Company-level risk, exception severity, audit progress and review coverage." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                 <TextBlock Text="{Binding ActiveCompanyName}" FontSize="13" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,8,0,0"/>
             </StackPanel>
-            <Button Content="↻ Refresh" Command="{Binding RefreshCommand}" HorizontalAlignment="Right" Padding="14,7"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="↻ Refresh" Command="{Binding RefreshCommand}" Padding="14,7" Margin="0,0,8,0"/>
+                <Button Content="Export CSV" Command="{Binding ExportCsvCommand}" Padding="14,7"/>
+            </StackPanel>
         </Grid>
 
         <Grid Grid.Row="1" Margin="0,0,0,16">
