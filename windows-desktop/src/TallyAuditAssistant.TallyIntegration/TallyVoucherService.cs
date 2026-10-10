@@ -87,13 +87,30 @@ public class TallyVoucherService : ITallyVoucherService
         }
     }
 
-    public async IAsyncEnumerable<TallyVoucherDto> StreamVouchersChunkedAsync(
+    public IAsyncEnumerable<TallyVoucherDto> StreamVouchersChunkedAsync(
         string companyName,
         DateTime fromDate,
         DateTime toDate,
         int chunkDays = 7,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default,
-        long? fromAlterId = null)
+        CancellationToken cancellationToken = default) =>
+        StreamVouchersChunkedCoreAsync(companyName, fromDate, toDate, null, chunkDays, cancellationToken);
+
+    public IAsyncEnumerable<TallyVoucherDto> StreamVouchersChunkedIncrementalAsync(
+        string companyName,
+        DateTime fromDate,
+        DateTime toDate,
+        long fromAlterId,
+        int chunkDays,
+        CancellationToken cancellationToken) =>
+        StreamVouchersChunkedCoreAsync(companyName, fromDate, toDate, fromAlterId, chunkDays, cancellationToken);
+
+    private async IAsyncEnumerable<TallyVoucherDto> StreamVouchersChunkedCoreAsync(
+        string companyName,
+        DateTime fromDate,
+        DateTime toDate,
+        long? fromAlterId,
+        int chunkDays,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         // Large financial years are deliberately read in small windows. A slow
         // TallyPrime/server connection should never require one huge XML response.
