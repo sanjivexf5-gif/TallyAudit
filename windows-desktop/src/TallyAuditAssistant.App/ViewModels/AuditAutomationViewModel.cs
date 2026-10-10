@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using Microsoft.Win32;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TallyAuditAssistant.Core.Domain.Audit;
@@ -273,6 +274,43 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
         {
             // History must never interrupt or turn a completed audit into a failure.
             StatusMessage += $" Run history could not be saved: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void ExportRunHistory()
+    {
+        var entries = _runHistoryService.GetRecentRuns(100);
+        if (entries.Count == 0)
+        {
+            StatusMessage = "There are no automation runs to export yet.";
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Export automation run history",
+            FileName = $"TallyAuditAutomationHistory_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
+            Filter = "CSV files (*.csv)|*.csv",
+            DefaultExt = ".csv",
+            AddExtension = true,
+            OverwritePrompt = true,
+            RestoreDirectory = true
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            AutomationRunHistoryCsvExporter.WriteToFile(dialog.FileName, entries);
+            StatusMessage = $"Exported {entries.Count} automation run(s) to {dialog.FileName}.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Could not export automation run history: {ex.Message}";
         }
     }
 
