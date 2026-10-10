@@ -159,7 +159,7 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
             else
             {
                 StatusMessage = result.ErrorMessage ?? "Automation did not complete.";
-                RecordRun("Failed", StatusMessage);
+                RecordRun(result.IsIncomplete ? "Incomplete" : "Failed", StatusMessage);
             }
         }
         catch (Exception ex)
