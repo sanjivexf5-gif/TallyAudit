@@ -51,6 +51,21 @@ public class LicensingServiceTests
     }
 
     [Fact]
+    public void ActiveLicense_IsNotUsableAfterExpiry()
+    {
+        var expired = new LicenseInfo
+        {
+            LicenseKey = "EXPIRED",
+            LicenseType = LicenseType.Professional,
+            Status = LicenseStatus.Active,
+            IssuedDate = DateTime.UtcNow.AddDays(-365),
+            ExpiryDate = DateTime.UtcNow.AddSeconds(-1)
+        };
+
+        Assert.False(expired.IsUsable);
+    }
+
+    [Fact]
     public async Task ActivateLicense_WithSignedProToken_VerifiesAndPersistsAllEntitlements()
     {
         const string key = "TAA-2026-PRO-1234-5678";
