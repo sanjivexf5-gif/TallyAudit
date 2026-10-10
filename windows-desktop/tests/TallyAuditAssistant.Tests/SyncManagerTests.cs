@@ -126,7 +126,7 @@ public class SyncManagerTests
 
         var mockVoucher = new Mock<ITallyVoucherService>();
         async IAsyncEnumerable<TallyVoucherDto> EmptyStream() { await Task.Yield(); yield break; }
-        mockVoucher.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>(), It.IsAny<long?>()))
+        mockVoucher.Setup(v => v.StreamVouchersChunkedIncrementalAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<long>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                    .Returns(EmptyStream());
 
         var syncManager = new SyncManager(
@@ -149,8 +149,8 @@ public class SyncManagerTests
         Assert.Equal(SyncStage.Complete, lastEmittedMetrics.CurrentStage);
         Assert.Equal(100.0, lastEmittedMetrics.ProgressPercentage);
         mockVoucher.Verify(
-            v => v.StreamVouchersChunkedAsync("Inc Co", It.IsAny<DateTime>(), It.IsAny<DateTime>(), 7,
-                It.IsAny<CancellationToken>(), 125),
+            v => v.StreamVouchersChunkedIncrementalAsync("Inc Co", It.IsAny<DateTime>(), It.IsAny<DateTime>(), 125,
+                7, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
