@@ -14,7 +14,10 @@ public class AuditEngine : IAuditEngine
     private readonly ILogger<AuditEngine> _logger;
     private readonly IReconciliationEngine? _reconciliationEngine;
 
+    private IReadOnlyList<AuditRuleFailure> _lastExecutionFailures = Array.Empty<AuditRuleFailure>();
+
     public IReadOnlyList<IAuditRule> RegisteredRules => _rules.AsReadOnly();
+    public IReadOnlyList<AuditRuleFailure> LastExecutionFailures => _lastExecutionFailures;
 
     public event EventHandler<AuditEngineProgress>? ProgressChanged;
 
@@ -64,9 +67,13 @@ public class AuditEngine : IAuditEngine
                 ct: CancellationToken.None);
         }
 
+        // Reset per-run diagnostics so previous failures never leak into a later audit.
+        _lastExecutionFailures = Array.Empty<AuditRuleFailure>();
+
         // Synchronize in-memory rules with database configuration (Enabled / Parameters)
         await SynchronizeRuleConfigurationsAsync(cancellationToken);
 
+        var failures = new List<AuditRuleFailure>();
         var allResults = new List<AuditResult>();
         var enabledRules = _rules.Where(r => r.Enabled).ToList();
         var totalRules = enabledRules.Count;
@@ -96,8 +103,11 @@ public class AuditEngine : IAuditEngine
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed evaluating audit rule {RuleId}", rule.RuleId);
+                failures.Add(new AuditRuleFailure(rule.RuleId, rule.Name, ex.Message));
             }
         }
+
+        _lastExecutionFailures = failures.AsReadOnly();
 
         // Persist discovered audit results to SQLite database
         _logger.LogInformation("Saving {Count} discovered exceptions to local repository...", allResults.Count);
@@ -113,9 +123,11 @@ public class AuditEngine : IAuditEngine
         if (_auditTrailService != null)
         {
             _ = _auditTrailService.RecordActivityAsync(
-                actionType: "Audit run completed",
+                actionType: failures.Count == 0 ? "Audit run completed" : "Audit run incomplete",
                 module: "AUDIT",
-                description: $"Audit run completed for company '{context.CompanyId}'. Evaluated {executedCount} rules, discovered {allResults.Count} exception(s).",
+                description: failures.Count == 0
+                    ? $"Audit run completed for company '{context.CompanyId}'. Evaluated {executedCount} rules, discovered {allResults.Count} exception(s)."
+                    : $"Audit run INCOMPLETE for company '{context.CompanyId}'. {failures.Count} rule(s) failed: {string.Join(", ", failures.Select(f => f.RuleId))}. Evaluated {executedCount} of {totalRules} rules; {allResults.Count} finding(s) were retained.",
                 companyName: context.CompanyId,
                 ct: CancellationToken.None);
         }

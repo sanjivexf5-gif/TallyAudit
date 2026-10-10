@@ -17,4 +17,12 @@ public interface ITallyVoucherService
         DateTime toDate, 
         int chunkDays = 30, 
         CancellationToken cancellationToken = default);
+
+    IAsyncEnumerable<TallyVoucherDto> StreamVouchersChunkedIncrementalAsync(
+        string companyName,
+        DateTime fromDate,
+        DateTime toDate,
+        long fromAlterId,
+        int chunkDays,
+        CancellationToken cancellationToken);
 }

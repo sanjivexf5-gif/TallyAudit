@@ -3,7 +3,7 @@
 [![Build Tally Audit Assistant (Windows x64)](https://github.com/your-org/tally-audit-assistant/actions/workflows/build-windows.yml/badge.svg)](https://github.com/your-org/tally-audit-assistant/actions/workflows/build-windows.yml)
 ![.NET 8.0](https://img.shields.io/badge/.NET-8.0-purple.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20x64-blue.svg)
-![Security](https://img.shields.io/badge/Security-100%25%20Offline%20Air--Gapped-emerald.svg)
+![Security](https://img.shields.io/badge/Security-Offline--First--Local--Data-blue.svg)
 
 ## 📌 Executive Overview
 **Tally Audit Assistant** is a high-performance, offline-first Windows desktop application built with C# and **.NET 8.0** that connects directly to local **TallyPrime** instances via XML/TDL sockets (Port 9000). It caches accounting registers into an indexed local **SQLite** database and executes automated statutory and anomaly rule engines for statutory compliance, GST, TDS, accounting hygiene, candidate duplicate detection, and executive reporting.
@@ -12,7 +12,7 @@
 
 ## 🚀 Key Features & Capabilities
 
-- **100% Offline Air-Gapped Engine**: Zero cloud database dependencies, zero mandatory API calls, and **zero telemetry**.
+- **Offline-first local processing**: Accounting data and core rule execution are stored/run locally in SQLite. TallyPrime connectivity and update checks use the network. Optional Gemini AI features send selected finding details and prompts to Google's API when configured; this is not an air-gapped mode.
 - **Automated Audit Rule Engines**:
   - **19 Core Accounting Rules**: Cash threshold violations, negative cash/bank balances, round figure journal anomalies, weekend/holiday voucher postings, and sequence gap detection.
   - **18 Versioned GST Statutory Rules**: Interstate vs intrastate misclassifications, B2B supplier GSTIN checksum validations, tax rate inconsistencies (CGST/SGST/IGST), and Reverse Charge Mechanism (RCM) checks.
@@ -28,7 +28,7 @@
 - **Operating System**: Windows 10 (Build 19041+) or Windows 11 (x64)
 - **SDK Requirement**: **[.NET 8.0 SDK (x64)](https://dotnet.microsoft.com/download/dotnet/8.0)**
 - **Runtime Environment**: Node.js 20+ (for building web client bundle)
-- **Target Accounting Software**: TallyPrime (Release 1.0 or higher) on Port 9000 (Optional — application operates 100% offline on local SQLite snapshots).
+- **Target Accounting Software**: TallyPrime (Release 1.0 or higher) on Port 9000 (optional for viewing/analyzing an existing local SQLite snapshot; live synchronization requires TallyPrime connectivity).
 
 ---
 
@@ -84,6 +84,11 @@ The compiled `TallyAuditAssistant.App.exe` binary will be available in the `./pu
 ---
 
 ## 🛡️ Data Privacy & GitHub Commit Guidelines
+
+### Optional AI and license verification
+
+- Gemini AI assistance is an optional cloud integration. When enabled, selected audit finding details (which can include voucher number/date, ledger or party names, and amounts) and the related prompt are transmitted to Google's Gemini API. Do not use it for restricted client data unless the engagement's confidentiality requirements permit it.
+- Paid offline activation accepts only a signed token verified with the RSA public key configured through `TALLY_AUDIT_LICENSE_PUBLIC_KEY`. The issuer must keep its private signing key offline and out of the application/repository. A bare license key is not proof of entitlement.
 
 1. **No Accounting Data**: Local SQLite database files (`*.db`, `*.sqlite`, `*.db.bak`) containing company vouchers or client financial data are strictly excluded via `.gitignore`.
 2. **No Credentials or Secrets**: Secrets, certificates, and API tokens must never be committed. `.env` files are excluded by default.

@@ -227,5 +227,44 @@ public class AuditQualityControlTests : IAsyncLifetime
         Assert.Equal("Pass", check.Status); // Excluded from unreviewed count
         Assert.True(summary.IsReadyForFinalization); // Excluded from blockers
     }
+
+    [Fact]
+    public async Task GetQualityControlSummary_CountsPendingFindingsBeyondDisplayLimit()
+    {
+        const string companyId = "COMP-QC-LARGE";
+        const string periodId = "FY-2025-26";
+        await SaveCompanyAsync(companyId);
+        await SaveVoucherAsync(companyId);
+        await EnsureRuleExistsAsync("ACC-DUP-01");
+
+        using var conn = await _factory.CreateConnectionAsync();
+        var resolvedRows = Enumerable.Range(0, 1001).Select(i => new
+        {
+            Id = $"EXC-QC-RESOLVED-{i:D4}",
+            CompanyId = companyId
+        });
+        await conn.ExecuteAsync(@"
+            INSERT INTO Exceptions
+                (Id, CompanyId, RuleId, RuleName, Category, Severity, EvidenceJson, Status, FlaggedAt, ReviewedAt)
+            VALUES
+                (@Id, @CompanyId, 'ACC-DUP-01', 'Duplicate Voucher Number', 6, 2, '{}', 3,
+                 '2026-10-09 12:00:00', '2026-10-09 12:05:00');
+        ", resolvedRows);
+
+        await conn.ExecuteAsync(@"
+            INSERT INTO Exceptions
+                (Id, CompanyId, RuleId, RuleName, Category, Severity, EvidenceJson, Status, FlaggedAt)
+            VALUES
+                ('EXC-QC-OLD-PENDING', @CompanyId, 'ACC-DUP-01', 'Duplicate Voucher Number', 6, 3, '{}', 0,
+                 '2024-01-01 00:00:00');
+        ", new { CompanyId = companyId });
+
+        var summary = await _qcService.GetQualityControlSummaryAsync(companyId, periodId);
+        var check = summary.Checks.First(c => c.Name == "Findings and Exceptions Review");
+
+        Assert.Equal("Attention Required", check.Status);
+        Assert.Contains("1 exceptions remain unreviewed", check.Explanation);
+        Assert.False(summary.IsReadyForFinalization);
+    }
 }
 

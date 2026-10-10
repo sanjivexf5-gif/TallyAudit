@@ -16,7 +16,7 @@
                     <TextBlock Text="Local Storage (Offline SQLite Engine)" FontWeight="Bold" FontSize="15" Foreground="White" Margin="0,0,0,8"/>
                     <TextBlock Text="Database File Path:" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
                     <TextBox Text="{Binding DatabasePath, Mode=OneWay}" IsReadOnly="True" Padding="8" Background="#0F172A" Foreground="#94A3B8" BorderBrush="{StaticResource BorderBrush}"/>
-                    <TextBlock Text="All accounting vouchers, masters, and audit evidence remain exclusively on this computer." FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"/>
+                    <TextBlock Text="Accounting records are stored locally. Optional Gemini AI sends selected finding details and prompts to Google's API when configured. Use AI only when client confidentiality rules permit this transfer." FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"/>
                 </StackPanel>
             </Border>
 
