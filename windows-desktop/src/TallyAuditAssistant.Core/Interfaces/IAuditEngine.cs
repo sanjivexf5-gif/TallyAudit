@@ -10,9 +10,12 @@ public record AuditEngineProgress(
     int ExceptionsFound,
     double Percentage);
 
+public sealed record AuditRuleFailure(string RuleId, string RuleName, string ErrorMessage);
+
 public interface IAuditEngine
 {
     IReadOnlyList<IAuditRule> RegisteredRules { get; }
+    IReadOnlyList<AuditRuleFailure> LastExecutionFailures { get; }
     void RegisterRule(IAuditRule rule);
     
     event EventHandler<AuditEngineProgress>? ProgressChanged;
