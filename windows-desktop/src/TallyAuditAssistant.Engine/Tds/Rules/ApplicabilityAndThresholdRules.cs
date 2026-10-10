@@ -175,17 +175,17 @@ public class ThresholdMonitoringRule : BaseTdsRule
         foreach (var row in rows)
         {
             DateTime? date = GetDateTime((object)row, "VoucherDate");
-            var head = GetString(row, "ExpenseHead") ?? string.Empty;
-            var section = ClassifyExpenseHead(head);
-            if (!date.HasValue || section == null)
+            string head = GetString((object)row, "ExpenseHead") ?? string.Empty;
+            string? section = ClassifyExpenseHead(head);
+            if (date is not DateTime voucherDate || section is null)
             {
                 continue;
             }
 
             expenseLines.Add(new ThresholdExpenseLine(
-                GetString(row, "VoucherId") ?? string.Empty,
-                GetString(row, "VoucherNumber"),
-                date.Value.Date,
+                GetString((object)row, "VoucherId") ?? string.Empty,
+                GetString((object)row, "VoucherNumber"),
+                voucherDate.Date,
                 GetString(row, "VoucherTypeName"),
                 GetString(row, "PartyLedgerName"),
                 GetString(row, "PartyPan"),
@@ -515,9 +515,11 @@ public class VendorCumulativeAnalysisRule : BaseTdsRule
         foreach (var row in rows)
         {
             DateTime? date = GetDateTime((object)row, "VoucherDate");
-            var payee = GetString((object)row, "PartyLedgerName");
-            var voucherId = GetString((object)row, "VoucherId");
-            if (!date.HasValue || string.IsNullOrWhiteSpace(payee) || string.IsNullOrWhiteSpace(voucherId))
+            string? payee = GetString((object)row, "PartyLedgerName");
+            string? voucherId = GetString((object)row, "VoucherId");
+            if (date is not DateTime voucherDate ||
+                string.IsNullOrWhiteSpace(payee) ||
+                string.IsNullOrWhiteSpace(voucherId))
             {
                 continue;
             }
@@ -525,9 +527,10 @@ public class VendorCumulativeAnalysisRule : BaseTdsRule
             expenseLines.Add(new VendorExpenseLine(
                 voucherId,
                 GetString((object)row, "VoucherNumber"),
-                date.Value.Date,
+                voucherDate.Date,
                 payee,
                 GetString((object)row, "PartyPan"),
+                GetString((object)row, "ExpenseHead") ?? string.Empty,
                 GetDecimal((object)row, "ExpenseAmount"),
                 Convert.ToInt32(GetCol((object)row, "HasTdsEntry") ?? 0) != 0));
         }
@@ -598,6 +601,7 @@ public class VendorCumulativeAnalysisRule : BaseTdsRule
         DateTime VoucherDate,
         string PartyLedgerName,
         string? PartyPan,
+        string ExpenseHead,
         decimal Amount,
         bool HasTdsEntry);
 }
