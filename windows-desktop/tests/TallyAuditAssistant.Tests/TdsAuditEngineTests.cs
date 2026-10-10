@@ -137,6 +137,116 @@ public class TdsAuditEngineTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Check02_ThresholdMonitoring_UsesSelectedAuditPeriod()
+    {
+        using var conn = await _factory.CreateConnectionAsync();
+        await conn.ExecuteAsync(@"
+            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName, AlterId)
+            VALUES ('V-OUTSIDE-TDS-PERIOD', @Comp, 'Payment', 'Payment', 'OLD-TDS-01', '2024-02-15', 80000, 'Apex Transport Contractors', 10001);
+            INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit)
+            VALUES ('E-OUTSIDE-TDS-PERIOD', 'V-OUTSIDE-TDS-PERIOD', 'Freight & Transport Charges', 80000, 1);
+        ", new { Comp = _companyId });
+
+        var results = await new ThresholdMonitoringRule(_factory).EvaluateAsync(CreateContext());
+
+        Assert.DoesNotContain(results, r => r.VoucherNumber == "OLD-TDS-01");
+    }
+
+    [Fact]
+    public async Task Check02_ThresholdMonitoring_DoesNotFlagExactlyTheUpdatedProfessionalFeeThreshold()
+    {
+        using var conn = await _factory.CreateConnectionAsync();
+        await conn.ExecuteAsync(@"
+            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName, AlterId)
+            VALUES ('V-194J-EXACT-50K', @Comp, 'Purchase', 'Purchase', 'J-EXACT-50K', '2025-08-15', 50000, 'Exact Threshold Professional Vendor', 10002);
+            INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit)
+            VALUES ('E-194J-EXACT-50K', 'V-194J-EXACT-50K', 'Legal & Professional Fees', 50000, 1);
+        ", new { Comp = _companyId });
+
+        var results = await new ThresholdMonitoringRule(_factory).EvaluateAsync(CreateContext());
+
+        Assert.DoesNotContain(results, r => r.PartyLedgerName == "Exact Threshold Professional Vendor");
+    }
+
+    [Fact]
+    public async Task Check02_ThresholdMonitoring_FlagsAnnualProfessionalFeesSpreadAcrossInvoices()
+    {
+        using var conn = await _factory.CreateConnectionAsync();
+        await conn.ExecuteAsync(@"
+            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName, AlterId)
+            VALUES
+                ('V-194J-AGG-1', @Comp, 'Purchase', 'Purchase', 'J-AGG-30K', '2025-05-15', 30000, 'Split Fee Vendor', 10003),
+                ('V-194J-AGG-2', @Comp, 'Purchase', 'Purchase', 'J-AGG-25K', '2025-08-15', 25000, 'Split Fee Vendor', 10004);
+            INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit)
+            VALUES
+                ('E-194J-AGG-1', 'V-194J-AGG-1', 'Legal & Professional Fees', 30000, 1),
+                ('E-194J-AGG-2', 'V-194J-AGG-2', 'Legal & Professional Fees', 25000, 1);
+        ", new { Comp = _companyId });
+
+        var results = await new ThresholdMonitoringRule(_factory).EvaluateAsync(CreateContext());
+
+        var result = Assert.Single(results.Where(r => r.PartyLedgerName == "Split Fee Vendor" && r.Section == "194J"));
+        Assert.Equal(55000m, result.TransactionAmount);
+        Assert.Contains("financial year beginning", result.Explanation);
+    }
+
+    [Fact]
+    public async Task Check02_ThresholdMonitoring_AggregatesCommissionAndRentOverTheirCorrectPeriods()
+    {
+        using var conn = await _factory.CreateConnectionAsync();
+        await conn.ExecuteAsync(@"
+            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName, AlterId)
+            VALUES
+                ('V-COMM-1', @Comp, 'Payment', 'Payment', 'COMM-01', '2025-05-05', 12000, 'Commission Vendor A', 20001),
+                ('V-COMM-2', @Comp, 'Payment', 'Payment', 'COMM-02', '2025-05-15', 9000, 'Commission Vendor A', 20002),
+                ('V-COMM-3', @Comp, 'Payment', 'Payment', 'COMM-EQUAL', '2025-05-15', 20000, 'Commission Vendor Equal', 20003),
+                ('V-RENT-1', @Comp, 'Payment', 'Payment', 'RENT-01', '2025-05-10', 30000, 'Landlord A', 20004),
+                ('V-RENT-2', @Comp, 'Payment', 'Payment', 'RENT-02', '2025-05-20', 25000, 'Landlord A', 20005),
+                ('V-RENT-3', @Comp, 'Payment', 'Payment', 'RENT-OUTSIDE-MONTH', '2025-06-01', 30000, 'Landlord A', 20006);
+            INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit)
+            VALUES
+                ('E-COMM-1', 'V-COMM-1', 'Commission Expense', 12000, 1),
+                ('E-COMM-2', 'V-COMM-2', 'Brokerage Expense', 9000, 1),
+                ('E-COMM-3', 'V-COMM-3', 'Commission Expense', 20000, 1),
+                ('E-RENT-1', 'V-RENT-1', 'Office Rent Expenses', 30000, 1),
+                ('E-RENT-2', 'V-RENT-2', 'Office Rent Expenses', 25000, 1),
+                ('E-RENT-3', 'V-RENT-3', 'Office Rent Expenses', 30000, 1);
+        ", new { Comp = _companyId });
+
+        var results = await new ThresholdMonitoringRule(_factory).EvaluateAsync(CreateContext());
+
+        Assert.Contains(results, r => r.PartyLedgerName == "Commission Vendor A" && r.Section == "194H");
+        Assert.DoesNotContain(results, r => r.PartyLedgerName == "Commission Vendor Equal");
+        Assert.Contains(results, r => r.PartyLedgerName == "Landlord A" && r.Section == "194I" &&
+            r.Explanation.Contains("month 2025-05", StringComparison.Ordinal));
+        Assert.DoesNotContain(results, r => r.PartyLedgerName == "Landlord A" &&
+            r.Explanation.Contains("month 2025-06", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Check07_VendorCumulativeAnalysis_OnlyCountsContractExpensesInSelectedPeriod()
+    {
+        using var conn = await _factory.CreateConnectionAsync();
+        await conn.ExecuteAsync(@"
+            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName, AlterId)
+            VALUES
+                ('V-CON-AGG-1', @Comp, 'Payment', 'Payment', 'CON-AGG-01', '2025-05-05', 55000, 'Apex Transport Contractors', 30001),
+                ('V-CON-AGG-2', @Comp, 'Payment', 'Payment', 'CON-AGG-02', '2025-06-05', 50000, 'Apex Transport Contractors', 30002),
+                ('V-GENERAL-AGG', @Comp, 'Purchase', 'Purchase', 'GENERAL-AGG', '2025-06-05', 250000, 'General Supplier', 30003);
+            INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit)
+            VALUES
+                ('E-CON-AGG-1', 'V-CON-AGG-1', 'Freight & Transport Charges', 55000, 1),
+                ('E-CON-AGG-2', 'V-CON-AGG-2', 'Contract Labour Expense', 50000, 1),
+                ('E-GENERAL-AGG', 'V-GENERAL-AGG', 'General Purchases', 250000, 1);
+        ", new { Comp = _companyId });
+
+        var results = await new VendorCumulativeAnalysisRule(_factory).EvaluateAsync(CreateContext());
+
+        Assert.Contains(results, r => r.PartyLedgerName == "Apex Transport Contractors");
+        Assert.DoesNotContain(results, r => r.PartyLedgerName == "General Supplier");
+    }
+
+    [Fact]
     public async Task Check03_PanAvailability_Flags_Payees_Without_PAN()
     {
         var rule = new PanAvailabilityAndHigherDeductionRule(_factory);
