@@ -1,10 +1,13 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
+using TallyAuditAssistant.App.Services;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
@@ -21,6 +24,7 @@ public partial class RiskDashboardViewModel : ObservableObject, INavigationAware
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private int _totalFindings;
+    [ObservableProperty] private int _loadedFindingsCount;
     [ObservableProperty] private int _criticalCount;
     [ObservableProperty] private int _highCount;
     [ObservableProperty] private int _mediumCount;
@@ -60,6 +64,88 @@ public partial class RiskDashboardViewModel : ObservableObject, INavigationAware
     [RelayCommand]
     public Task RefreshAsync() => LoadAsync();
 
+    [RelayCommand]
+    public void ExportCsv()
+    {
+        if (IsLoading)
+        {
+            StatusMessage = "Wait for the risk dashboard to finish loading before exporting.";
+            return;
+        }
+
+        if (string.Equals(ActiveCompanyName, "No Company Selected", StringComparison.OrdinalIgnoreCase))
+        {
+            StatusMessage = "Select a company and load its risk dashboard before exporting.";
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "Export Audit Risk Summary",
+            Filter = "CSV files (*.csv)|*.csv",
+            DefaultExt = ".csv",
+            AddExtension = true,
+            OverwritePrompt = true,
+            FileName = $"AuditRisk_{SanitizeFileName(ActiveCompanyName)}_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            var summary = new RiskDashboardCsvSummary(
+                ActiveCompanyName,
+                DateTime.Now,
+                RiskScore,
+                RiskLabel,
+                TotalFindings,
+                LoadedFindingsCount,
+                CriticalCount,
+                HighCount,
+                MediumCount,
+                LowCount,
+                PendingCount,
+                ReviewedCount,
+                DuplicateCount,
+                GstCount,
+                TdsCount,
+                AccountingCount,
+                BankingCount,
+                ChecklistCompleted,
+                ChecklistApplicable,
+                ChecklistPercent);
+
+            var findings = TopRisks.Select(x => new RiskDashboardCsvFinding(
+                x.RuleName,
+                x.Category,
+                x.Severity,
+                x.Status,
+                x.VoucherNumber,
+                x.LedgerName)).ToArray();
+
+            RiskDashboardCsvExporter.WriteToFile(dialog.FileName, summary, findings);
+            StatusMessage = $"Risk summary exported to {Path.GetFileName(dialog.FileName)}.";
+            if (TotalFindings > LoadedFindingsCount)
+            {
+                StatusMessage += $" The breakdown reflects {LoadedFindingsCount:N0} loaded findings out of {TotalFindings:N0} total.";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Risk dashboard CSV export failed: {ex.Message}";
+        }
+    }
+
+    private static string SanitizeFileName(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var safe = new string(value.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray()).Trim();
+        return string.IsNullOrWhiteSpace(safe) ? "Company" : safe;
+    }
+
     public async Task LoadAsync()
     {
         if (IsLoading) return;
@@ -78,6 +164,7 @@ public partial class RiskDashboardViewModel : ObservableObject, INavigationAware
             ActiveCompanyName = company.TallyCompanyName;
             var findings = await _repository.GetExceptionsAsync(company.Id, take: 5000);
             TotalFindings = await _repository.GetExceptionCountAsync(company.Id);
+            LoadedFindingsCount = findings.Count;
             StatusMessage = TotalFindings > findings.Count
                 ? $"Risk breakdown is based on {findings.Count:N0} loaded findings out of {TotalFindings:N0} total. Open Exceptions for a complete filtered review."
                 : string.Empty;
@@ -130,7 +217,7 @@ public partial class RiskDashboardViewModel : ObservableObject, INavigationAware
     private void Reset()
     {
         ActiveCompanyName = "No Company Selected";
-        TotalFindings = CriticalCount = HighCount = MediumCount = LowCount = 0;
+        TotalFindings = LoadedFindingsCount = CriticalCount = HighCount = MediumCount = LowCount = 0;
         PendingCount = ReviewedCount = DuplicateCount = GstCount = TdsCount = AccountingCount = BankingCount = 0;
         ChecklistCompleted = ChecklistApplicable = RiskScore = 0;
         RiskLabel = "LOW";
