@@ -197,19 +197,16 @@ public class ThresholdMonitoringRule : BaseTdsRule
 
         var results = new List<TdsCheckResult>();
 
-        // Per-payment/credit screens: sum matching expense lines within each voucher first.
+        // Section 194C: single-payment/credit threshold screening. The separate
+        // contractor aggregate rule screens the annual contract threshold.
         foreach (var group in expenseLines
-            .Where(x => x.Section is "194C" or "194J")
-            .GroupBy(x => new { x.VoucherId, x.Section }))
+            .Where(x => x.Section == "194C")
+            .GroupBy(x => x.VoucherId, StringComparer.Ordinal))
         {
             var lines = group.OrderBy(x => x.VoucherDate).ToArray();
             var latest = lines[^1];
             var amount = lines.Sum(x => x.Amount);
-            var threshold = group.Key.Section == "194C"
-                ? GetParam("Threshold194C_Single", 30000m)
-                : latest.VoucherDate >= FinanceAct2025EffectiveDate
-                    ? GetParam("Threshold194J_From2025", 50000m)
-                    : GetParam("Threshold194J", 30000m);
+            var threshold = GetParam("Threshold194C_Single", 30000m);
 
             if (amount <= threshold || lines.All(x => x.HasTdsEntry))
             {
@@ -217,8 +214,35 @@ public class ThresholdMonitoringRule : BaseTdsRule
             }
 
             AddScreeningFinding(
-                context, results, lines, group.Key.Section, amount, threshold,
+                context, results, lines, "194C", amount, threshold,
                 "single voucher", isAggregate: false);
+        }
+
+        // Section 194J threshold is an annual aggregate per payee, not a per-invoice
+        // ceiling. This avoids missing split payments that individually fall below it.
+        foreach (var group in expenseLines
+            .Where(x => x.Section == "194J" && !string.IsNullOrWhiteSpace(x.PartyLedgerName))
+            .GroupBy(x => new
+            {
+                Payee = x.PartyLedgerName!,
+                FinancialYearStart = GetFinancialYearStart(x.VoucherDate)
+            }))
+        {
+            var lines = group.OrderBy(x => x.VoucherDate).ToArray();
+            var amount = lines.Sum(x => x.Amount);
+            var threshold = group.Key.FinancialYearStart >= FinanceAct2025EffectiveDate
+                ? GetParam("Threshold194J_From2025", 50000m)
+                : GetParam("Threshold194J", 30000m);
+
+            if (amount <= threshold || lines.All(x => x.HasTdsEntry))
+            {
+                continue;
+            }
+
+            AddScreeningFinding(
+                context, results, lines, "194J", amount, threshold,
+                $"financial year beginning {group.Key.FinancialYearStart:dd-MMM-yyyy}",
+                isAggregate: true);
         }
 
         // Section 194H uses an annual aggregate and applies only to commission/brokerage expense lines.
