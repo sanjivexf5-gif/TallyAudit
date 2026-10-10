@@ -192,6 +192,7 @@ public class SyncManagerTests
         Assert.Equal(SyncStatus.Failed, syncManager.CurrentStatus);
         Assert.NotEqual(100.0, syncManager.CurrentMetrics.ProgressPercentage);
         Assert.Equal(SyncStage.Failed, syncManager.CurrentMetrics.CurrentStage);
+        Assert.Equal(SyncStage.Connect.ToString(), result.FailedStage);
     }
 
     [Fact]

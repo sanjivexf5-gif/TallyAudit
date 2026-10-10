@@ -90,11 +90,44 @@ public sealed class AuditAutomationService : IAuditAutomationService
                 SetProgress(AuditAutomationStage.Synchronizing, "SYNCHRONIZING",
                     $"Synchronizing latest TallyPrime data for '{company.TallyCompanyName}'...", 25);
 
+                var syncAttempt = 1;
                 var syncResult = await _syncManager.StartSyncAsync(
                     company.TallyCompanyName,
                     SyncMode.Incremental,
                     ct);
 
+                // Restart only when the failure is a transient connection-stage error.
+                // This stage runs before any company, ledger, or voucher writes, so retrying
+                // cannot duplicate partially synchronized accounting data.
+                while (!syncResult.IsSuccess &&
+                       AutomationSyncRetryPolicy.ShouldRetry(syncResult, syncAttempt))
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var delay = AutomationSyncRetryPolicy.GetDelayBeforeRetry(syncAttempt);
+                    var nextAttempt = syncAttempt + 1;
+
+                    _logger.LogWarning(
+                        "TallyPrime connection failed before data writes. Retrying automated sync (attempt {Attempt}/{MaximumAttempts}) in {DelaySeconds} seconds: {Reason}",
+                        nextAttempt,
+                        AutomationSyncRetryPolicy.MaximumAttempts,
+                        delay.TotalSeconds,
+                        syncResult.ErrorMessage);
+
+                    SetProgress(
+                        AuditAutomationStage.Synchronizing,
+                        "RETRYING CONNECTION",
+                        $"TallyPrime connection is temporarily unavailable. Retrying synchronization (attempt {nextAttempt} of {AutomationSyncRetryPolicy.MaximumAttempts}) in {delay.TotalSeconds:0} seconds. No accounting records have been written by this attempt.",
+                        25);
+
+                    await Task.Delay(delay, ct);
+                    syncAttempt = nextAttempt;
+                    syncResult = await _syncManager.StartSyncAsync(
+                        company.TallyCompanyName,
+                        SyncMode.Incremental,
+                        ct);
+                }
+
+                ct.ThrowIfCancellationRequested();
                 if (!syncResult.IsSuccess)
                 {
                     throw new InvalidOperationException(
