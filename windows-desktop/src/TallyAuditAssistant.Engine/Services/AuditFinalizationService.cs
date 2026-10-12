@@ -219,7 +219,9 @@ public class AuditFinalizationService : IAuditFinalizationService
     public async Task InitializeDefaultChecklistAsync(string auditId, CancellationToken cancellationToken = default)
     {
         var currentItems = await _repository.GetChecklistAsync(auditId, cancellationToken);
-        if (currentItems.Count > 0) return;
+        var existingCodes = currentItems
+            .Select(item => item.Code)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var defaults = new List<ChecklistItem>
         {
@@ -238,7 +240,10 @@ public class AuditFinalizationService : IAuditFinalizationService
 
         foreach (var item in defaults)
         {
-            await _repository.SaveChecklistItemAsync(item, cancellationToken);
+            if (existingCodes.Add(item.Code))
+            {
+                await _repository.SaveChecklistItemAsync(item, cancellationToken);
+            }
         }
     }
 
