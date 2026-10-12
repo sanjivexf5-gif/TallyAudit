@@ -87,6 +87,35 @@ public sealed class AuditDashboardFinancialYearIsolationTests
         Assert.Equal(to, summary.AuditPeriodTo);
     }
     [Fact]
+    public async Task GetDashboardSummaryAsync_SeparatesOpenReviewedAndResolvedStatuses()
+    {
+        var findings = new[]
+        {
+            new AuditException { Id = "pending", CompanyId = "company-1", Status = ReviewStatus.Pending },
+            new AuditException { Id = "clarification", CompanyId = "company-1", Status = ReviewStatus.RequiresClientClarification },
+            new AuditException { Id = "reviewed", CompanyId = "company-1", Status = ReviewStatus.Reviewed },
+            new AuditException { Id = "resolved", CompanyId = "company-1", Status = ReviewStatus.Resolved },
+            new AuditException { Id = "false-positive", CompanyId = "company-1", Status = ReviewStatus.FlaggedAsFalsePositive }
+        };
+
+        var repository = new Mock<IAuditRepository>();
+        repository
+            .Setup(x => x.GetExceptionsAsync(
+                "company-1", null, null, null, 0, 10000, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(findings);
+        repository
+            .Setup(x => x.GetAuditRunsAsync("company-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<AuditRun>());
+
+        var service = new AuditDashboardService(repository.Object);
+        var summary = await service.GetDashboardSummaryAsync("company-1");
+
+        Assert.Equal(2, summary.OpenFindings);
+        Assert.Equal(1, summary.ReviewedFindings);
+        Assert.Equal(2, summary.ResolvedFindings);
+    }
+
+    [Fact]
     public async Task GetDashboardSummaryAsync_WarnsWhenFindingPageMayBeTruncated()
     {
         var findings = Enumerable.Range(1, 10000)
