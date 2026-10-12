@@ -1,5 +1,7 @@
 using Dapper;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
+using System.Text.Json;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Interfaces;
 
@@ -129,36 +131,52 @@ public class AuditResultRepository : IAuditResultRepository
                 @Status, @ReviewerNote, @Reviewer, @DetectedAt, @ReviewedAt
             )
             ON CONFLICT(Id) DO UPDATE SET
+                RuleName = excluded.RuleName,
+                Category = excluded.Category,
                 Severity = excluded.Severity,
+                EntityId = excluded.EntityId,
+                EntityType = excluded.EntityType,
+                VoucherId = excluded.VoucherId,
+                LedgerId = excluded.LedgerId,
+                VoucherNumber = excluded.VoucherNumber,
+                VoucherDate = excluded.VoucherDate,
+                FlaggedAmount = excluded.FlaggedAmount,
                 Explanation = excluded.Explanation,
                 EvidenceJson = excluded.EvidenceJson,
-                FlaggedAmount = excluded.FlaggedAmount,
-                Status = excluded.Status;
+                SuggestedCorrection = excluded.SuggestedCorrection;
         ";
 
-        var parametersList = results.Select(r => new
+        var parametersList = results.Select(r =>
         {
-            r.ResultId,
-            r.CompanyId,
-            r.RuleId,
-            r.RuleName,
-            Category = (int)r.Category,
-            Severity = (int)r.Severity,
-            EntityId = r.VoucherId ?? r.LedgerId ?? r.ResultId,
-            EntityType = !string.IsNullOrEmpty(r.VoucherId) ? "Voucher" : "Ledger",
-            r.VoucherId,
-            r.LedgerId,
-            r.VoucherNumber,
-            r.VoucherDate,
-            r.FlaggedAmount,
-            r.Explanation,
-            r.Evidence,
-            SuggestedCorrection = r.Explanation,
-            Status = (int)r.Status,
-            r.ReviewerNote,
-            r.Reviewer,
-            r.DetectedAt,
-            ReviewedAt = r.Status != ReviewStatus.Pending ? DateTime.UtcNow : (DateTime?)null
+            var stableResultId = CreateStableFindingId(r);
+            r.ResultId = stableResultId;
+
+            return new
+            {
+                ResultId = stableResultId,
+                r.CompanyId,
+                r.RuleId,
+                r.RuleName,
+                Category = (int)r.Category,
+                Severity = (int)r.Severity,
+                EntityId = r.VoucherId ?? r.LedgerId ?? stableResultId,
+                EntityType = !string.IsNullOrEmpty(r.VoucherId)
+                    ? "Voucher"
+                    : !string.IsNullOrEmpty(r.LedgerId) ? "Ledger" : "Finding",
+                r.VoucherId,
+                r.LedgerId,
+                r.VoucherNumber,
+                r.VoucherDate,
+                r.FlaggedAmount,
+                r.Explanation,
+                r.Evidence,
+                SuggestedCorrection = r.Explanation,
+                Status = (int)r.Status,
+                r.ReviewerNote,
+                r.Reviewer,
+                r.DetectedAt,
+                ReviewedAt = r.Status != ReviewStatus.Pending ? DateTime.UtcNow : (DateTime?)null
+            };
         });
 
         await connection.ExecuteAsync(new CommandDefinition(sql, parametersList, tx, cancellationToken: cancellationToken));
@@ -176,17 +194,42 @@ public class AuditResultRepository : IAuditResultRepository
         }
     }
 
+    private static string CreateStableFindingId(AuditResult result)
+    {
+        // Exclude generated timestamps and review metadata so an unchanged finding
+        // receives the same identity on every audit run. Any changed audit evidence
+        // produces a new pending finding that must be reviewed again.
+        var identity = new
+        {
+            CompanyId = result.CompanyId ?? string.Empty,
+            RuleId = result.RuleId ?? string.Empty,
+            Category = (int)result.Category,
+            Severity = (int)result.Severity,
+            VoucherId = result.VoucherId ?? string.Empty,
+            LedgerId = result.LedgerId ?? string.Empty,
+            VoucherNumber = result.VoucherNumber ?? string.Empty,
+            VoucherDate = result.VoucherDate?.ToString("O", System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+            FlaggedAmount = result.FlaggedAmount?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+            Explanation = result.Explanation ?? string.Empty,
+            Evidence = string.IsNullOrWhiteSpace(result.Evidence) ? "{}" : result.Evidence
+        };
+
+        var payload = JsonSerializer.SerializeToUtf8Bytes(identity);
+        return "FND-" + Convert.ToHexString(SHA256.HashData(payload));
+    }
+
     public async Task<IReadOnlyList<AuditResult>> GetResultsAsync(string companyId, string? ruleId = null, SeverityLevel? minSeverity = null, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
-        var sql = @"
+        var sql = ExceptionQuerySql.RankedFindingsCte + @"
             SELECT 
-                Id AS ResultId, RuleId, RuleName, CompanyId, VoucherId, LedgerId, 
-                VoucherNumber, VoucherDate, FlaggedAmount, FlaggedAt AS DetectedAt, 
-                Category, Severity, Explanation, EvidenceJson AS Evidence, Status, 
-                AuditorAssignedTo AS Reviewer, AuditorNote AS ReviewerNote 
-            FROM Exceptions 
-            WHERE CompanyId = @CompanyId
+                e.Id AS ResultId, e.RuleId, e.RuleName, e.CompanyId, e.VoucherId, e.LedgerId, 
+                e.VoucherNumber, e.VoucherDate, e.FlaggedAmount, e.FlaggedAt AS DetectedAt, 
+                e.Category, e.Severity, e.Explanation, e.EvidenceJson AS Evidence, e.Status, 
+                e.AuditorAssignedTo AS Reviewer, e.AuditorNote AS ReviewerNote 
+            FROM Exceptions e
+            INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+            WHERE e.CompanyId = @CompanyId
         ";
 
         var parameters = new DynamicParameters();
@@ -194,17 +237,17 @@ public class AuditResultRepository : IAuditResultRepository
 
         if (!string.IsNullOrEmpty(ruleId))
         {
-            sql += " AND RuleId = @RuleId";
+            sql += " AND e.RuleId = @RuleId";
             parameters.Add("RuleId", ruleId);
         }
 
         if (minSeverity.HasValue)
         {
-            sql += " AND Severity >= @Severity";
+            sql += " AND e.Severity >= @Severity";
             parameters.Add("Severity", (int)minSeverity.Value);
         }
 
-        sql += " ORDER BY Severity DESC, FlaggedAt DESC;";
+        sql += " ORDER BY e.Severity DESC, e.FlaggedAt DESC;";
 
         var results = await connection.QueryAsync<AuditResult>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
         return results.ToList();
@@ -237,14 +280,15 @@ public class ExceptionRepository : IExceptionRepository
         CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
-        var sql = @"
+        var sql = ExceptionQuerySql.RankedFindingsCte + @"
             SELECT 
-                Id AS ResultId, RuleId, RuleName, CompanyId, VoucherId, LedgerId, 
-                VoucherNumber, VoucherDate, FlaggedAmount, FlaggedAt AS DetectedAt, 
-                Category, Severity, Explanation, EvidenceJson AS Evidence, Status, 
-                AuditorAssignedTo AS Reviewer, AuditorNote AS ReviewerNote 
-            FROM Exceptions 
-            WHERE CompanyId = @CompanyId
+                e.Id AS ResultId, e.RuleId, e.RuleName, e.CompanyId, e.VoucherId, e.LedgerId, 
+                e.VoucherNumber, e.VoucherDate, e.FlaggedAmount, e.FlaggedAt AS DetectedAt, 
+                e.Category, e.Severity, e.Explanation, e.EvidenceJson AS Evidence, e.Status, 
+                e.AuditorAssignedTo AS Reviewer, e.AuditorNote AS ReviewerNote 
+            FROM Exceptions e
+            INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+            WHERE e.CompanyId = @CompanyId
         ";
 
         var parameters = new DynamicParameters();
@@ -252,23 +296,23 @@ public class ExceptionRepository : IExceptionRepository
 
         if (category.HasValue)
         {
-            sql += " AND Category = @Category";
+            sql += " AND e.Category = @Category";
             parameters.Add("Category", (int)category.Value);
         }
 
         if (minSeverity.HasValue)
         {
-            sql += " AND Severity >= @Severity";
+            sql += " AND e.Severity >= @Severity";
             parameters.Add("Severity", (int)minSeverity.Value);
         }
 
         if (status.HasValue)
         {
-            sql += " AND Status = @Status";
+            sql += " AND e.Status = @Status";
             parameters.Add("Status", (int)status.Value);
         }
 
-        sql += " ORDER BY Severity DESC, VoucherDate DESC LIMIT @Take OFFSET @Skip;";
+        sql += " ORDER BY e.Severity DESC, e.VoucherDate DESC LIMIT @Take OFFSET @Skip;";
         parameters.Add("Take", take);
         parameters.Add("Skip", skip);
 
@@ -284,18 +328,28 @@ public class ExceptionRepository : IExceptionRepository
         CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
-        var sql = "SELECT COUNT(*) FROM Exceptions WHERE CompanyId = @CompanyId";
+        var sql = ExceptionQuerySql.RankedFindingsCte + @"
+            SELECT COUNT(*)
+            FROM Exceptions e
+            INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+            WHERE e.CompanyId = @CompanyId";
         var parameters = new DynamicParameters();
         parameters.Add("CompanyId", companyId);
 
+        if (category.HasValue)
+        {
+            sql += " AND e.Category = @Category";
+            parameters.Add("Category", (int)category.Value);
+        }
+
         if (minSeverity.HasValue)
         {
-            sql += " AND Severity >= @Severity";
+            sql += " AND e.Severity >= @Severity";
             parameters.Add("Severity", (int)minSeverity.Value);
         }
         if (status.HasValue)
         {
-            sql += " AND Status = @Status";
+            sql += " AND e.Status = @Status";
             parameters.Add("Status", (int)status.Value);
         }
 
@@ -315,4 +369,41 @@ public class ExceptionRepository : IExceptionRepository
         ";
         await connection.ExecuteAsync(new CommandDefinition(sql, new { Id = resultId, Status = (int)status, Reviewer = reviewer, ReviewerNote = reviewerNote }, cancellationToken: cancellationToken));
     }
+}
+
+
+internal static class ExceptionQuerySql
+{
+    internal const string RankedFindingsCte = @"
+WITH RankedFindings AS (
+    SELECT
+        Id,
+        ROW_NUMBER() OVER (
+            PARTITION BY
+                CompanyId,
+                RuleId,
+                Category,
+                Severity,
+                COALESCE(VoucherId, ''),
+                COALESCE(LedgerId, ''),
+                COALESCE(VoucherNumber, ''),
+                COALESCE(VoucherDate, ''),
+                COALESCE(FlaggedAmount, 0),
+                COALESCE(Explanation, ''),
+                COALESCE(EvidenceJson, '{}'),
+                CASE
+                    WHEN COALESCE(VoucherId, '') <> '' THEN 'V:' || VoucherId
+                    WHEN COALESCE(LedgerId, '') <> '' THEN 'L:' || LedgerId
+                    ELSE 'I:' || COALESCE(EntityId, Id)
+                END
+            ORDER BY
+                CASE WHEN Status = 0 THEN 1 ELSE 0 END,
+                COALESCE(ReviewedAt, FlaggedAt) DESC,
+                FlaggedAt DESC,
+                Id DESC
+        ) AS DuplicateRank
+    FROM Exceptions
+    WHERE CompanyId = @CompanyId
+)
+";
 }
