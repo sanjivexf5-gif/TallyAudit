@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TallyAuditAssistant.Core.Common;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
@@ -100,7 +101,18 @@ public partial class AuditChecklistViewModel : ObservableObject, INavigationAwar
             }
 
             ActiveCompanyName = company.TallyCompanyName;
-            _auditId = $"CHECKLIST-{company.Id}";
+            var activePeriod = await _companyContext.GetActivePeriodAsync();
+            var financialPeriodId = string.IsNullOrWhiteSpace(activePeriod?.FinancialPeriodId)
+                ? $"FY-{company.BooksFromDate.Year}"
+                : activePeriod.FinancialPeriodId;
+            _auditId = AuditWorkspaceKeys.ChecklistForPeriod(company.Id, financialPeriodId);
+
+            // Preserve existing installations by moving legacy company-wide checklist work
+            // into the first opened period. Subsequent periods receive independent data.
+            await _repository.MigrateLegacyChecklistDataAsync(
+                AuditWorkspaceKeys.LegacyChecklistForCompany(company.Id),
+                _auditId);
+
             var existing = (await _repository.GetChecklistAsync(_auditId)).ToList();
 
             if (existing.Count == 0)
