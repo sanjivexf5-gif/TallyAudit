@@ -193,8 +193,9 @@ public partial class RiskDashboardViewModel : ObservableObject, INavigationAware
             AccountingCount = findings.Count(x => x.Category == RuleCategory.GeneralAccounting);
             BankingCount = findings.Count(x => x.Category == RuleCategory.Banking);
 
-            RiskScore = Math.Min(100, CriticalCount * 30 + HighCount * 15 + MediumCount * 7 + LowCount * 3);
-            RiskLabel = RiskScore >= 75 ? "CRITICAL" : RiskScore >= 50 ? "HIGH" : RiskScore >= 25 ? "MEDIUM" : "LOW";
+            var riskOptions = new RiskScoringOptions();
+            RiskScore = AuditRiskScoring.CalculateScore(CriticalCount, HighCount, MediumCount, LowCount, riskOptions);
+            RiskLabel = AuditRiskScoring.GetRiskLevel(RiskScore, riskOptions).ToUpperInvariant();
 
             TopRisks.Clear();
             foreach (var finding in findings
