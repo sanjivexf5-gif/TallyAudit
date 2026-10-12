@@ -74,6 +74,17 @@ public class AuditDashboardService : IAuditDashboardService
             };
         }
 
+        // When the caller does not provide an explicit range, respect the active
+        // company's selected financial year. Without this, the dashboard can show
+        // a selected FY label while aggregating findings from every year.
+        if (!periodFrom.HasValue && !periodTo.HasValue &&
+            _companyContext != null &&
+            string.Equals(_companyContext.ActiveCompanyId, companyId, StringComparison.OrdinalIgnoreCase))
+        {
+            periodFrom = _companyContext.ActivePeriodFrom;
+            periodTo = _companyContext.ActivePeriodTo;
+        }
+
         var cacheKey = $"{companyId}:{periodFrom:yyyy-MM-dd}:{periodTo:yyyy-MM-dd}";
         if (_cache.TryGetValue(cacheKey, out var cachedSummary))
         {
