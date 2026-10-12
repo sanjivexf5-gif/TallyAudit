@@ -64,7 +64,11 @@ public class SyncManagerTests
         mockVoucher.Setup(v => v.StreamVouchersChunkedAsync(It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                    .Returns(MockStream());
 
+        var observedAlterIds = new List<long>();
         var mockSyncRepo = new Mock<ISyncRepository>();
+        mockSyncRepo.Setup(r => r.UpsertCompanyAsync(It.IsAny<Company>(), It.IsAny<FinancialYear>(), It.IsAny<CancellationToken>()))
+                    .Callback<Company, FinancialYear, CancellationToken>((company, _, _) => observedAlterIds.Add(company.LastAlterId))
+                    .Returns(Task.CompletedTask);
         mockSyncRepo.Setup(r => r.BatchUpsertLedgersAsync(It.IsAny<IReadOnlyList<Ledger>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                     .ReturnsAsync((2, 0));
         mockSyncRepo.Setup(r => r.BatchUpsertVouchersAsync(It.IsAny<IReadOnlyList<Voucher>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
@@ -94,6 +98,7 @@ public class SyncManagerTests
         Assert.Equal(3, result.TotalProcessed); // 2 ledgers + 1 voucher
         Assert.Equal(3, result.Inserted);
         Assert.Equal(0, result.Errors);
+        Assert.Equal(new long[] { 0, 500 }, observedAlterIds);
 
         mockSyncRepo.Verify(r => r.UpsertCompanyAsync(It.IsAny<Company>(), It.IsAny<FinancialYear>(), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
         mockSyncRepo.Verify(r => r.OptimizeIndexesAsync(It.IsAny<CancellationToken>()), Times.Once);
@@ -152,6 +157,93 @@ public class SyncManagerTests
             v => v.StreamVouchersChunkedIncrementalAsync("Inc Co", It.IsAny<DateTime>(), It.IsAny<DateTime>(), 125,
                 7, It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task IncrementalSync_FailedVoucherStream_DoesNotAdvanceAlterIdCursor()
+    {
+        const long previousAlterId = 125;
+        const long currentTallyAlterId = 250;
+        var mockConn = new Mock<ITallyConnection>();
+        mockConn.Setup(c => c.TestConnectionAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+
+        var mockCompany = new Mock<ITallyCompanyService>();
+        mockCompany.Setup(c => c.GetCompanyProfileTypedAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                   .ReturnsAsync(new TallyCompanyProfile
+                   {
+                       Name = "Cursor Co",
+                       BooksBeginningFrom = new DateTime(2025, 4, 1),
+                       AlterId = currentTallyAlterId
+                   });
+
+        var mockAuditRepo = new Mock<IAuditRepository>();
+        mockAuditRepo.Setup(r => r.GetCompanyByIdAsync("Cursor Co", It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new Company
+                     {
+                         Id = "Cursor Co",
+                         TallyCompanyName = "Cursor Co",
+                         LastAlterId = previousAlterId,
+                         BooksFromDate = new DateTime(2025, 4, 1)
+                     });
+
+        var mockMaster = new Mock<ITallyMasterService>();
+        mockMaster.Setup(m => m.GetGroupsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(new List<string>());
+        mockMaster.Setup(m => m.GetLedgersAsync(It.IsAny<string>(), It.IsAny<long?>(), It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(new List<TallyLedgerDto>());
+
+        var mockVoucher = new Mock<ITallyVoucherService>();
+        async IAsyncEnumerable<TallyVoucherDto> FailingStream()
+        {
+            await Task.Yield();
+            yield return new TallyVoucherDto
+            {
+                Guid = "PARTIAL-VOUCHER",
+                VoucherNumber = "PV-001",
+                VoucherType = "Purchase",
+                VoucherDate = new DateTime(2025, 5, 1),
+                TotalAmount = 100,
+                Entries = new List<TallyVoucherEntryDto>
+                {
+                    new() { LedgerName = "Test Expense", Amount = 100, IsDebit = true }
+                }
+            };
+            await Task.Yield();
+            throw new InvalidOperationException("Simulated voucher stream failure");
+        }
+
+        mockVoucher.Setup(v => v.StreamVouchersChunkedIncrementalAsync(
+                "Cursor Co", It.IsAny<DateTime>(), It.IsAny<DateTime>(), previousAlterId, 7, It.IsAny<CancellationToken>()))
+            .Returns(FailingStream());
+
+        var observedAlterIds = new List<long>();
+        var mockSyncRepo = new Mock<ISyncRepository>();
+        mockSyncRepo.Setup(r => r.UpsertCompanyAsync(It.IsAny<Company>(), It.IsAny<FinancialYear>(), It.IsAny<CancellationToken>()))
+                    .Callback<Company, FinancialYear, CancellationToken>((company, _, _) => observedAlterIds.Add(company.LastAlterId))
+                    .Returns(Task.CompletedTask);
+        mockSyncRepo.Setup(r => r.BatchUpsertLedgersAsync(It.IsAny<IReadOnlyList<Ledger>>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync((0, 0));
+
+        var manager = new SyncManager(
+            mockConn.Object,
+            mockCompany.Object,
+            mockMaster.Object,
+            mockVoucher.Object,
+            mockSyncRepo.Object,
+            mockAuditRepo.Object,
+            new Mock<ISettingsService>().Object,
+            _logger);
+
+        var result = await manager.StartSyncAsync("Cursor Co", SyncMode.Incremental);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(SyncStatus.Failed, manager.CurrentStatus);
+        Assert.Equal(new long[] { previousAlterId }, observedAlterIds);
+        mockVoucher.Verify(v => v.StreamVouchersChunkedIncrementalAsync(
+            "Cursor Co", It.IsAny<DateTime>(), It.IsAny<DateTime>(), previousAlterId, 7, It.IsAny<CancellationToken>()), Times.Once);
+        mockSyncRepo.Verify(r => r.RecordSyncHistoryAsync(
+            It.Is<SyncHistoryRecord>(history => history.Status == "Failed"), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

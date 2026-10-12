@@ -210,9 +210,25 @@ public class SyncManager : ISyncManager
                 };
             }
 
-            // Look up existing company record to check for delta AlterId
+            // Preserve the last successfully synchronized cursor until every stage completes.
+            // Advancing LastAlterId before voucher batches finish can permanently skip changes
+            // after a partial failure, because the next delta request would start too late.
             var existingCompany = await _auditRepository.GetCompanyByIdAsync(companyId, ct);
-            long? fromAlterId = (mode == SyncMode.Incremental && existingCompany != null) ? existingCompany.LastAlterId : null;
+            var previousAlterId = existingCompany?.LastAlterId ?? 0L;
+            var targetAlterId = profile.AlterId > 0 ? profile.AlterId : previousAlterId;
+            var alterIdRegressed = profile.AlterId > 0 && previousAlterId > 0 && profile.AlterId < previousAlterId;
+
+            long? fromAlterId = mode == SyncMode.Incremental &&
+                                existingCompany != null &&
+                                previousAlterId > 0 &&
+                                !alterIdRegressed
+                ? previousAlterId
+                : null;
+
+            if (mode == SyncMode.Incremental && alterIdRegressed)
+            {
+                EmitLog($"TallyPrime Alter ID regressed from {previousAlterId} to {profile.AlterId}. Performing a full sync to avoid missing changes.");
+            }
 
             var isMock = await _settingsService.IsMockModeEnabledAsync();
             var compEntity = new Company
@@ -225,7 +241,8 @@ public class SyncManager : ISyncManager
                 StateName = profile.StateName,
                 StateCode = profile.StateCode,
                 BooksFromDate = profile.BooksBeginningFrom,
-                LastAlterId = profile.AlterId,
+                // Keep the old cursor persisted until all sync stages finish successfully.
+                LastAlterId = previousAlterId,
                 IsMock = isMock
             };
 
@@ -409,8 +426,10 @@ public class SyncManager : ISyncManager
             EmitLog("Running PRAGMA optimize on database indexes...");
             await _syncRepository.OptimizeIndexesAsync(ct);
 
-            // Update company last sync metadata
+            // Commit the new cursor only after all masters and voucher chunks are persisted.
+            // If any earlier stage fails, the previous cursor remains available for a safe retry.
             compEntity.LastSyncDate = DateTime.UtcNow;
+            compEntity.LastAlterId = targetAlterId;
             await _syncRepository.UpsertCompanyAsync(compEntity, fyEntity, ct);
 
             // Record history
