@@ -223,4 +223,148 @@ public class DatabaseForeignKeyAndAuditWorkflowTests : IAsyncLifetime
             await conn.ExecuteAsync(new CommandDefinition(insertSql, invalidResult));
         });
     }
+
+    [Fact]
+    public async Task SaveResultsBatch_RepeatedFindingIsIdempotentAndPreservesReviewState()
+    {
+        const string companyId = "IDEMPOTENT-FINDING-CO";
+        const string ruleId = "TEST-IDEMPOTENT-01";
+
+        AuditResult CreateFinding(string evidence = "{\"Ledger\":\"Purchases\",\"Reason\":\"Missing support\"}") =>
+            new()
+            {
+                CompanyId = companyId,
+                RuleId = ruleId,
+                RuleName = "Missing supporting evidence",
+                Category = RuleCategory.GeneralAccounting,
+                Severity = SeverityLevel.High,
+                VoucherId = "VOUCH-IDEMPOTENT-01",
+                VoucherNumber = "PUR-101",
+                VoucherDate = new DateTime(2025, 8, 1),
+                FlaggedAmount = 12500m,
+                Explanation = "Purchase voucher requires supporting evidence.",
+                Evidence = evidence
+            };
+
+        await _resultRepo.SaveResultsBatchAsync(new[] { CreateFinding() });
+
+        var firstRead = await _resultRepo.GetResultsAsync(companyId, ruleId);
+        var first = Assert.Single(firstRead);
+        Assert.StartsWith("FND-", first.ResultId);
+
+        await _auditRepo.UpdateExceptionStatusAsync(
+            first.ResultId,
+            ReviewStatus.Reviewed,
+            "Evidence checked by auditor.");
+
+        // A new object receives a different random default ID; persistence should still be idempotent.
+        await _resultRepo.SaveResultsBatchAsync(new[] { CreateFinding() });
+
+        var repeatedRead = await _resultRepo.GetResultsAsync(companyId, ruleId);
+        var repeated = Assert.Single(repeatedRead);
+        Assert.Equal(first.ResultId, repeated.ResultId);
+        Assert.Equal(ReviewStatus.Reviewed, repeated.Status);
+        Assert.Equal("Evidence checked by auditor.", repeated.ReviewerNote);
+        Assert.Equal(1, await _auditRepo.GetExceptionCountAsync(companyId, status: ReviewStatus.Reviewed));
+        Assert.Equal(0, await _auditRepo.GetExceptionCountAsync(companyId, status: ReviewStatus.Pending));
+    }
+
+    [Fact]
+    public async Task SaveResultsBatch_ChangedEvidenceCreatesNewPendingFindingForReview()
+    {
+        const string companyId = "CHANGED-FINDING-CO";
+        const string ruleId = "TEST-CHANGED-01";
+
+        AuditResult CreateFinding(string evidence) =>
+            new()
+            {
+                CompanyId = companyId,
+                RuleId = ruleId,
+                RuleName = "Purchase evidence check",
+                Category = RuleCategory.GeneralAccounting,
+                Severity = SeverityLevel.High,
+                VoucherId = "VOUCH-CHANGED-01",
+                VoucherNumber = "PUR-202",
+                VoucherDate = new DateTime(2025, 9, 1),
+                FlaggedAmount = 9800m,
+                Explanation = "Purchase voucher requires supporting evidence.",
+                Evidence = evidence
+            };
+
+        await _resultRepo.SaveResultsBatchAsync(new[] { CreateFinding("{\"Missing\":\"Invoice\"}") });
+        var original = Assert.Single(await _resultRepo.GetResultsAsync(companyId, ruleId));
+
+        await _auditRepo.UpdateExceptionStatusAsync(
+            original.ResultId,
+            ReviewStatus.Reviewed,
+            "Original supporting documents checked.");
+
+        await _resultRepo.SaveResultsBatchAsync(new[] { CreateFinding("{\"Missing\":\"Invoice\",\"Source\":\"Revised register\"}") });
+
+        var findings = await _resultRepo.GetResultsAsync(companyId, ruleId);
+        Assert.Equal(2, findings.Count);
+        Assert.Contains(findings, x => x.ResultId == original.ResultId && x.Status == ReviewStatus.Reviewed);
+        var changed = Assert.Single(findings.Where(x => x.ResultId != original.ResultId));
+        Assert.StartsWith("FND-", changed.ResultId);
+        Assert.Equal(ReviewStatus.Pending, changed.Status);
+    }
+
+    [Fact]
+    public async Task ExceptionQueries_CollapseLegacyExactDuplicatesAndPreferReviewedCopy()
+    {
+        const string companyId = "LEGACY-DUPLICATE-FINDING-CO";
+        const string ruleId = "TEST-LEGACY-DUP-01";
+        await _auditRepo.SaveCompanyAsync(new Company
+        {
+            Id = companyId,
+            TallyCompanyName = companyId,
+            BooksFromDate = new DateTime(2025, 4, 1)
+        });
+
+        await _resultRepo.SaveResultsBatchAsync(new[]
+        {
+            new AuditResult
+            {
+                CompanyId = companyId,
+                RuleId = ruleId,
+                RuleName = "Duplicate invoice reference",
+                Category = RuleCategory.GeneralAccounting,
+                Severity = SeverityLevel.High,
+                VoucherId = "VOUCH-LEGACY-DUP-01",
+                VoucherNumber = "PUR-303",
+                FlaggedAmount = 7500m,
+                Explanation = "Invoice reference repeats.",
+                Evidence = "{\"Reference\":\"INV-303\"}"
+            }
+        });
+
+        var existing = Assert.Single(await _resultRepo.GetResultsAsync(companyId, ruleId));
+        await _auditRepo.UpdateExceptionStatusAsync(
+            existing.ResultId,
+            ReviewStatus.Reviewed,
+            "Reviewed legacy finding.");
+
+        using var conn = await _factory.CreateConnectionAsync();
+        await conn.ExecuteAsync(@"
+            INSERT INTO Exceptions
+                (Id, CompanyId, RuleId, RuleName, Category, Severity, EntityId, EntityType,
+                 VoucherId, LedgerId, VoucherNumber, VoucherDate, FlaggedAmount, Explanation,
+                 EvidenceJson, SuggestedCorrection, Status, AuditorNote, AuditorAssignedTo,
+                 FlaggedAt, DetectedAt, ReviewedAt)
+            VALUES
+                ('LEGACY-DUPLICATE-COPY', @CompanyId, @RuleId, 'Duplicate invoice reference',
+                 0, 3, 'VOUCH-LEGACY-DUP-01', 'Voucher', 'VOUCH-LEGACY-DUP-01', NULL,
+                 'PUR-303', NULL, 7500, 'Invoice reference repeats.',
+                 '{"Reference":"INV-303"}', 'Invoice reference repeats.', 0, NULL, NULL,
+                 '2026-10-12 15:00:00', '2026-10-12 15:00:00', NULL);
+        ", new { CompanyId = companyId, RuleId = ruleId });
+
+        var findings = await _auditRepo.GetExceptionsFilteredAsync(companyId);
+        var single = Assert.Single(findings);
+        Assert.Equal(existing.ResultId, single.Id);
+        Assert.Equal(ReviewStatus.Reviewed, single.Status);
+        Assert.Equal(1, await _auditRepo.GetExceptionCountAsync(companyId));
+        Assert.Equal(0, await _auditRepo.GetExceptionCountAsync(companyId, status: ReviewStatus.Pending));
+    }
+
 }
