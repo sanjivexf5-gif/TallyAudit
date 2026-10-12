@@ -51,6 +51,21 @@ public class RiskScoringOptions
     public int BenchmarkMaxPoints { get; set; } = 100;
 }
 
+/// <summary>Complete period-scoped headline aggregates calculated by the database.</summary>
+public sealed class AuditDashboardAggregates
+{
+    public int TotalFindings { get; set; }
+    public int CriticalCount { get; set; }
+    public int HighCount { get; set; }
+    public int MediumCount { get; set; }
+    public int LowCount { get; set; }
+    public int InformationalCount { get; set; }
+    public int OpenFindings { get; set; }
+    public int ReviewedFindings { get; set; }
+    public int ResolvedFindings { get; set; }
+    public decimal TotalExceptionAmount { get; set; }
+}
+
 public class AuditDashboardSummary
 {
     public int OverallRiskScore { get; set; }

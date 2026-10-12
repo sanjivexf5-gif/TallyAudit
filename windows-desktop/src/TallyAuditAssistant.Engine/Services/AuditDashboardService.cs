@@ -122,8 +122,10 @@ public class AuditDashboardService : IAuditDashboardService
         // Count the complete period scope independently from the bounded detail page.
         // The detail page still powers breakdowns and top findings; the total must not
         // silently become the page size for large companies.
-        var countedFindings = await _repository.GetExceptionCountForPeriodAsync(
+        var aggregates = await _repository.GetDashboardAggregatesForPeriodAsync(
             companyId, periodFrom, periodTo, cancellationToken);
+        var countedFindings = aggregates?.TotalFindings ??
+            await _repository.GetExceptionCountForPeriodAsync(companyId, periodFrom, periodTo, cancellationToken);
         int totalScopedFindingCount = Math.Max(scopedExceptions.Count, countedFindings);
 
         // 2. Audit run history to determine if audit has executed
@@ -149,19 +151,19 @@ public class AuditDashboardService : IAuditDashboardService
         }
 
         // 4. Severity counts
-        int criticalCount = scopedExceptions.Count(e => e.Severity == SeverityLevel.Critical);
-        int highCount = scopedExceptions.Count(e => e.Severity == SeverityLevel.High);
-        int mediumCount = scopedExceptions.Count(e => e.Severity == SeverityLevel.Medium);
-        int lowCount = scopedExceptions.Count(e => e.Severity == SeverityLevel.Low);
-        int informationalCount = scopedExceptions.Count(e => e.Severity == SeverityLevel.Informational);
+        int criticalCount = aggregates?.CriticalCount ?? scopedExceptions.Count(e => e.Severity == SeverityLevel.Critical);
+        int highCount = aggregates?.HighCount ?? scopedExceptions.Count(e => e.Severity == SeverityLevel.High);
+        int mediumCount = aggregates?.MediumCount ?? scopedExceptions.Count(e => e.Severity == SeverityLevel.Medium);
+        int lowCount = aggregates?.LowCount ?? scopedExceptions.Count(e => e.Severity == SeverityLevel.Low);
+        int informationalCount = aggregates?.InformationalCount ?? scopedExceptions.Count(e => e.Severity == SeverityLevel.Informational);
         int totalFindings = totalScopedFindingCount;
 
-        // 5. Status counts
-        int openFindings = scopedExceptions.Count(e =>
+        // Headline review-state counts come from the complete period-scoped database aggregate.
+        int openFindings = aggregates?.OpenFindings ?? scopedExceptions.Count(e =>
             e.Status == ReviewStatus.Pending ||
             e.Status == ReviewStatus.RequiresClientClarification);
-        int reviewedFindings = scopedExceptions.Count(e => e.Status == ReviewStatus.Reviewed);
-        int resolvedFindings = scopedExceptions.Count(e =>
+        int reviewedFindings = aggregates?.ReviewedFindings ?? scopedExceptions.Count(e => e.Status == ReviewStatus.Reviewed);
+        int resolvedFindings = aggregates?.ResolvedFindings ?? scopedExceptions.Count(e =>
             e.Status == ReviewStatus.Resolved ||
             e.Status == ReviewStatus.FlaggedAsFalsePositive);
 
@@ -171,7 +173,7 @@ public class AuditDashboardService : IAuditDashboardService
         string overallRiskLevel = AuditRiskScoring.GetRiskLevel(overallRiskScore, Options);
 
         // 7. Financial Amounts (Decimal only, strictly never double)
-        decimal totalExceptionAmount = scopedExceptions.Sum(e => e.FlaggedAmount ?? 0m);
+        decimal totalExceptionAmount = aggregates?.TotalExceptionAmount ?? scopedExceptions.Sum(e => e.FlaggedAmount ?? 0m);
 
         decimal gstExceptionAmount = scopedExceptions
             .Where(IsGstException)
@@ -224,7 +226,7 @@ public class AuditDashboardService : IAuditDashboardService
 
         if (allCompanyExceptions.Count >= findingLimit || totalScopedFindingCount > scopedExceptions.Count)
         {
-            statusMessage += $" Dashboard breakdowns use a bounded detail page (up to {findingLimit:N0} company findings) and may be incomplete; the total finding count is period-aware. Open Exceptions for the full filtered review.";
+            statusMessage += $" Headline counts and total exception amount are complete for the selected period; audit-area/category breakdowns and top findings use a bounded detail page (up to {findingLimit:N0} company findings) and may be incomplete. Open Exceptions for the full filtered review.";
         }
 
         var summary = new AuditDashboardSummary

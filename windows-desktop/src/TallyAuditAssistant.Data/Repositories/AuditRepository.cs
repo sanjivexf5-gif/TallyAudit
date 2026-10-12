@@ -260,6 +260,55 @@ public class AuditRepository : IAuditRepository
             cancellationToken: cancellationToken));
     }
 
+    public async Task<AuditDashboardAggregates> GetDashboardAggregatesForPeriodAsync(
+        string companyId,
+        DateTime? periodFrom,
+        DateTime? periodTo,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        // Aggregate in SQLite so large companies do not require loading every finding
+        // into the desktop process. Keep the same deduplication and undated-finding
+        // inclusion rules used by GetExceptionCountForPeriodAsync.
+        var sql = ExceptionQuerySql.RankedFindingsCte + @"
+            SELECT
+                COUNT(*) AS TotalFindings,
+                COALESCE(SUM(CASE WHEN e.Severity = @Critical THEN 1 ELSE 0 END), 0) AS CriticalCount,
+                COALESCE(SUM(CASE WHEN e.Severity = @High THEN 1 ELSE 0 END), 0) AS HighCount,
+                COALESCE(SUM(CASE WHEN e.Severity = @Medium THEN 1 ELSE 0 END), 0) AS MediumCount,
+                COALESCE(SUM(CASE WHEN e.Severity = @Low THEN 1 ELSE 0 END), 0) AS LowCount,
+                COALESCE(SUM(CASE WHEN e.Severity = @Informational THEN 1 ELSE 0 END), 0) AS InformationalCount,
+                COALESCE(SUM(CASE WHEN e.Status IN (@Pending, @Clarification) THEN 1 ELSE 0 END), 0) AS OpenFindings,
+                COALESCE(SUM(CASE WHEN e.Status = @Reviewed THEN 1 ELSE 0 END), 0) AS ReviewedFindings,
+                COALESCE(SUM(CASE WHEN e.Status IN (@Resolved, @FalsePositive) THEN 1 ELSE 0 END), 0) AS ResolvedFindings,
+                COALESCE(SUM(COALESCE(e.FlaggedAmount, 0)), 0) AS TotalExceptionAmount
+            FROM Exceptions e
+            INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+            WHERE e.CompanyId = @CompanyId
+              AND (e.VoucherDate IS NULL OR
+                   ((@PeriodFrom IS NULL OR date(e.VoucherDate) >= date(@PeriodFrom))
+                    AND (@PeriodTo IS NULL OR date(e.VoucherDate) <= date(@PeriodTo))))";
+        return await connection.QuerySingleAsync<AuditDashboardAggregates>(new CommandDefinition(
+            sql,
+            new
+            {
+                CompanyId = companyId,
+                PeriodFrom = periodFrom?.ToString("yyyy-MM-dd"),
+                PeriodTo = periodTo?.ToString("yyyy-MM-dd"),
+                Critical = (int)SeverityLevel.Critical,
+                High = (int)SeverityLevel.High,
+                Medium = (int)SeverityLevel.Medium,
+                Low = (int)SeverityLevel.Low,
+                Informational = (int)SeverityLevel.Informational,
+                Pending = (int)ReviewStatus.Pending,
+                Clarification = (int)ReviewStatus.RequiresClientClarification,
+                Reviewed = (int)ReviewStatus.Reviewed,
+                Resolved = (int)ReviewStatus.Resolved,
+                FalsePositive = (int)ReviewStatus.FlaggedAsFalsePositive
+            },
+            cancellationToken: cancellationToken));
+    }
+
     public async Task UpdateExceptionStatusAsync(string exceptionId, ReviewStatus newStatus, string? auditorNote, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
