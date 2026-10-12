@@ -196,7 +196,7 @@ public class AuditRepository : IAuditRepository
             parameters.Add("Status", (int)status.Value);
         }
 
-        sql += " ORDER BY Severity DESC, VoucherDate DESC LIMIT @Take OFFSET @Skip";
+        sql += " ORDER BY Severity DESC, VoucherDate DESC, Id ASC LIMIT @Take OFFSET @Skip";
         parameters.Add("Take", take);
         parameters.Add("Skip", skip);
 
@@ -351,7 +351,7 @@ public class AuditRepository : IAuditRepository
         else if (sortBy == "Review Status" || sortBy == "Status") sortCol = "Status";
 
         var dir = isDescending ? "DESC" : "ASC";
-        sql += $" ORDER BY {sortCol} {dir}, FlaggedAt DESC";
+        sql += $" ORDER BY {sortCol} {dir}, FlaggedAt DESC, Id ASC";
 
         var results = await connection.QueryAsync<AuditException>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
         return results.ToList();
