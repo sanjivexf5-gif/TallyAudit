@@ -27,7 +27,17 @@
                     <StackPanel Grid.Column="0">
                         <TextBlock Text="{Binding ActiveCompanyName, StringFormat='Auditing: {0}'}" FontSize="20" FontWeight="Bold" Foreground="White"/>
                         <WrapPanel Margin="0,6,0,0">
-                            <TextBlock Text="{Binding FinancialYear, StringFormat='Period: {0}'}" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12" Margin="0,0,16,0"/>
+                            <TextBlock Text="Audit FY:" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <ComboBox ItemsSource="{Binding AvailableFinancialPeriods}"
+                                      SelectedItem="{Binding SelectedFinancialPeriod, Mode=TwoWay}"
+                                      DisplayMemberPath="FinancialYear"
+                                      MinWidth="112" Padding="5,2" Margin="0,0,6,0"
+                                      Background="#F8FAFC" Foreground="#0F172A"
+                                      ToolTip="Choose the financial year to review"/>
+                            <Button Content="Apply FY" Command="{Binding ApplyFinancialPeriodCommand}"
+                                    Padding="8,3" Margin="0,0,14,0"
+                                    Background="#334155" Foreground="White" BorderThickness="0"/>
+                            <TextBlock Text="{Binding FinancialYear, StringFormat='Active: {0}'}" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="12" Margin="0,0,16,0"/>
                             <TextBlock Text="{Binding LastSyncTime, StringFormat='Last Sync: {0}'}" Foreground="#94A3B8" FontSize="12" Margin="0,0,16,0"/>
                             <TextBlock Text="{Binding LastAuditRunTime, StringFormat='Last Run: {0}'}" Foreground="#10B981" FontWeight="SemiBold" FontSize="12"/>
                         </WrapPanel>
