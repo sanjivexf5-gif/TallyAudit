@@ -98,7 +98,7 @@ public sealed class DashboardSqliteAggregationTests : IAsyncLifetime
 
         Assert.Equal(2, top.Count);
         Assert.Equal("TOP-CRITICAL", top[0].RuleId);
-        Assert.Equal("TOP-HIGH", top[1].RuleId);
+        Assert.Equal("TOP-UNDATED", top[1].RuleId);
         Assert.DoesNotContain(top, finding => finding.RuleId is "TOP-OUTSIDE" or "TOP-OTHER");
     }
 
