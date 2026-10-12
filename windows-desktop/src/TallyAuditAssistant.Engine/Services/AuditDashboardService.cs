@@ -203,8 +203,24 @@ public class AuditDashboardService : IAuditDashboardService
             .Where(IsExpenseException)
             .Sum(e => e.FlaggedAmount ?? 0m);
 
-        // 8. Aggregate 15 Audit Areas
-        var auditAreaSummaries = BuildAuditAreaSummaries(scopedExceptions);
+        // 8. Complete area breakdowns are aggregated in SQLite; only 15 rows cross
+        // into the UI process, regardless of how many findings the company has.
+        var areaAggregates = await _repository.GetAuditAreaAggregatesForPeriodAsync(
+            companyId, periodFrom, periodTo, cancellationToken);
+        var auditAreaSummaries = areaAggregates != null
+            ? areaAggregates.Select(area => new AuditAreaSummary
+            {
+                AreaName = area.AreaName,
+                FindingCount = area.FindingCount,
+                CriticalCount = area.CriticalCount,
+                HighCount = area.HighCount,
+                MediumCount = area.MediumCount,
+                LowCount = area.LowCount,
+                ExceptionAmount = area.ExceptionAmount,
+                RiskScore = AuditRiskScoring.CalculateScore(
+                    area.CriticalCount, area.HighCount, area.MediumCount, area.LowCount, Options)
+            }).ToList()
+            : BuildAuditAreaSummaries(scopedExceptions);
 
         // 9. Top Findings (Ordered by Critical, High, Amount, Risk score)
         var topFindings = await BuildTopFindingsAsync(companyId, scopedExceptions, cancellationToken);
@@ -226,7 +242,7 @@ public class AuditDashboardService : IAuditDashboardService
 
         if (allCompanyExceptions.Count >= findingLimit || totalScopedFindingCount > scopedExceptions.Count)
         {
-            statusMessage += $" Headline counts and total exception amount are complete for the selected period; audit-area/category breakdowns and top findings use a bounded detail page (up to {findingLimit:N0} company findings) and may be incomplete. Open Exceptions for the full filtered review.";
+            statusMessage += $" Headline counts, total exception amount, and audit-area breakdowns are complete for the selected period; category amount summaries and top findings use a bounded detail page (up to {findingLimit:N0} company findings) and may be incomplete. Open Exceptions for the full filtered review.";
         }
 
         var summary = new AuditDashboardSummary
