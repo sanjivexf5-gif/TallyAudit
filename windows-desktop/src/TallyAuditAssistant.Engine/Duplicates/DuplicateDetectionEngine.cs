@@ -70,7 +70,7 @@ public class DuplicateDetectionEngine : IDuplicateDetectionEngine
 
         // -------------------------------------------------------------
         // PASS 1: EXACT DUPLICATE STRATEGY (100% Confidence)
-        // Group by Party + Date + Amount + Voucher/Ref Number
+        // Group by Party + Date + Amount; an identifier match is required for an exact classification
         // -------------------------------------------------------------
         if (config.EnableExactMatch)
         {
@@ -100,13 +100,13 @@ public class DuplicateDetectionEngine : IDuplicateDetectionEngine
                         bool sameRef = !string.IsNullOrWhiteSpace(v1.ReferenceNumber) &&
                                        string.Equals(v1.ReferenceNumber.Trim(), v2.ReferenceNumber?.Trim(), StringComparison.OrdinalIgnoreCase);
 
-                        if (sameNumber || sameRef || string.Equals(v1.VoucherTypeName, v2.VoucherTypeName, StringComparison.OrdinalIgnoreCase))
+                        if (sameNumber || sameRef)
                         {
                             var pair = BuildMatchPair(
                                 companyId,
                                 DuplicateConfidenceTier.ExactDuplicate,
                                 100.0,
-                                "Exact Match Strategy: Date + Party + Amount + Identifier/Type",
+                                "Exact Match Strategy: Date + Party + Amount + Matching Voucher/Reference Number",
                                 v1, v2);
 
                             matchPairs.Add(pair);
