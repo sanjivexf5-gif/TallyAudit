@@ -229,6 +229,49 @@ public class AuditQualityControlTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetVoucherCountForPeriod_IncludesBothBoundaryDatesAndExcludesOtherPeriods()
+    {
+        const string companyId = "COMP-QC-PERIOD-COUNT";
+        await SaveCompanyAsync(companyId);
+
+        using var conn = await _factory.CreateConnectionAsync();
+        await conn.ExecuteAsync(@"
+            INSERT INTO VoucherTypes (Id, CompanyId, Name, ParentType)
+            VALUES ('VT-PERIOD-COUNT', @CompanyId, 'Sales', 'Sales');
+
+            INSERT INTO Vouchers
+                (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, AlterId)
+            VALUES
+                ('PERIOD-BEFORE', @CompanyId, 'VT-PERIOD-COUNT', 'Sales', 'BEFORE', '2025-03-31', 100, 1),
+                ('PERIOD-START', @CompanyId, 'VT-PERIOD-COUNT', 'Sales', 'START', '2025-04-01', 100, 2),
+                ('PERIOD-END', @CompanyId, 'VT-PERIOD-COUNT', 'Sales', 'END', '2026-03-31', 100, 3),
+                ('PERIOD-AFTER', @CompanyId, 'VT-PERIOD-COUNT', 'Sales', 'AFTER', '2026-04-01', 100, 4);
+        ", new { CompanyId = companyId });
+
+        var totalCount = await _auditRepository.GetVoucherCountAsync(companyId);
+        var periodCount = await _auditRepository.GetVoucherCountForPeriodAsync(
+            companyId,
+            new DateTime(2025, 4, 1),
+            new DateTime(2026, 3, 31));
+
+        Assert.Equal(4, totalCount);
+        Assert.Equal(2, periodCount);
+    }
+
+    [Fact]
+    public async Task GetVoucherCountForPeriod_RejectsReversedDateRange()
+    {
+        const string companyId = "COMP-QC-PERIOD-INVALID";
+        await SaveCompanyAsync(companyId);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            _auditRepository.GetVoucherCountForPeriodAsync(
+                companyId,
+                new DateTime(2026, 4, 1),
+                new DateTime(2025, 4, 1)));
+    }
+
+    [Fact]
     public async Task GetQualityControlSummary_CountsPendingFindingsBeyondDisplayLimit()
     {
         const string companyId = "COMP-QC-LARGE";

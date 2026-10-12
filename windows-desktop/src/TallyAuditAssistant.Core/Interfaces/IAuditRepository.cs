@@ -21,6 +21,7 @@ public interface IAuditRepository
     Task<Company> EnsureCompanyAsync(Company company, CancellationToken cancellationToken = default);
 
     Task<int> GetVoucherCountAsync(string companyId, CancellationToken cancellationToken = default);
+    Task<int> GetVoucherCountForPeriodAsync(string companyId, DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default);
     Task<int> GetLedgerCountAsync(string companyId, CancellationToken cancellationToken = default);
     
     Task<IReadOnlyList<AuditException>> GetExceptionsAsync(

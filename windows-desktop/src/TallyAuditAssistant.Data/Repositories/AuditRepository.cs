@@ -114,6 +114,44 @@ public class AuditRepository : IAuditRepository
         return await connection.ExecuteScalarAsync<int>(new CommandDefinition(sql, new { CompanyId = companyId }, cancellationToken: cancellationToken));
     }
 
+    public async Task<int> GetVoucherCountForPeriodAsync(
+        string companyId,
+        DateTime fromDate,
+        DateTime toDate,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(companyId))
+        {
+            throw new ArgumentException("A company ID is required.", nameof(companyId));
+        }
+
+        if (fromDate.Date > toDate.Date)
+        {
+            throw new ArgumentException("The audit period start date must be on or before its end date.");
+        }
+
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+
+        // VoucherDate is stored as an ISO date/time string. Compare against ISO
+        // date boundaries with an exclusive next-day end, so the whole final day
+        // is included whether the database value contains a time component or not.
+        var from = fromDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var toExclusive = toDate.Date.AddDays(1).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        const string sql = @"
+            SELECT COUNT(*)
+            FROM Vouchers
+            WHERE CompanyId = @CompanyId
+              AND VoucherDate >= @FromDate
+              AND VoucherDate < @ToDateExclusive;
+        ";
+
+        return await connection.ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                sql,
+                new { CompanyId = companyId, FromDate = from, ToDateExclusive = toExclusive },
+                cancellationToken: cancellationToken));
+    }
+
     public async Task<int> GetLedgerCountAsync(string companyId, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
