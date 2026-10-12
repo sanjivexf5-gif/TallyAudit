@@ -25,7 +25,7 @@
                     <TextBlock Text="🛡️" FontSize="20" Margin="0,0,8,0" VerticalAlignment="Center"/>
                     <TextBlock Text="Audit Trail &amp; Activity History" FontSize="22" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
                     <Border Margin="12,0,0,0" Padding="8,3" CornerRadius="4" Background="#1E293B" BorderBrush="#334155" BorderThickness="1">
-                        <TextBlock Text="IMMUTABLE LOCAL FORENSIC LOG" FontSize="11" FontWeight="SemiBold" Foreground="#38BDF8"/>
+                        <TextBlock Text="LOCAL AUDIT LOG • HASHED RECORDS" FontSize="11" FontWeight="SemiBold" Foreground="#38BDF8"/>
                     </Border>
                 </StackPanel>
                 <TextBlock Text="Read-only chronological audit log tracking company changes, synchronization runs, engine executions, finding status transitions, and exports." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0" FontSize="12"/>
@@ -261,8 +261,9 @@
                         <!-- Cryptographic Hash -->
                         <Border Background="#1E293B" CornerRadius="6" Padding="12">
                             <StackPanel>
-                                <TextBlock Text="SHA256 INTEGRITY HASH:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
-                                <TextBlock Text="{Binding SelectedEntry.IntegrityHash, TargetNullValue='SHA256-VERIFIED'}" FontFamily="Consolas" FontSize="11" Foreground="#A78BFA" TextWrapping="Wrap"/>
+                                <TextBlock Text="RECORD INTEGRITY CHECK:" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                <TextBlock Text="{Binding SelectedEntryIntegrityStatus}" FontSize="11" FontWeight="SemiBold" Foreground="#38BDF8" TextWrapping="Wrap" Margin="0,4,0,6"/>
+                                <TextBlock Text="{Binding SelectedEntry.IntegrityHash, TargetNullValue='No hash stored'}" FontFamily="Consolas" FontSize="11" Foreground="#A78BFA" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
