@@ -176,10 +176,12 @@ public partial class RiskDashboardViewModel : ObservableObject, INavigationAware
                      (!periodTo.HasValue || x.VoucherDate.Value.Date <= periodTo.Value.Date)))
                 .ToArray();
 
-            TotalFindings = findings.Length;
+            var countedFindings = await _repository.GetExceptionCountForPeriodAsync(
+                company.Id, periodFrom, periodTo);
+            TotalFindings = Math.Max(findings.Length, countedFindings);
             LoadedFindingsCount = findings.Length;
-            StatusMessage = allFindings.Count >= 5000
-                ? $"Risk breakdown is based on the first 5,000 company findings, filtered to the selected financial period. Counts may be incomplete; open Exceptions for a complete review."
+            StatusMessage = allFindings.Count >= 5000 || TotalFindings > LoadedFindingsCount
+                ? $"Risk breakdown is based on {LoadedFindingsCount:N0} loaded findings for the selected financial period out of {TotalFindings:N0} total. Breakdown metrics may be incomplete; open Exceptions for a complete review."
                 : string.Empty;
             CriticalCount = findings.Count(x => x.Severity == SeverityLevel.Critical);
             HighCount = findings.Count(x => x.Severity == SeverityLevel.High);
