@@ -237,7 +237,7 @@ public class AuditDashboardService : IAuditDashboardService
 
         if (allCompanyExceptions.Count >= findingLimit || totalScopedFindingCount > scopedExceptions.Count)
         {
-            statusMessage += $" Headline counts, category amount summaries, and audit-area breakdowns are complete for the selected period; top findings are ranked from the complete period scope. The dashboard detail page remains bounded to {findingLimit:N0} findings for memory efficiency. Open Exceptions for the full filtered review.";
+            statusMessage += $" Headline counts, total exception amount, and audit-area breakdowns are complete for the selected period; category amount summaries and top findings are also complete for the full period scope. Some dashboard detail rows may be incomplete because the detail page is bounded to up to {findingLimit:N0} company findings for memory efficiency. Open Exceptions for the full filtered review.";
         }
 
         var summary = new AuditDashboardSummary
