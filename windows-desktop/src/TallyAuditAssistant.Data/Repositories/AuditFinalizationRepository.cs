@@ -69,6 +69,66 @@ public class AuditFinalizationRepository : IAuditFinalizationRepository
         return results.ToList();
     }
 
+    /// <summary>
+    /// Moves pre-period company-wide checklist data into the first period-scoped workspace
+    /// that opens it. Existing period data is never overwritten.
+    /// </summary>
+    public async Task MigrateLegacyChecklistDataAsync(
+        string legacyAuditId,
+        string periodAuditId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(legacyAuditId))
+            throw new ArgumentException("A legacy checklist ID is required.", nameof(legacyAuditId));
+        if (string.IsNullOrWhiteSpace(periodAuditId))
+            throw new ArgumentException("A period-scoped checklist ID is required.", nameof(periodAuditId));
+        if (string.Equals(legacyAuditId, periodAuditId, StringComparison.Ordinal))
+            return;
+
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        using var transaction = connection.BeginTransaction();
+
+        const string checklistCountSql =
+            "SELECT COUNT(*) FROM AuditChecklistItems WHERE AuditId = @AuditId;";
+        var periodChecklistCount = await connection.ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                checklistCountSql,
+                new { AuditId = periodAuditId },
+                transaction,
+                cancellationToken: cancellationToken));
+
+        if (periodChecklistCount == 0)
+        {
+            await connection.ExecuteAsync(
+                new CommandDefinition(
+                    "UPDATE AuditChecklistItems SET AuditId = @PeriodAuditId WHERE AuditId = @LegacyAuditId;",
+                    new { PeriodAuditId = periodAuditId, LegacyAuditId = legacyAuditId },
+                    transaction,
+                    cancellationToken: cancellationToken));
+        }
+
+        const string openItemsCountSql =
+            "SELECT COUNT(*) FROM AuditOpenItems WHERE AuditId = @AuditId;";
+        var periodOpenItemsCount = await connection.ExecuteScalarAsync<int>(
+            new CommandDefinition(
+                openItemsCountSql,
+                new { AuditId = periodAuditId },
+                transaction,
+                cancellationToken: cancellationToken));
+
+        if (periodOpenItemsCount == 0)
+        {
+            await connection.ExecuteAsync(
+                new CommandDefinition(
+                    "UPDATE AuditOpenItems SET AuditId = @PeriodAuditId WHERE AuditId = @LegacyAuditId;",
+                    new { PeriodAuditId = periodAuditId, LegacyAuditId = legacyAuditId },
+                    transaction,
+                    cancellationToken: cancellationToken));
+        }
+
+        transaction.Commit();
+    }
+
     public async Task<ChecklistItem?> GetChecklistItemByIdAsync(string itemId, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
