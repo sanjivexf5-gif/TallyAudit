@@ -86,4 +86,36 @@ public sealed class AuditDashboardFinancialYearIsolationTests
         Assert.Equal(from, summary.AuditPeriodFrom);
         Assert.Equal(to, summary.AuditPeriodTo);
     }
+    [Fact]
+    public async Task GetDashboardSummaryAsync_WarnsWhenFindingPageMayBeTruncated()
+    {
+        var findings = Enumerable.Range(1, 10000)
+            .Select(i => new AuditException
+            {
+                Id = $"finding-{i}",
+                CompanyId = "company-1",
+                RuleId = "OTHER",
+                RuleName = "Other finding",
+                VoucherDate = new DateTime(2026, 8, 10),
+                Severity = SeverityLevel.Low
+            })
+            .ToArray();
+
+        var repository = new Mock<IAuditRepository>();
+        repository
+            .Setup(x => x.GetExceptionsAsync(
+                "company-1", null, null, null, 0, 10000, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(findings);
+        repository
+            .Setup(x => x.GetAuditRunsAsync("company-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<AuditRun>());
+
+        var service = new AuditDashboardService(repository.Object);
+        var summary = await service.GetDashboardSummaryAsync("company-1");
+
+        Assert.Equal(10000, summary.TotalFindings);
+        Assert.Contains("may be incomplete", summary.StatusMessage);
+        Assert.Contains("first 10,000 company findings", summary.StatusMessage);
+    }
+
 }
