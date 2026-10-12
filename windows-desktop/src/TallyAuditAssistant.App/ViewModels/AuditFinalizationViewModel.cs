@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TallyAuditAssistant.Core.Common;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Interfaces;
 
@@ -21,6 +22,7 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
     private readonly IAuditTrailService? _auditTrailService;
     private string _companyId = string.Empty;
     private string _financialPeriodId = string.Empty;
+    private string _checklistAuditId = string.Empty;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
 
     [ObservableProperty] private bool _isLoading;
@@ -137,6 +139,11 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
                 _financialPeriodId = $"FY-{company.BooksFromDate.Year}";
             }
 
+            _checklistAuditId = AuditWorkspaceKeys.ChecklistForPeriod(company.Id, _financialPeriodId);
+            await _finalizationRepository.MigrateLegacyChecklistDataAsync(
+                AuditWorkspaceKeys.LegacyChecklistForCompany(company.Id),
+                _checklistAuditId);
+
             var state = await _finalizationRepository.GetStateAsync(_companyId, _financialPeriodId);
             if (state == null)
             {
@@ -156,7 +163,7 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
             ReviewerName = state.ReviewerName ?? string.Empty;
             ReviewerComments = state.ReviewerComments ?? string.Empty;
 
-            var checklist = (await _finalizationRepository.GetChecklistAsync($"CHECKLIST-{company.Id}")).ToList();
+            var checklist = (await _finalizationRepository.GetChecklistAsync(_checklistAuditId)).ToList();
             TotalChecklist = checklist.Count;
             CompletedChecklist = checklist.Count(x => x.Status == "Completed");
             var applicable = checklist.Count(x => x.Status != "Not Applicable");
@@ -171,7 +178,7 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
                     minSeverity: SeverityLevel.High,
                     status: ReviewStatus.Pending);
 
-            var openItems = await _finalizationRepository.GetOpenItemsAsync($"CHECKLIST-{company.Id}");
+            var openItems = await _finalizationRepository.GetOpenItemsAsync(_checklistAuditId);
             OpenItems = openItems.Count(x => !string.Equals(x.Status, "Resolved", StringComparison.OrdinalIgnoreCase));
 
             // Self-heal older local databases before querying evidence and audit
