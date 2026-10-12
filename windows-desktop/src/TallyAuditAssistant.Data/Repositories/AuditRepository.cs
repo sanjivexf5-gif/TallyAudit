@@ -309,6 +309,123 @@ public class AuditRepository : IAuditRepository
             cancellationToken: cancellationToken));
     }
 
+    public async Task<IReadOnlyList<AuditAreaAggregate>> GetAuditAreaAggregatesForPeriodAsync(
+        string companyId,
+        DateTime? periodFrom,
+        DateTime? periodTo,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+
+        // Run each audit-area classifier against the complete deduplicated company/period
+        // scope in SQLite. Only 15 aggregate rows return to the desktop process.
+        var sql = ExceptionQuerySql.RankedFindingsCte + @",
+            ScopedFindings AS (
+                SELECT e.*
+                FROM Exceptions e
+                INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+                WHERE e.CompanyId = @CompanyId
+                  AND (e.VoucherDate IS NULL OR
+                       ((@PeriodFrom IS NULL OR date(e.VoucherDate) >= date(@PeriodFrom))
+                        AND (@PeriodTo IS NULL OR date(e.VoucherDate) <= date(@PeriodTo))))
+            )
+            SELECT 'GST' AS AreaName, COUNT(*) AS FindingCount,
+                SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END) AS CriticalCount,
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END) AS HighCount,
+                SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END) AS MediumCount,
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END) AS LowCount,
+                SUM(COALESCE(FlaggedAmount, 0)) AS ExceptionAmount
+            FROM ScopedFindings WHERE Category = @GST OR RuleId LIKE 'GST%' OR RuleName LIKE '%GST%'
+            UNION ALL
+            SELECT 'TDS', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE Category = @TDS OR RuleId LIKE 'TDS%' OR RuleName LIKE '%TDS%'
+            UNION ALL
+            SELECT 'Sales', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE RuleName LIKE '%Sales%' OR RuleName LIKE '%Output%' OR RuleName LIKE '%Debtor%' OR EvidenceJson LIKE '%Sales%'
+            UNION ALL
+            SELECT 'Purchases', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE RuleName LIKE '%Purchase%' OR RuleName LIKE '%Input Tax%' OR RuleName LIKE '%Creditor%' OR EvidenceJson LIKE '%Purchase%'
+            UNION ALL
+            SELECT 'Expenses', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE RuleName LIKE '%Expense%' OR RuleName LIKE '%Payment%' OR RuleId LIKE '%CSH-01%' OR RuleName LIKE '%Cash Payment%'
+            UNION ALL
+            SELECT 'Bank', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE Category = @Banking OR RuleId LIKE 'BNK%' OR RuleName LIKE '%Bank%' OR LedgerName LIKE '%Bank%'
+            UNION ALL
+            SELECT 'Cash', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE RuleId LIKE '%CSH%' OR RuleName LIKE '%Cash%' OR LedgerName LIKE '%Cash%'
+            UNION ALL
+            SELECT 'Ledgers', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE RuleName LIKE '%Ledger%' OR RuleId LIKE '%LED%' OR EntityType = 'Ledger'
+            UNION ALL
+            SELECT 'Journals', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE RuleId LIKE '%JRN%' OR RuleName LIKE '%Journal%' OR EvidenceJson LIKE '%Journal%'
+            UNION ALL
+            SELECT 'Receivables', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE RuleName LIKE '%Receivable%' OR RuleName LIKE '%Debtor%' OR SuggestedCorrection LIKE '%Receivable%'
+            UNION ALL
+            SELECT 'Payables', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE RuleName LIKE '%Payable%' OR RuleName LIKE '%Creditor%' OR SuggestedCorrection LIKE '%Payable%'
+            UNION ALL
+            SELECT 'Related Parties', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE RuleName LIKE '%Related Party%' OR RuleName LIKE '%Director%' OR RuleId LIKE '%REL%'
+            UNION ALL
+            SELECT 'Period End', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE RuleId LIKE '%PRD%' OR RuleName LIKE '%Period End%' OR RuleName LIKE '%Holiday%' OR RuleName LIKE '%Weekend%' OR RuleName LIKE '%Cutoff%'
+            UNION ALL
+            SELECT 'Master Data', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE RuleId LIKE '%MST%' OR RuleName LIKE '%Master Data%' OR RuleName LIKE '%Missing GSTIN%' OR RuleName LIKE '%PAN Not%'
+            UNION ALL
+            SELECT 'Reconciliation', COUNT(*), SUM(CASE WHEN Severity = @Critical THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @High THEN 1 ELSE 0 END), SUM(CASE WHEN Severity = @Medium THEN 1 ELSE 0 END),
+                SUM(CASE WHEN Severity = @Low THEN 1 ELSE 0 END), SUM(COALESCE(FlaggedAmount, 0))
+            FROM ScopedFindings WHERE RuleId LIKE 'REC%' OR RuleName LIKE '%Reconciliation%'";
+
+        var rows = await connection.QueryAsync<AuditAreaAggregate>(new CommandDefinition(
+            sql,
+            new
+            {
+                CompanyId = companyId,
+                PeriodFrom = periodFrom?.ToString("yyyy-MM-dd"),
+                PeriodTo = periodTo?.ToString("yyyy-MM-dd"),
+                Critical = (int)SeverityLevel.Critical,
+                High = (int)SeverityLevel.High,
+                Medium = (int)SeverityLevel.Medium,
+                Low = (int)SeverityLevel.Low,
+                GST = (int)RuleCategory.GST,
+                TDS = (int)RuleCategory.TDS,
+                Banking = (int)RuleCategory.Banking
+            },
+            cancellationToken: cancellationToken));
+        return rows.Where(row => row.FindingCount > 0).ToList();
+    }
+
     public async Task UpdateExceptionStatusAsync(string exceptionId, ReviewStatus newStatus, string? auditorNote, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);

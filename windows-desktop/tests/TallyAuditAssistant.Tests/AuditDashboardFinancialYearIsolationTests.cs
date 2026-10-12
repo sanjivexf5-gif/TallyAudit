@@ -185,7 +185,36 @@ public sealed class AuditDashboardFinancialYearIsolationTests
         Assert.Equal(2500, summary.ReviewedFindings);
         Assert.Equal(1500, summary.ResolvedFindings);
         Assert.Equal(1234567.89m, summary.TotalExceptionAmount);
-        Assert.Contains("Headline counts and total exception amount are complete", summary.StatusMessage);
+        Assert.Contains("Headline counts, total exception amount, and audit-area breakdowns are complete", summary.StatusMessage);
+    }
+
+    [Fact]
+    public async Task GetDashboardSummaryAsync_UsesCompleteAreaAggregatesForLargeCompanies()
+    {
+        var repository = new Mock<IAuditRepository>();
+        repository
+            .Setup(x => x.GetExceptionsAsync("company-1", null, null, null, 0, 10000, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<AuditException>());
+        repository
+            .Setup(x => x.GetDashboardAggregatesForPeriodAsync("company-1", null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AuditDashboardAggregates { TotalFindings = 15000, CriticalCount = 3 });
+        repository
+            .Setup(x => x.GetAuditAreaAggregatesForPeriodAsync("company-1", null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[]
+            {
+                new AuditAreaAggregate { AreaName = "GST", FindingCount = 1200, CriticalCount = 3, HighCount = 50, MediumCount = 200, LowCount = 947, ExceptionAmount = 654321.25m }
+            });
+        repository
+            .Setup(x => x.GetAuditRunsAsync("company-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<AuditRun>());
+
+        var service = new AuditDashboardService(repository.Object);
+        var summary = await service.GetDashboardSummaryAsync("company-1");
+
+        var area = Assert.Single(summary.AuditAreaSummaries);
+        Assert.Equal("GST", area.AreaName);
+        Assert.Equal(1200, area.FindingCount);
+        Assert.Equal(654321.25m, area.ExceptionAmount);
     }
 
 }

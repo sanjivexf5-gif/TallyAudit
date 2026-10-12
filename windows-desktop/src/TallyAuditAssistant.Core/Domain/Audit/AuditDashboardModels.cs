@@ -66,6 +66,18 @@ public sealed class AuditDashboardAggregates
     public decimal TotalExceptionAmount { get; set; }
 }
 
+/// <summary>Complete period-scoped aggregate for one dashboard audit area.</summary>
+public sealed class AuditAreaAggregate
+{
+    public string AreaName { get; set; } = string.Empty;
+    public int FindingCount { get; set; }
+    public int CriticalCount { get; set; }
+    public int HighCount { get; set; }
+    public int MediumCount { get; set; }
+    public int LowCount { get; set; }
+    public decimal ExceptionAmount { get; set; }
+}
+
 public class AuditDashboardSummary
 {
     public int OverallRiskScore { get; set; }
