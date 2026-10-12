@@ -152,6 +152,30 @@ public class AuditFinalizationService : IAuditFinalizationService
         var state = await _repository.GetStateByIdAsync(id, cancellationToken);
         if (state == null) throw new KeyNotFoundException();
 
+        // Enforce the lifecycle gate in the service as well as the UI. Callers must not
+        // be able to bypass reviewer approval by invoking finalization directly.
+        if (state.Status != AuditLifecycleStatus.ReadyForFinalization)
+        {
+            throw new InvalidOperationException("Cannot finalize audit file: reviewer approval and Ready for Finalization status are required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(state.AuditorConclusionText))
+        {
+            throw new InvalidOperationException("Cannot finalize audit file: Auditor Conclusion is mandatory.");
+        }
+
+        // Enforce the lifecycle gate in the service as well as the UI. Callers must not
+        // be able to bypass reviewer approval by invoking finalization directly.
+        if (state.Status != AuditLifecycleStatus.ReadyForFinalization)
+        {
+            throw new InvalidOperationException("Cannot finalize audit file: reviewer approval and Ready for Finalization status are required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(state.AuditorConclusionText))
+        {
+            throw new InvalidOperationException("Cannot finalize audit file: Auditor Conclusion is mandatory.");
+        }
+
         // 1. Mandatory Checks
         var checklist = await _repository.GetChecklistAsync(id, cancellationToken);
         bool allCompleted = checklist.All(item => item.IsCompleted);
