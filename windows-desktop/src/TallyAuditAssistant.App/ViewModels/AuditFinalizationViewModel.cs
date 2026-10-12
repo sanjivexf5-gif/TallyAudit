@@ -311,7 +311,13 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
             var state = await _finalizationRepository.GetStateAsync(_companyId, _financialPeriodId)
                         ?? new AuditFinalizationState { CompanyId = _companyId, FinancialPeriodId = _financialPeriodId };
 
-            state.Status = Enum.TryParse<AuditLifecycleStatus>(LifecycleStatus, out var status) ? status : AuditLifecycleStatus.InProgress;
+            // Persist the conclusion while the audit is still in the approved state;
+            // the service owns the final transition and its mandatory checks.
+            state.Status = finalized
+                ? AuditLifecycleStatus.ReadyForFinalization
+                : (Enum.TryParse<AuditLifecycleStatus>(LifecycleStatus, out var status)
+                    ? status
+                    : AuditLifecycleStatus.InProgress);
             state.CompletionPercentage = ChecklistCompletion;
             state.AuditorConclusionStatus = ConclusionStatus;
             state.AuditorConclusionText = ConclusionText;
@@ -328,7 +334,14 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
 
             await _finalizationRepository.SaveStateAsync(state);
 
-            if (_auditTrailService != null)
+            if (finalized)
+            {
+                await _finalizationService.FinalizeAuditAsync(state.Id, Environment.UserName);
+                state = await _finalizationRepository.GetStateByIdAsync(state.Id)
+                    ?? throw new InvalidOperationException("Finalized audit state could not be reloaded.");
+            }
+
+            if (_auditTrailService != null && !finalized)
                 await _auditTrailService.RecordActivityAsync(
                     actionType: finalized ? "Audit finalized" : lifecycleChange ? "Audit moved to finalization" : "Audit conclusion saved",
                     module: "AUDIT FINALIZATION",
