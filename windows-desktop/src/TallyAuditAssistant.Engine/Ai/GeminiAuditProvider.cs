@@ -60,6 +60,15 @@ public class GeminiAuditProvider : IAuditAiProvider
 
         try
         {
+            // An API key alone is not consent. Default-deny cloud requests unless the user
+            // explicitly enabled and saved the privacy setting from the Settings screen.
+            var consent = await _settingsService.GetSettingAsync(
+                "AllowCloudAiDataSharing", "false", cancellationToken);
+            if (!bool.TryParse(consent, out var sharingEnabled) || !sharingEnabled)
+            {
+                return "Cloud AI data sharing is disabled. No data was sent. To use Google Gemini, open Settings > Privacy & Optional Cloud AI, enable the consent checkbox, and save settings. Only do this when client-confidentiality terms permit it.";
+            }
+
             var apiKey = await GetApiKeyAsync(cancellationToken);
             if (string.IsNullOrEmpty(apiKey))
             {

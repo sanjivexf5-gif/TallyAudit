@@ -12,7 +12,7 @@
 
 ## 🚀 Key Features & Capabilities
 
-- **Offline-first local processing**: Accounting data and core rule execution are stored/run locally in SQLite. TallyPrime connectivity and update checks use the network. Optional Gemini AI features send selected finding details and prompts to Google's API when configured; this is not an air-gapped mode.
+- **Offline-first local processing**: Accounting data and core rule execution are stored/run locally in SQLite. TallyPrime connectivity and update checks use the network. Gemini AI data sharing is **off by default** and the provider blocks cloud requests until the user explicitly enables and saves consent in Settings. If enabled, selected finding details and prompts are sent to Google's API; the app is then not operating in an air-gapped mode.
 - **Automated Audit Rule Engines**:
   - **19 Core Accounting Rules**: Cash threshold violations, negative cash/bank balances, round figure journal anomalies, weekend/holiday voucher postings, and sequence gap detection.
   - **18 Versioned GST Statutory Rules**: Interstate vs intrastate misclassifications, B2B supplier GSTIN checksum validations, tax rate inconsistencies (CGST/SGST/IGST), and Reverse Charge Mechanism (RCM) checks.
@@ -87,7 +87,7 @@ The compiled `TallyAuditAssistant.App.exe` binary will be available in the `./pu
 
 ### Optional AI and license verification
 
-- Gemini AI assistance is an optional cloud integration. When enabled, selected audit finding details (which can include voucher number/date, ledger or party names, and amounts) and the related prompt are transmitted to Google's Gemini API. Do not use it for restricted client data unless the engagement's confidentiality requirements permit it.
+- Gemini AI assistance is an optional cloud integration, disabled by default. The app blocks Gemini requests until **Allow selected audit details and prompts to be sent to Google Gemini** is enabled and saved in Settings. Once enabled, a request may transmit voucher number/date, company name, ledger or party names, amounts, and the related prompt to Google's Gemini API. No full database upload occurs, but selected client context leaves the machine. Do not enable it unless the engagement's confidentiality requirements permit this transfer.
 - Paid offline activation accepts only a signed token verified with the RSA public key configured through `TALLY_AUDIT_LICENSE_PUBLIC_KEY`. The issuer must keep its private signing key offline and out of the application/repository. A bare license key is not proof of entitlement.
 
 1. **No Accounting Data**: Local SQLite database files (`*.db`, `*.sqlite`, `*.db.bak`) containing company vouchers or client financial data are strictly excluded via `.gitignore`.

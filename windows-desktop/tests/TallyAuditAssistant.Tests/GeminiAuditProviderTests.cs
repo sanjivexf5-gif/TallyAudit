@@ -19,6 +19,9 @@ public class GeminiAuditProviderTests
         var mockSettingsService = new Mock<ISettingsService>();
         
         mockSettingsService
+            .Setup(s => s.GetSettingAsync("AllowCloudAiDataSharing", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("true");
+        mockSettingsService
             .Setup(s => s.GetSettingAsync("GeminiApiKey", It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(string.Empty);
 
@@ -43,6 +46,40 @@ public class GeminiAuditProviderTests
         finally
         {
             System.Environment.SetEnvironmentVariable("GEMINI_API_KEY", prevEnv);
+        }
+    }
+
+    [Fact]
+    public async Task GenerateTextAsync_WhenCloudSharingIsDisabled_DoesNotReadApiKeyOrCreateHttpClient()
+    {
+        var mockHttpClientFactory = new Mock<IHttpClientFactory>();
+        var mockSettingsService = new Mock<ISettingsService>();
+        mockSettingsService
+            .Setup(s => s.GetSettingAsync("AllowCloudAiDataSharing", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("false");
+
+        var previousEnvironmentKey = System.Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+        try
+        {
+            // A configured key must never bypass the user's explicit cloud-sharing choice.
+            System.Environment.SetEnvironmentVariable("GEMINI_API_KEY", "test-dummy-api-key");
+            var provider = new GeminiAuditProvider(
+                mockHttpClientFactory.Object,
+                mockSettingsService.Object,
+                NullLogger<GeminiAuditProvider>.Instance);
+
+            var result = await provider.GenerateTextAsync("System prompt", "Sensitive voucher context");
+
+            Assert.Contains("Cloud AI data sharing is disabled", result);
+            Assert.Contains("No data was sent", result);
+            mockHttpClientFactory.Verify(f => f.CreateClient(It.IsAny<string>()), Times.Never);
+            mockSettingsService.Verify(
+                s => s.GetSettingAsync("GeminiApiKey", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+                Times.Never);
+        }
+        finally
+        {
+            System.Environment.SetEnvironmentVariable("GEMINI_API_KEY", previousEnvironmentKey);
         }
     }
 

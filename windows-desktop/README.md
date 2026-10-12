@@ -1,7 +1,7 @@
 # Tally Audit Assistant — Windows Desktop Application (.NET 8 WPF)
 
 ## Overview
-**Tally Audit Assistant** is an offline-first Windows desktop application built with C# and .NET 8 (WPF) that connects directly to local TallyPrime instances, extracts vouchers and masters via Tally's XML/TDL interface, stores them in an indexed SQLite database, and runs automated statutory audit rules (GST, TDS, Accounting Anomalies).
+**Tally Audit Assistant** is an offline-first Windows desktop application built with C# and .NET 8 (WPF) that connects directly to local TallyPrime instances, extracts vouchers and masters via Tally's XML/TDL interface, stores them in an indexed SQLite database, and runs automated statutory audit rules (GST, TDS, Accounting Anomalies). Optional Gemini cloud AI is disabled by default and requires explicit saved consent in Settings; when enabled, selected audit context is sent to Google's API.
 
 ## Prerequisites for Windows Workstation
 - Windows 10 (Build 19041+) or Windows 11

@@ -16,7 +16,18 @@
                     <TextBlock Text="Local Storage (Offline SQLite Engine)" FontWeight="Bold" FontSize="15" Foreground="White" Margin="0,0,0,8"/>
                     <TextBlock Text="Database File Path:" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
                     <TextBox Text="{Binding DatabasePath, Mode=OneWay}" IsReadOnly="True" Padding="8" Background="#0F172A" Foreground="#94A3B8" BorderBrush="{StaticResource BorderBrush}"/>
-                    <TextBlock Text="Accounting records are stored locally. Optional Gemini AI sends selected finding details and prompts to Google's API when configured. Use AI only when client confidentiality rules permit this transfer." FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"/>
+                    <TextBlock Text="Accounting records stay in the local SQLite database. Cloud AI requests are blocked unless you explicitly enable and save the consent setting below." FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Privacy and Optional Cloud AI -->
+            <Border Padding="16" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="Privacy &amp; Optional Cloud AI" FontWeight="Bold" FontSize="15" Foreground="White" Margin="0,0,0,8"/>
+                    <CheckBox IsChecked="{Binding AllowCloudAiDataSharing}" Margin="0,4,0,0">
+                        <TextBlock Text="Allow selected audit details and prompts to be sent to Google Gemini" Foreground="White" FontSize="13"/>
+                    </CheckBox>
+                    <TextBlock Text="Off by default. When enabled and saved, AI requests can include voucher numbers and dates, company names, ledger or party names, amounts, and review context. The full SQLite database is not uploaded automatically. Enable this only when the engagement's client-confidentiality requirements permit the transfer." FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 

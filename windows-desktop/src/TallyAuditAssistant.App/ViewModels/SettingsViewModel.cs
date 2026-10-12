@@ -32,6 +32,9 @@ public partial class SettingsViewModel : ObservableObject, INavigationAware
     private bool _isMockMode = false;
 
     [ObservableProperty]
+    private bool _allowCloudAiDataSharing = false;
+
+    [ObservableProperty]
     private decimal _largeTransactionThreshold = 1000000;
 
     [ObservableProperty]
@@ -114,6 +117,9 @@ public partial class SettingsViewModel : ObservableObject, INavigationAware
         TallyPort = await _settingsService.GetTallyPortAsync();
         IsMockMode = await _settingsService.IsMockModeEnabledAsync();
 
+        var cloudAiConsent = await _settingsService.GetSettingAsync("AllowCloudAiDataSharing", "false");
+        AllowCloudAiDataSharing = bool.TryParse(cloudAiConsent, out var allowCloudAi) && allowCloudAi;
+
         var largeStr = await _settingsService.GetSettingAsync("LargeTransactionThreshold", "1000000");
         if (decimal.TryParse(largeStr, out var lt)) LargeTransactionThreshold = lt;
 
@@ -146,6 +152,7 @@ public partial class SettingsViewModel : ObservableObject, INavigationAware
             await _settingsService.SetTallyHostAsync(TallyHost);
             await _settingsService.SetTallyPortAsync(TallyPort);
             await _settingsService.SetMockModeEnabledAsync(IsMockMode);
+            await _settingsService.SetSettingAsync("AllowCloudAiDataSharing", AllowCloudAiDataSharing.ToString());
 
             await _settingsService.SetSettingAsync("LargeTransactionThreshold", LargeTransactionThreshold.ToString());
             await _settingsService.SetSettingAsync("TdsSinglePaymentLimit", TdsSinglePaymentLimit.ToString());
@@ -167,12 +174,13 @@ public partial class SettingsViewModel : ObservableObject, INavigationAware
                 StatusMessage = "Mock Tally Integration disabled. Demo data cleared.";
             }
 
+            StatusMessage = $"{StatusMessage} Cloud AI data sharing is {(AllowCloudAiDataSharing ? "enabled" : "disabled")}.";
             if (_auditTrailService != null)
             {
                 _ = _auditTrailService.RecordActivityAsync(
                     actionType: "Settings changed",
                     module: "SETTINGS",
-                    description: $"Application settings updated. Tally host={TallyHost}:{TallyPort}, Mock={IsMockMode}, LargeTxThreshold={LargeTransactionThreshold}, TDSSingleLimit={TdsSinglePaymentLimit}.",
+                    description: $"Application settings updated. Tally host={TallyHost}:{TallyPort}, Mock={IsMockMode}, CloudAIDataSharing={AllowCloudAiDataSharing}, LargeTxThreshold={LargeTransactionThreshold}, TDSSingleLimit={TdsSinglePaymentLimit}.",
                     ct: CancellationToken.None);
             }
         }
