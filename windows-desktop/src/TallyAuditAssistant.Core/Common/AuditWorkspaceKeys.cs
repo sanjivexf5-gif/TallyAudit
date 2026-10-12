@@ -1,3 +1,5 @@
+using System;
+
 namespace TallyAuditAssistant.Core.Common;
 
 /// <summary>
