@@ -162,11 +162,24 @@ public partial class RiskDashboardViewModel : ObservableObject, INavigationAware
             }
 
             ActiveCompanyName = company.TallyCompanyName;
-            var findings = await _repository.GetExceptionsAsync(company.Id, take: 5000);
-            TotalFindings = await _repository.GetExceptionCountAsync(company.Id);
-            LoadedFindingsCount = findings.Count;
-            StatusMessage = TotalFindings > findings.Count
-                ? $"Risk breakdown is based on {findings.Count:N0} loaded findings out of {TotalFindings:N0} total. Open Exceptions for a complete filtered review."
+            var allFindings = await _repository.GetExceptionsAsync(company.Id, take: 5000);
+
+            // Keep this dashboard aligned with the active financial period. The repository
+            // currently pages by company, so apply the period to the loaded findings here.
+            // Findings without a voucher date (for example, master-data findings) remain
+            // visible because they cannot be assigned to a specific voucher period.
+            var periodFrom = _companyContext.ActivePeriodFrom;
+            var periodTo = _companyContext.ActivePeriodTo;
+            var findings = allFindings
+                .Where(x => !x.VoucherDate.HasValue ||
+                    ((!periodFrom.HasValue || x.VoucherDate.Value.Date >= periodFrom.Value.Date) &&
+                     (!periodTo.HasValue || x.VoucherDate.Value.Date <= periodTo.Value.Date)))
+                .ToArray();
+
+            TotalFindings = findings.Length;
+            LoadedFindingsCount = findings.Length;
+            StatusMessage = allFindings.Count >= 5000
+                ? $"Risk breakdown is based on the first 5,000 company findings, filtered to the selected financial period. Counts may be incomplete; open Exceptions for a complete review."
                 : string.Empty;
             CriticalCount = findings.Count(x => x.Severity == SeverityLevel.Critical);
             HighCount = findings.Count(x => x.Severity == SeverityLevel.High);
