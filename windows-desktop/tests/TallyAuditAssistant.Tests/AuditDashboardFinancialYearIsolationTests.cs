@@ -147,4 +147,45 @@ public sealed class AuditDashboardFinancialYearIsolationTests
         Assert.Contains("up to 10,000 company findings", summary.StatusMessage);
     }
 
+    [Fact]
+    public async Task GetDashboardSummaryAsync_UsesCompleteDatabaseAggregatesForHeadlineMetrics()
+    {
+        var repository = new Mock<IAuditRepository>();
+        repository
+            .Setup(x => x.GetExceptionsAsync(
+                "company-1", null, null, null, 0, 10000, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<AuditException>());
+        repository
+            .Setup(x => x.GetDashboardAggregatesForPeriodAsync(
+                "company-1", null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AuditDashboardAggregates
+            {
+                TotalFindings = 12000,
+                CriticalCount = 17,
+                HighCount = 130,
+                MediumCount = 1200,
+                LowCount = 9000,
+                InformationalCount = 1653,
+                OpenFindings = 8000,
+                ReviewedFindings = 2500,
+                ResolvedFindings = 1500,
+                TotalExceptionAmount = 1234567.89m
+            });
+        repository
+            .Setup(x => x.GetAuditRunsAsync("company-1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<AuditRun>());
+
+        var service = new AuditDashboardService(repository.Object);
+        var summary = await service.GetDashboardSummaryAsync("company-1");
+
+        Assert.Equal(12000, summary.TotalFindings);
+        Assert.Equal(17, summary.CriticalCount);
+        Assert.Equal(130, summary.HighCount);
+        Assert.Equal(8000, summary.OpenFindings);
+        Assert.Equal(2500, summary.ReviewedFindings);
+        Assert.Equal(1500, summary.ResolvedFindings);
+        Assert.Equal(1234567.89m, summary.TotalExceptionAmount);
+        Assert.Contains("Headline counts and total exception amount are complete", summary.StatusMessage);
+    }
+
 }
