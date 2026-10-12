@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using TallyAuditAssistant.Core.Common;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
@@ -61,6 +62,97 @@ public class AuditFinalizationTests : IAsyncLifetime
             if (File.Exists(_testDbPath)) File.Delete(_testDbPath);
         }
         catch { }
+    }
+
+    [Fact]
+    public async Task LegacyChecklistAndOpenItems_MigrateOnceAndRemainScopedToTheirFinancialPeriod()
+    {
+        const string companyId = "COMP-FIN-PERIOD-MIGRATION";
+        await SaveCompanyAsync(companyId);
+
+        var legacyId = AuditWorkspaceKeys.LegacyChecklistForCompany(companyId);
+        var fy2025Id = AuditWorkspaceKeys.ChecklistForPeriod(companyId, "FY-2025-26");
+        var fy2026Id = AuditWorkspaceKeys.ChecklistForPeriod(companyId, "FY-2026-27");
+
+        await _repository.SaveChecklistItemAsync(new ChecklistItem
+        {
+            Id = "LEGACY-CHECKLIST-ITEM",
+            AuditId = legacyId,
+            Section = "Planning",
+            Code = "PLAN-01",
+            Description = "Legacy annual planning check",
+            Status = "Completed",
+            IsCompleted = true
+        });
+        await _repository.SaveOpenItemAsync(new OpenItem
+        {
+            Id = "LEGACY-OPEN-ITEM",
+            AuditId = legacyId,
+            Description = "Legacy open audit action",
+            Category = "Findings",
+            Priority = "High",
+            Status = "Open"
+        });
+
+        await _repository.MigrateLegacyChecklistDataAsync(legacyId, fy2025Id);
+
+        var fy2025Checklist = await _repository.GetChecklistAsync(fy2025Id);
+        var fy2025OpenItems = await _repository.GetOpenItemsAsync(fy2025Id);
+        Assert.Single(fy2025Checklist);
+        Assert.Equal("Completed", fy2025Checklist[0].Status);
+        Assert.Single(fy2025OpenItems);
+        Assert.Empty(await _repository.GetChecklistAsync(legacyId));
+        Assert.Empty(await _repository.GetOpenItemsAsync(legacyId));
+
+        // A second financial year must not inherit the first year's completion or open items.
+        await _repository.SaveChecklistItemAsync(new ChecklistItem
+        {
+            Id = "FY2026-CHECKLIST-ITEM",
+            AuditId = fy2026Id,
+            Section = "Planning",
+            Code = "PLAN-01",
+            Description = "New-year planning check",
+            Status = "Not Started",
+            IsCompleted = false
+        });
+        Assert.Single(await _repository.GetChecklistAsync(fy2026Id));
+        Assert.Equal("Not Started", (await _repository.GetChecklistAsync(fy2026Id))[0].Status);
+        Assert.Empty(await _repository.GetOpenItemsAsync(fy2026Id));
+    }
+
+    [Fact]
+    public async Task LegacyMigration_DoesNotOverwriteAnExistingPeriodChecklist()
+    {
+        const string companyId = "COMP-FIN-PERIOD-PRESERVE";
+        await SaveCompanyAsync(companyId);
+        var legacyId = AuditWorkspaceKeys.LegacyChecklistForCompany(companyId);
+        var periodId = AuditWorkspaceKeys.ChecklistForPeriod(companyId, "FY-2025-26");
+
+        await _repository.SaveChecklistItemAsync(new ChecklistItem
+        {
+            Id = "LEGACY-PRESERVE-ITEM",
+            AuditId = legacyId,
+            Section = "Planning",
+            Code = "PLAN-01",
+            Description = "Previously completed legacy item",
+            Status = "Completed",
+            IsCompleted = true
+        });
+        await _repository.SaveChecklistItemAsync(new ChecklistItem
+        {
+            Id = "PERIOD-PRESERVE-ITEM",
+            AuditId = periodId,
+            Section = "Planning",
+            Code = "PLAN-01",
+            Description = "Existing period-specific work",
+            Status = "Not Started",
+            IsCompleted = false
+        });
+
+        await _repository.MigrateLegacyChecklistDataAsync(legacyId, periodId);
+
+        Assert.Equal("Not Started", Assert.Single(await _repository.GetChecklistAsync(periodId)).Status);
+        Assert.Equal("Completed", Assert.Single(await _repository.GetChecklistAsync(legacyId)).Status);
     }
 
     [Fact]
