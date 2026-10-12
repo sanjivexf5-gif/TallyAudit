@@ -239,6 +239,19 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
     [RelayCommand]
     public async Task FinalizeAuditAsync()
     {
+        // Refresh readiness from persisted data immediately before finalization.
+        // The displayed counts may have become stale after another user changed findings,
+        // evidence, queries, or open items.
+        await LoadAsync();
+
+        if (!CanMarkReady)
+        {
+            RebuildReadinessIssues();
+            StatusMessage = "Audit is not ready for finalization. Resolve the readiness items first.";
+            IsError = true;
+            return;
+        }
+
         if (!CanFinalize)
         {
             StatusMessage = "Enter an auditor conclusion and move the audit to Ready for Finalization first.";
