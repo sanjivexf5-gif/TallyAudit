@@ -169,7 +169,11 @@ public class AuditRepository : IAuditRepository
         CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
-        var sql = "SELECT * FROM Exceptions WHERE CompanyId = @CompanyId";
+        var sql = ExceptionQuerySql.RankedFindingsCte + @"
+            SELECT e.*
+            FROM Exceptions e
+            INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+            WHERE e.CompanyId = @CompanyId";
 
         var parameters = new DynamicParameters();
         parameters.Add("CompanyId", companyId);
@@ -203,7 +207,11 @@ public class AuditRepository : IAuditRepository
     public async Task<int> GetExceptionCountAsync(string companyId, RuleCategory? category = null, SeverityLevel? minSeverity = null, ReviewStatus? status = null, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
-        var sql = "SELECT COUNT(*) FROM Exceptions WHERE CompanyId = @CompanyId";
+        var sql = ExceptionQuerySql.RankedFindingsCte + @"
+            SELECT COUNT(*)
+            FROM Exceptions e
+            INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+            WHERE e.CompanyId = @CompanyId";
         var parameters = new DynamicParameters();
         parameters.Add("CompanyId", companyId);
 
@@ -262,7 +270,11 @@ public class AuditRepository : IAuditRepository
         CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
-        var sql = "SELECT * FROM Exceptions WHERE CompanyId = @CompanyId";
+        var sql = ExceptionQuerySql.RankedFindingsCte + @"
+            SELECT e.*
+            FROM Exceptions e
+            INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+            WHERE e.CompanyId = @CompanyId";
         var parameters = new DynamicParameters();
         parameters.Add("CompanyId", companyId);
 
