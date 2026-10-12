@@ -119,9 +119,16 @@ public class AuditDashboardService : IAuditDashboardService
             return true;
         }).ToList();
 
+        // Count the complete period scope independently from the bounded detail page.
+        // The detail page still powers breakdowns and top findings; the total must not
+        // silently become the page size for large companies.
+        var countedFindings = await _repository.GetExceptionCountForPeriodAsync(
+            companyId, periodFrom, periodTo, cancellationToken);
+        int totalScopedFindingCount = Math.Max(scopedExceptions.Count, countedFindings);
+
         // 2. Audit run history to determine if audit has executed
         var auditRuns = await _repository.GetAuditRunsAsync(companyId, cancellationToken);
-        bool hasExecutedAudit = auditRuns.Count > 0 || scopedExceptions.Count > 0;
+        bool hasExecutedAudit = auditRuns.Count > 0 || totalScopedFindingCount > 0;
 
         // 3. Resolve active company details
         string companyName = companyId;
@@ -147,7 +154,7 @@ public class AuditDashboardService : IAuditDashboardService
         int mediumCount = scopedExceptions.Count(e => e.Severity == SeverityLevel.Medium);
         int lowCount = scopedExceptions.Count(e => e.Severity == SeverityLevel.Low);
         int informationalCount = scopedExceptions.Count(e => e.Severity == SeverityLevel.Informational);
-        int totalFindings = scopedExceptions.Count;
+        int totalFindings = totalScopedFindingCount;
 
         // 5. Status counts
         int openFindings = scopedExceptions.Count(e =>
@@ -215,9 +222,9 @@ public class AuditDashboardService : IAuditDashboardService
             statusMessage = $"{totalFindings} audit exceptions identified ({criticalCount} critical, {highCount} high).";
         }
 
-        if (allCompanyExceptions.Count >= findingLimit)
+        if (allCompanyExceptions.Count >= findingLimit || totalScopedFindingCount > scopedExceptions.Count)
         {
-            statusMessage += " Dashboard metrics use the first 10,000 company findings and may be incomplete; open Exceptions for the full filtered review.";
+            statusMessage += $" Dashboard breakdowns use a bounded detail page (up to {findingLimit:N0} company findings) and may be incomplete; the total finding count is period-aware. Open Exceptions for the full filtered review.";
         }
 
         var summary = new AuditDashboardSummary
