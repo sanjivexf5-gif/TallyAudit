@@ -107,6 +107,28 @@ public class NavigationMappingTests
     }
 
     [Fact]
+    public void VerifyDashboardExposesFinancialYearSelection()
+    {
+        var appDir = FindAppDirectory();
+        var dashboardPath = Path.Combine(appDir, "Views", "DashboardView.xaml");
+        Assert.True(File.Exists(dashboardPath), $"DashboardView.xaml not found at: {dashboardPath}");
+
+        var doc = XDocument.Parse(File.ReadAllText(dashboardPath));
+        var selector = doc.Descendants().FirstOrDefault(e =>
+            e.Name.LocalName == "ComboBox" &&
+            (e.Attribute("ItemsSource")?.Value.Contains("AvailableFinancialPeriods", StringComparison.OrdinalIgnoreCase) ?? false) &&
+            (e.Attribute("SelectedItem")?.Value.Contains("SelectedFinancialPeriod", StringComparison.OrdinalIgnoreCase) ?? false));
+
+        Assert.NotNull(selector);
+        var applyButton = doc.Descendants().FirstOrDefault(e =>
+            e.Name.LocalName == "Button" &&
+            (e.Attribute("Command")?.Value.Contains("ApplyFinancialPeriodCommand", StringComparison.OrdinalIgnoreCase) ?? false));
+
+        Assert.NotNull(applyButton);
+        Assert.Equal("Apply FY", applyButton!.Attribute("Content")?.Value);
+    }
+
+    [Fact]
     public void VerifyRiskDashboardExposesUserInitiatedCsvExport()
     {
         var appDir = FindAppDirectory();
