@@ -91,6 +91,10 @@ public class AuditDashboardService : IAuditDashboardService
             return cachedSummary;
         }
 
+        // The dashboard currently loads one bounded page. Keep the limit explicit so
+        // a full page can be treated as potentially truncated rather than a complete total.
+        const int findingLimit = 10000;
+
         // 1. Fetch exceptions strictly scoped to target company (company isolation)
         var allCompanyExceptions = await _repository.GetExceptionsAsync(
             companyId,
@@ -98,7 +102,7 @@ public class AuditDashboardService : IAuditDashboardService
             minSeverity: null,
             status: null,
             skip: 0,
-            take: 10000,
+            take: findingLimit,
             cancellationToken: cancellationToken);
 
         // Filter by companyId explicitly for bulletproof isolation
@@ -205,6 +209,11 @@ public class AuditDashboardService : IAuditDashboardService
         else
         {
             statusMessage = $"{totalFindings} audit exceptions identified ({criticalCount} critical, {highCount} high).";
+        }
+
+        if (allCompanyExceptions.Count >= findingLimit)
+        {
+            statusMessage += " Dashboard metrics use the first 10,000 company findings and may be incomplete; open Exceptions for the full filtered review.";
         }
 
         var summary = new AuditDashboardSummary
