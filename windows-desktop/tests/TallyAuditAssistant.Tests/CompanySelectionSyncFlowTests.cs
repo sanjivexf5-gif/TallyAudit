@@ -370,31 +370,100 @@ public class CompanySelectionSyncFlowTests
     public async Task ChangingCompany_DoesNotRetainPreviousCompany()
     {
         // 12. ChangingCompany_DoesNotRetainPreviousCompany
-        var comp1 = new Company { Id = "COMP-1", TallyCompanyName = "Company 1", BooksFromDate = new DateTime(2024, 4, 1) };
-        var comp2 = new Company { Id = "COMP-2", TallyCompanyName = "Company 2", BooksFromDate = new DateTime(2025, 4, 1) };
+        var currentFinancialYear = DateTime.Today.Month < 4 ? DateTime.Today.Year - 1 : DateTime.Today.Year;
+        var expectedStart = new DateTime(currentFinancialYear, 4, 1);
+        var comp1 = new Company { Id = "COMP-1", TallyCompanyName = "Company 1", BooksFromDate = new DateTime(2014, 4, 1) };
+        var comp2 = new Company { Id = "COMP-2", TallyCompanyName = "Company 2", BooksFromDate = new DateTime(2018, 4, 1) };
 
         await _companyContext.SetActiveCompanyAsync(comp1);
         Assert.Equal("Company 1", _companyContext.ActiveCompanyName);
-        Assert.Equal("COMP-1-FY2024", _companyContext.CurrentPeriod?.Id);
+        Assert.Equal($"COMP-1-FY{currentFinancialYear}", _companyContext.CurrentPeriod?.Id);
+        Assert.Equal(expectedStart, _companyContext.CurrentPeriod?.StartDate);
 
         await _companyContext.SetActiveCompanyAsync(comp2);
         Assert.Equal("Company 2", _companyContext.ActiveCompanyName);
         Assert.NotEqual("Company 1", _companyContext.ActiveCompanyName);
-        Assert.Equal("COMP-2-FY2025", _companyContext.CurrentPeriod?.Id);
+        Assert.Equal($"COMP-2-FY{currentFinancialYear}", _companyContext.CurrentPeriod?.Id);
+        Assert.Equal(expectedStart, _companyContext.CurrentPeriod?.StartDate);
     }
 
     [Fact]
     public async Task FinancialPeriodRemainsConsistentWithCompany()
     {
         // 13. FinancialPeriodRemainsConsistentWithCompany
-        var comp = new Company { Id = "COMP-ALPHA", TallyCompanyName = "Alpha Corp", BooksFromDate = new DateTime(2025, 4, 1) };
+        var currentFinancialYear = DateTime.Today.Month < 4 ? DateTime.Today.Year - 1 : DateTime.Today.Year;
+        var comp = new Company { Id = "COMP-ALPHA", TallyCompanyName = "Alpha Corp", BooksFromDate = new DateTime(2015, 4, 1) };
         await _companyContext.SetActiveCompanyAsync(comp);
 
         var period = await _companyContext.GetActivePeriodAsync();
         Assert.NotNull(period);
         Assert.Equal("COMP-ALPHA", period.CompanyId);
-        Assert.Equal(new DateTime(2025, 4, 1), period.StartDate);
-        Assert.Equal(new DateTime(2026, 3, 31), period.EndDate);
+        Assert.Equal(new DateTime(currentFinancialYear, 4, 1), period.StartDate);
+        Assert.Equal(new DateTime(currentFinancialYear + 1, 3, 31), period.EndDate);
+        Assert.Equal($"FY {currentFinancialYear}-{(currentFinancialYear + 1) % 100:D2}", period.FinancialYear);
+    }
+
+    [Fact]
+    public async Task FinancialYearSelection_PersistsPerCompanyAndRestoresAcrossContextInstances()
+    {
+        const string companyId = "COMP-OLDER";
+        const string companyName = "Older Company";
+        var currentFinancialYear = DateTime.Today.Month < 4 ? DateTime.Today.Year - 1 : DateTime.Today.Year;
+        var company = new Company
+        {
+            Id = companyId,
+            TallyCompanyName = companyName,
+            BooksFromDate = new DateTime(2012, 4, 1)
+        };
+
+        await _companyContext.SetActiveCompanyAsync(company);
+        var defaultPeriod = await _companyContext.GetActivePeriodAsync();
+        Assert.NotNull(defaultPeriod);
+        Assert.Equal(new DateTime(currentFinancialYear, 4, 1), defaultPeriod.StartDate);
+        Assert.Equal(new DateTime(currentFinancialYear + 1, 3, 31), defaultPeriod.EndDate);
+
+        var selectedYear = currentFinancialYear - 1;
+        await _companyContext.SetActiveFinancialYearAsync(selectedYear);
+        var selectedPeriod = await _companyContext.GetActivePeriodAsync();
+        Assert.NotNull(selectedPeriod);
+        Assert.Equal(new DateTime(selectedYear, 4, 1), selectedPeriod.StartDate);
+        Assert.Equal(new DateTime(selectedYear + 1, 3, 31), selectedPeriod.EndDate);
+
+        var from = await _mockSettings.Object.GetSettingAsync("AuditPeriodFrom", string.Empty);
+        var to = await _mockSettings.Object.GetSettingAsync("AuditPeriodTo", string.Empty);
+        Assert.Equal(new DateTime(selectedYear, 4, 1).ToString("yyyy-MM-dd"), from);
+        Assert.Equal(new DateTime(selectedYear + 1, 3, 31).ToString("yyyy-MM-dd"), to);
+
+        _mockAuditRepo.Setup(r => r.GetCompanyByNameAsync(companyName, It.IsAny<CancellationToken>()))
+                      .ReturnsAsync(company);
+        var restartedContext = new ActiveCompanyContext(
+            _mockAuditRepo.Object,
+            _mockSettings.Object,
+            _mockCompanyService.Object);
+
+        var restoredCompany = await restartedContext.GetActiveCompanyAsync();
+        var restoredPeriod = await restartedContext.GetActivePeriodAsync();
+
+        Assert.NotNull(restoredCompany);
+        Assert.Equal(companyId, restoredCompany.Id);
+        Assert.NotNull(restoredPeriod);
+        Assert.Equal(new DateTime(selectedYear, 4, 1), restoredPeriod.StartDate);
+        Assert.Equal(new DateTime(selectedYear + 1, 3, 31), restoredPeriod.EndDate);
+    }
+
+    [Fact]
+    public async Task FinancialYearSelection_RejectsYearsBeforeCompanyBooksStart()
+    {
+        var company = new Company
+        {
+            Id = "COMP-VALIDATION",
+            TallyCompanyName = "Validation Company",
+            BooksFromDate = new DateTime(2015, 4, 1)
+        };
+        await _companyContext.SetActiveCompanyAsync(company);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            _companyContext.SetActiveFinancialYearAsync(2014));
     }
 
     [Fact]
