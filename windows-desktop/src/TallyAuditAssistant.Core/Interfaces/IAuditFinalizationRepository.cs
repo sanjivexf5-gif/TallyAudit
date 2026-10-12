@@ -12,6 +12,7 @@ public interface IAuditFinalizationRepository
     Task SaveStateAsync(AuditFinalizationState state, CancellationToken cancellationToken = default);
     
     Task<IReadOnlyList<ChecklistItem>> GetChecklistAsync(string auditId, CancellationToken cancellationToken = default);
+    Task MigrateLegacyChecklistDataAsync(string legacyAuditId, string periodAuditId, CancellationToken cancellationToken = default);
     Task<ChecklistItem?> GetChecklistItemByIdAsync(string itemId, CancellationToken cancellationToken = default);
     Task SaveChecklistItemAsync(ChecklistItem item, CancellationToken cancellationToken = default);
     
