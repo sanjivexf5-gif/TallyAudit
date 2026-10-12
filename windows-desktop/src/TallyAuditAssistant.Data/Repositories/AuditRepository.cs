@@ -309,6 +309,78 @@ public class AuditRepository : IAuditRepository
             cancellationToken: cancellationToken));
     }
 
+    public async Task<AuditDashboardCategoryAmounts> GetDashboardCategoryAmountsForPeriodAsync(
+        string companyId,
+        DateTime? periodFrom,
+        DateTime? periodTo,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        var sql = ExceptionQuerySql.RankedFindingsCte + @",
+            ScopedFindings AS (
+                SELECT e.*
+                FROM Exceptions e
+                INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+                WHERE e.CompanyId = @CompanyId
+                  AND (e.VoucherDate IS NULL OR
+                       ((@PeriodFrom IS NULL OR date(e.VoucherDate) >= date(@PeriodFrom))
+                        AND (@PeriodTo IS NULL OR date(e.VoucherDate) <= date(@PeriodTo))))
+            )
+            SELECT
+                COALESCE(SUM(CASE WHEN Category = @GST OR RuleId LIKE 'GST%' OR RuleName LIKE '%GST%' THEN COALESCE(FlaggedAmount, 0) ELSE 0 END), 0) AS GstExceptionAmount,
+                COALESCE(SUM(CASE WHEN Category = @TDS OR RuleId LIKE 'TDS%' OR RuleName LIKE '%TDS%' THEN COALESCE(FlaggedAmount, 0) ELSE 0 END), 0) AS TdsExceptionAmount,
+                COALESCE(SUM(CASE WHEN Category = @Duplicate OR RuleId LIKE 'DUP%' OR RuleName LIKE '%Duplicate%' THEN COALESCE(FlaggedAmount, 0) ELSE 0 END), 0) AS DuplicateExceptionAmount,
+                COALESCE(SUM(CASE WHEN RuleId LIKE '%JRN%' OR RuleName LIKE '%Journal%' OR EvidenceJson LIKE '%Journal%' THEN COALESCE(FlaggedAmount, 0) ELSE 0 END), 0) AS JournalExceptionAmount,
+                COALESCE(SUM(CASE WHEN RuleName LIKE '%Sales%' OR RuleName LIKE '%Output%' OR RuleName LIKE '%Debtor%' OR EvidenceJson LIKE '%Sales%' THEN COALESCE(FlaggedAmount, 0) ELSE 0 END), 0) AS SalesExceptionAmount,
+                COALESCE(SUM(CASE WHEN RuleName LIKE '%Purchase%' OR RuleName LIKE '%Input Tax%' OR RuleName LIKE '%Creditor%' OR EvidenceJson LIKE '%Purchase%' THEN COALESCE(FlaggedAmount, 0) ELSE 0 END), 0) AS PurchaseExceptionAmount,
+                COALESCE(SUM(CASE WHEN RuleName LIKE '%Expense%' OR RuleName LIKE '%Payment%' OR RuleId LIKE '%CSH-01%' OR RuleName LIKE '%Cash Payment%' THEN COALESCE(FlaggedAmount, 0) ELSE 0 END), 0) AS ExpenseExceptionAmount
+            FROM ScopedFindings";
+        return await connection.QuerySingleAsync<AuditDashboardCategoryAmounts>(new CommandDefinition(
+            sql,
+            new
+            {
+                CompanyId = companyId,
+                PeriodFrom = periodFrom?.ToString("yyyy-MM-dd"),
+                PeriodTo = periodTo?.ToString("yyyy-MM-dd"),
+                GST = (int)RuleCategory.GST,
+                TDS = (int)RuleCategory.TDS,
+                Duplicate = (int)RuleCategory.DuplicateDetection
+            },
+            cancellationToken: cancellationToken));
+    }
+
+    public async Task<IReadOnlyList<AuditException>> GetTopExceptionsForPeriodAsync(
+        string companyId,
+        DateTime? periodFrom,
+        DateTime? periodTo,
+        int limit = 10,
+        CancellationToken cancellationToken = default)
+    {
+        if (limit < 1) throw new ArgumentOutOfRangeException(nameof(limit));
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        var sql = ExceptionQuerySql.RankedFindingsCte + @"
+            SELECT e.*
+            FROM Exceptions e
+            INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+            WHERE e.CompanyId = @CompanyId
+              AND (e.VoucherDate IS NULL OR
+                   ((@PeriodFrom IS NULL OR date(e.VoucherDate) >= date(@PeriodFrom))
+                    AND (@PeriodTo IS NULL OR date(e.VoucherDate) <= date(@PeriodTo))))
+            ORDER BY e.Severity DESC, COALESCE(e.FlaggedAmount, 0) DESC, e.FlaggedAt DESC, e.Id ASC
+            LIMIT @Limit";
+        var rows = await connection.QueryAsync<AuditException>(new CommandDefinition(
+            sql,
+            new
+            {
+                CompanyId = companyId,
+                PeriodFrom = periodFrom?.ToString("yyyy-MM-dd"),
+                PeriodTo = periodTo?.ToString("yyyy-MM-dd"),
+                Limit = limit
+            },
+            cancellationToken: cancellationToken));
+        return rows.ToList();
+    }
+
     public async Task<IReadOnlyList<AuditAreaAggregate>> GetAuditAreaAggregatesForPeriodAsync(
         string companyId,
         DateTime? periodFrom,
