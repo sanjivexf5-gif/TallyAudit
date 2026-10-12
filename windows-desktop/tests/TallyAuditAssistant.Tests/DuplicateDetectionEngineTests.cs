@@ -135,7 +135,7 @@ public class DuplicateDetectionEngineTests : IAsyncLifetime
 
         Assert.Equal(DuplicateConfidenceTier.LikelyDuplicate, pair.Tier);
         Assert.NotEqual(DuplicateConfidenceTier.ExactDuplicate, pair.Tier);
-        Assert.Contains("Matching Voucher/Reference Number", pair.StrategyUsed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Strong Match Strategy", pair.StrategyUsed, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
