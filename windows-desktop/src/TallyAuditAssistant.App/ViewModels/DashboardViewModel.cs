@@ -307,14 +307,6 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
                 return;
             }
 
-            AuditStatusText = "Checking synchronized accounting data...";
-            var voucherCount = await _repository.GetVoucherCountAsync(comp.Id);
-            if (voucherCount == 0)
-            {
-                AuditStatusText = "No synchronized accounting data is available for this company. Please synchronize Tally data first.";
-                return;
-            }
-
             var current = comp;
             var activeName = comp.TallyCompanyName;
 
@@ -324,17 +316,53 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
             var fromDateStr = await _settingsService.GetSettingAsync("AuditPeriodFrom", "");
             var toDateStr = await _settingsService.GetSettingAsync("AuditPeriodTo", "");
 
-            if (DateTime.TryParseExact(fromDateStr, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var fD) &&
-                DateTime.TryParseExact(toDateStr, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var tD))
+            var hasConfiguredPeriod =
+                !string.IsNullOrWhiteSpace(fromDateStr) ||
+                !string.IsNullOrWhiteSpace(toDateStr);
+
+            if (hasConfiguredPeriod)
             {
-                fromDate = fD;
-                toDate = tD;
+                var hasValidFrom = DateTime.TryParseExact(
+                    fromDateStr,
+                    "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None,
+                    out var configuredFrom);
+                var hasValidTo = DateTime.TryParseExact(
+                    toDateStr,
+                    "yyyy-MM-dd",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None,
+                    out var configuredTo);
+
+                if (!hasValidFrom || !hasValidTo)
+                {
+                    AuditStatusText = "The configured audit period is invalid. Set both start and end dates in Settings using YYYY-MM-DD.";
+                    return;
+                }
+
+                fromDate = configuredFrom;
+                toDate = configuredTo;
             }
             else
             {
                 var booksFrom = current.BooksFromDate != default ? current.BooksFromDate : new DateTime(2025, 4, 1);
                 fromDate = booksFrom;
                 toDate = booksFrom.AddYears(1).AddDays(-1);
+            }
+
+            if (fromDate.Date > toDate.Date)
+            {
+                AuditStatusText = "The selected audit period is invalid: the start date must be on or before the end date.";
+                return;
+            }
+
+            AuditStatusText = "Checking synchronized vouchers for the selected audit period...";
+            var voucherCount = await _repository.GetVoucherCountForPeriodAsync(current.Id, fromDate, toDate);
+            if (voucherCount == 0)
+            {
+                AuditStatusText = $"No synchronized vouchers were found for {fromDate:dd-MMM-yyyy} to {toDate:dd-MMM-yyyy}. Check the selected period or synchronize that period before running the audit.";
+                return;
             }
 
             // Create Run History Record
