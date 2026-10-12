@@ -18,6 +18,7 @@ public partial class AuditChecklistViewModel : ObservableObject, INavigationAwar
     private readonly IAuditFinalizationRepository _repository;
     private readonly IActiveCompanyContext _companyContext;
     private readonly IAuditTrailService? _auditTrailService;
+    private readonly IAuditFinalizationService _finalizationService;
     private string _auditId = string.Empty;
 
     [ObservableProperty] private bool _isLoading;
@@ -75,10 +76,15 @@ public partial class AuditChecklistViewModel : ObservableObject, INavigationAwar
         ("Final Review","FIN-04","Document the overall audit conclusion and limitations.")
     };
 
-    public AuditChecklistViewModel(IAuditFinalizationRepository repository, IActiveCompanyContext companyContext, IAuditTrailService? auditTrailService = null)
+    public AuditChecklistViewModel(
+        IAuditFinalizationRepository repository,
+        IActiveCompanyContext companyContext,
+        IAuditFinalizationService finalizationService,
+        IAuditTrailService? auditTrailService = null)
     {
         _repository = repository;
         _companyContext = companyContext;
+        _finalizationService = finalizationService;
         _auditTrailService = auditTrailService;
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
         _ = LoadAsync();
@@ -105,32 +111,52 @@ public partial class AuditChecklistViewModel : ObservableObject, INavigationAwar
             var financialPeriodId = string.IsNullOrWhiteSpace(activePeriod?.FinancialPeriodId)
                 ? $"FY-{company.BooksFromDate.Year}"
                 : activePeriod.FinancialPeriodId;
-            _auditId = AuditWorkspaceKeys.ChecklistForPeriod(company.Id, financialPeriodId);
 
-            // Preserve existing installations by moving legacy company-wide checklist work
-            // into the first opened period. Subsequent periods receive independent data.
+            // Checklist rows must reference the period's actual finalization state ID
+            // because AuditChecklistItems has a foreign key to AuditFinalizationStates.
+            var state = await _repository.GetStateAsync(company.Id, financialPeriodId);
+            if (state == null)
+            {
+                state = new AuditFinalizationState
+                {
+                    CompanyId = company.Id,
+                    FinancialPeriodId = financialPeriodId,
+                    Status = AuditLifecycleStatus.InProgress,
+                    AuditorConclusionPreparedBy = Environment.UserName
+                };
+                await _repository.SaveStateAsync(state);
+            }
+
+            _auditId = state.Id;
             await _repository.MigrateLegacyChecklistDataAsync(
                 AuditWorkspaceKeys.LegacyChecklistForCompany(company.Id),
                 _auditId);
+            await _finalizationService.InitializeDefaultChecklistAsync(_auditId);
 
             var existing = (await _repository.GetChecklistAsync(_auditId)).ToList();
+            var existingCodes = existing
+                .Select(item => item.Code)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            if (existing.Count == 0)
+            // Keep the broader Audit Checklist procedures while reusing the same
+            // period-scoped state and required procedures as Audit Finalization.
+            foreach (var procedure in DefaultProcedures)
             {
-                foreach (var procedure in DefaultProcedures)
+                if (!existingCodes.Add(procedure.Code))
+                    continue;
+
+                await _repository.SaveChecklistItemAsync(new ChecklistItem
                 {
-                    await _repository.SaveChecklistItemAsync(new ChecklistItem
-                    {
-                        AuditId = _auditId,
-                        Section = procedure.Section,
-                        Code = procedure.Code,
-                        Description = procedure.Description,
-                        Status = "Not Started",
-                        IsCompleted = false
-                    });
-                }
-                existing = (await _repository.GetChecklistAsync(_auditId)).ToList();
+                    AuditId = _auditId,
+                    Section = procedure.Section,
+                    Code = procedure.Code,
+                    Description = procedure.Description,
+                    Status = "Not Started",
+                    IsCompleted = false
+                });
             }
+
+            existing = (await _repository.GetChecklistAsync(_auditId)).ToList();
 
             var filtered = existing
                 .Where(x => SectionFilter == "All" || x.Section == SectionFilter)
