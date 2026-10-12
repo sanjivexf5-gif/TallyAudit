@@ -151,18 +151,9 @@ public class AuditDashboardService : IAuditDashboardService
         int resolvedFindings = scopedExceptions.Count(e => e.Status == ReviewStatus.Resolved || e.Status == ReviewStatus.FlaggedAsFalsePositive);
 
         // 6. Deterministic Transparent Risk Scoring
-        int rawPoints = (criticalCount * Options.CriticalWeight) +
-                        (highCount * Options.HighWeight) +
-                        (mediumCount * Options.MediumWeight) +
-                        (lowCount * Options.LowWeight);
-
-        int overallRiskScore = totalFindings == 0 ? 0 : Math.Clamp((int)Math.Round((decimal)rawPoints * 100m / Options.BenchmarkMaxPoints), 0, 100);
-
-        string overallRiskLevel;
-        if (overallRiskScore <= Options.LowMaxThreshold) overallRiskLevel = "Low";
-        else if (overallRiskScore <= Options.MediumMaxThreshold) overallRiskLevel = "Medium";
-        else if (overallRiskScore <= Options.HighMaxThreshold) overallRiskLevel = "High";
-        else overallRiskLevel = "Critical";
+        int overallRiskScore = AuditRiskScoring.CalculateScore(
+            criticalCount, highCount, mediumCount, lowCount, Options);
+        string overallRiskLevel = AuditRiskScoring.GetRiskLevel(overallRiskScore, Options);
 
         // 7. Financial Amounts (Decimal only, strictly never double)
         decimal totalExceptionAmount = scopedExceptions.Sum(e => e.FlaggedAmount ?? 0m);
@@ -290,12 +281,8 @@ public class AuditDashboardService : IAuditDashboardService
             int medium = areaExceptions.Count(e => e.Severity == SeverityLevel.Medium);
             int low = areaExceptions.Count(e => e.Severity == SeverityLevel.Low);
 
-            int rawAreaPoints = (critical * Options.CriticalWeight) +
-                                (high * Options.HighWeight) +
-                                (medium * Options.MediumWeight) +
-                                (low * Options.LowWeight);
-
-            int areaRiskScore = Math.Clamp((int)Math.Round((decimal)rawAreaPoints * 100m / Options.BenchmarkMaxPoints), 0, 100);
+            int areaRiskScore = AuditRiskScoring.CalculateScore(
+                critical, high, medium, low, Options);
 
             summaries.Add(new AuditAreaSummary
             {
