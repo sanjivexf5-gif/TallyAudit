@@ -16,11 +16,4 @@ public static class AuditWorkspaceKeys
         return $"CHECKLIST-{companyId.Trim()}";
     }
 
-    public static string ChecklistForPeriod(string companyId, string financialPeriodId)
-    {
-        if (string.IsNullOrWhiteSpace(financialPeriodId))
-            throw new ArgumentException("A financial period ID is required.", nameof(financialPeriodId));
-
-        return $"{LegacyChecklistForCompany(companyId)}-PERIOD-{financialPeriodId.Trim()}";
-    }
 }
