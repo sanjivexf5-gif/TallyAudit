@@ -20,6 +20,7 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
     private readonly IAuditRepository _auditRepository;
     private readonly IActiveCompanyContext _companyContext;
     private readonly IAuditTrailService? _auditTrailService;
+    private readonly IAuditFinalizationService _finalizationService;
     private string _companyId = string.Empty;
     private string _financialPeriodId = string.Empty;
     private string _checklistAuditId = string.Empty;
@@ -69,11 +70,13 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
         IAuditFinalizationRepository finalizationRepository,
         IAuditRepository auditRepository,
         IActiveCompanyContext companyContext,
+        IAuditFinalizationService finalizationService,
         IAuditTrailService? auditTrailService = null)
     {
         _finalizationRepository = finalizationRepository;
         _auditRepository = auditRepository;
         _companyContext = companyContext;
+        _finalizationService = finalizationService;
         _auditTrailService = auditTrailService;
 
         // Do not load from the constructor. This view model is registered as a
@@ -139,11 +142,6 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
                 _financialPeriodId = $"FY-{company.BooksFromDate.Year}";
             }
 
-            _checklistAuditId = AuditWorkspaceKeys.ChecklistForPeriod(company.Id, _financialPeriodId);
-            await _finalizationRepository.MigrateLegacyChecklistDataAsync(
-                AuditWorkspaceKeys.LegacyChecklistForCompany(company.Id),
-                _checklistAuditId);
-
             var state = await _finalizationRepository.GetStateAsync(_companyId, _financialPeriodId);
             if (state == null)
             {
@@ -156,6 +154,12 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
                 };
                 await _finalizationRepository.SaveStateAsync(state);
             }
+
+            _checklistAuditId = state.Id;
+            await _finalizationRepository.MigrateLegacyChecklistDataAsync(
+                AuditWorkspaceKeys.LegacyChecklistForCompany(company.Id),
+                _checklistAuditId);
+            await _finalizationService.InitializeDefaultChecklistAsync(_checklistAuditId);
 
             LifecycleStatus = state.Status.ToString();
             ConclusionStatus = state.AuditorConclusionStatus;
