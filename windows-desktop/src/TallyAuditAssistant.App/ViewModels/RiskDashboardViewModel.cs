@@ -185,8 +185,12 @@ public partial class RiskDashboardViewModel : ObservableObject, INavigationAware
             HighCount = findings.Count(x => x.Severity == SeverityLevel.High);
             MediumCount = findings.Count(x => x.Severity == SeverityLevel.Medium);
             LowCount = findings.Count(x => x.Severity == SeverityLevel.Low);
-            PendingCount = findings.Count(x => x.Status == ReviewStatus.Pending);
-            ReviewedCount = findings.Count(x => x.Status == ReviewStatus.Reviewed || x.Status == ReviewStatus.Resolved);
+            // Match the main Audit Dashboard: client clarification remains open work,
+            // while only explicitly reviewed findings count as reviewed.
+            PendingCount = findings.Count(x =>
+                x.Status == ReviewStatus.Pending ||
+                x.Status == ReviewStatus.RequiresClientClarification);
+            ReviewedCount = findings.Count(x => x.Status == ReviewStatus.Reviewed);
             DuplicateCount = findings.Count(x => x.Category == RuleCategory.DuplicateDetection);
             GstCount = findings.Count(x => x.Category == RuleCategory.GST);
             TdsCount = findings.Count(x => x.Category == RuleCategory.TDS);

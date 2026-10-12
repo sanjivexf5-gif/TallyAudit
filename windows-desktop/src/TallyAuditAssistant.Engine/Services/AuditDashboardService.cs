@@ -150,9 +150,13 @@ public class AuditDashboardService : IAuditDashboardService
         int totalFindings = scopedExceptions.Count;
 
         // 5. Status counts
-        int openFindings = scopedExceptions.Count(e => e.Status == ReviewStatus.Pending || e.Status == ReviewStatus.RequiresClientClarification);
+        int openFindings = scopedExceptions.Count(e =>
+            e.Status == ReviewStatus.Pending ||
+            e.Status == ReviewStatus.RequiresClientClarification);
         int reviewedFindings = scopedExceptions.Count(e => e.Status == ReviewStatus.Reviewed);
-        int resolvedFindings = scopedExceptions.Count(e => e.Status == ReviewStatus.Resolved || e.Status == ReviewStatus.FlaggedAsFalsePositive);
+        int resolvedFindings = scopedExceptions.Count(e =>
+            e.Status == ReviewStatus.Resolved ||
+            e.Status == ReviewStatus.FlaggedAsFalsePositive);
 
         // 6. Deterministic Transparent Risk Scoring
         int overallRiskScore = AuditRiskScoring.CalculateScore(
