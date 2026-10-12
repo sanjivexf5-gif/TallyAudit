@@ -71,8 +71,32 @@ public class AuditFinalizationTests : IAsyncLifetime
         await SaveCompanyAsync(companyId);
 
         var legacyId = AuditWorkspaceKeys.LegacyChecklistForCompany(companyId);
-        var fy2025Id = AuditWorkspaceKeys.ChecklistForPeriod(companyId, "FY-2025-26");
-        var fy2026Id = AuditWorkspaceKeys.ChecklistForPeriod(companyId, "FY-2026-27");
+        var legacyState = new AuditFinalizationState
+        {
+            Id = legacyId,
+            CompanyId = companyId,
+            FinancialPeriodId = "LEGACY",
+            Status = AuditLifecycleStatus.InProgress
+        };
+        var fy2025State = new AuditFinalizationState
+        {
+            Id = "STATE-FY2025",
+            CompanyId = companyId,
+            FinancialPeriodId = "FY-2025-26",
+            Status = AuditLifecycleStatus.InProgress
+        };
+        var fy2026State = new AuditFinalizationState
+        {
+            Id = "STATE-FY2026",
+            CompanyId = companyId,
+            FinancialPeriodId = "FY-2026-27",
+            Status = AuditLifecycleStatus.InProgress
+        };
+        await _repository.SaveStateAsync(legacyState);
+        await _repository.SaveStateAsync(fy2025State);
+        await _repository.SaveStateAsync(fy2026State);
+        var fy2025Id = fy2025State.Id;
+        var fy2026Id = fy2026State.Id;
 
         await _repository.SaveChecklistItemAsync(new ChecklistItem
         {
@@ -126,7 +150,23 @@ public class AuditFinalizationTests : IAsyncLifetime
         const string companyId = "COMP-FIN-PERIOD-PRESERVE";
         await SaveCompanyAsync(companyId);
         var legacyId = AuditWorkspaceKeys.LegacyChecklistForCompany(companyId);
-        var periodId = AuditWorkspaceKeys.ChecklistForPeriod(companyId, "FY-2025-26");
+        var legacyState = new AuditFinalizationState
+        {
+            Id = legacyId,
+            CompanyId = companyId,
+            FinancialPeriodId = "LEGACY",
+            Status = AuditLifecycleStatus.InProgress
+        };
+        var periodState = new AuditFinalizationState
+        {
+            Id = "STATE-PERIOD-PRESERVE",
+            CompanyId = companyId,
+            FinancialPeriodId = "FY-2025-26",
+            Status = AuditLifecycleStatus.InProgress
+        };
+        await _repository.SaveStateAsync(legacyState);
+        await _repository.SaveStateAsync(periodState);
+        var periodId = periodState.Id;
 
         await _repository.SaveChecklistItemAsync(new ChecklistItem
         {
