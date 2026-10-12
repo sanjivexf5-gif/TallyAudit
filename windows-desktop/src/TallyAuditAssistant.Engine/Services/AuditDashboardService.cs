@@ -175,33 +175,24 @@ public class AuditDashboardService : IAuditDashboardService
         // 7. Financial Amounts (Decimal only, strictly never double)
         decimal totalExceptionAmount = aggregates?.TotalExceptionAmount ?? scopedExceptions.Sum(e => e.FlaggedAmount ?? 0m);
 
-        decimal gstExceptionAmount = scopedExceptions
-            .Where(IsGstException)
-            .Sum(e => e.FlaggedAmount ?? 0m);
-
-        decimal tdsExceptionAmount = scopedExceptions
-            .Where(IsTdsException)
-            .Sum(e => e.FlaggedAmount ?? 0m);
-
-        decimal duplicateExceptionAmount = scopedExceptions
-            .Where(IsDuplicateException)
-            .Sum(e => e.FlaggedAmount ?? 0m);
-
-        decimal journalExceptionAmount = scopedExceptions
-            .Where(IsJournalException)
-            .Sum(e => e.FlaggedAmount ?? 0m);
-
-        decimal salesExceptionAmount = scopedExceptions
-            .Where(IsSalesException)
-            .Sum(e => e.FlaggedAmount ?? 0m);
-
-        decimal purchaseExceptionAmount = scopedExceptions
-            .Where(IsPurchaseException)
-            .Sum(e => e.FlaggedAmount ?? 0m);
-
-        decimal expenseExceptionAmount = scopedExceptions
-            .Where(IsExpenseException)
-            .Sum(e => e.FlaggedAmount ?? 0m);
+        var categoryAmounts = await _repository.GetDashboardCategoryAmountsForPeriodAsync(
+            companyId, periodFrom, periodTo, cancellationToken);
+        // Keep graceful compatibility with test doubles and alternate repository
+        // implementations that have not yet supplied category aggregates.
+        decimal gstExceptionAmount = categoryAmounts?.GstExceptionAmount ??
+            scopedExceptions.Where(IsGstException).Sum(e => e.FlaggedAmount ?? 0m);
+        decimal tdsExceptionAmount = categoryAmounts?.TdsExceptionAmount ??
+            scopedExceptions.Where(IsTdsException).Sum(e => e.FlaggedAmount ?? 0m);
+        decimal duplicateExceptionAmount = categoryAmounts?.DuplicateExceptionAmount ??
+            scopedExceptions.Where(IsDuplicateException).Sum(e => e.FlaggedAmount ?? 0m);
+        decimal journalExceptionAmount = categoryAmounts?.JournalExceptionAmount ??
+            scopedExceptions.Where(IsJournalException).Sum(e => e.FlaggedAmount ?? 0m);
+        decimal salesExceptionAmount = categoryAmounts?.SalesExceptionAmount ??
+            scopedExceptions.Where(IsSalesException).Sum(e => e.FlaggedAmount ?? 0m);
+        decimal purchaseExceptionAmount = categoryAmounts?.PurchaseExceptionAmount ??
+            scopedExceptions.Where(IsPurchaseException).Sum(e => e.FlaggedAmount ?? 0m);
+        decimal expenseExceptionAmount = categoryAmounts?.ExpenseExceptionAmount ??
+            scopedExceptions.Where(IsExpenseException).Sum(e => e.FlaggedAmount ?? 0m);
 
         // 8. Complete area breakdowns are aggregated in SQLite; only 15 rows cross
         // into the UI process, regardless of how many findings the company has.
@@ -223,7 +214,11 @@ public class AuditDashboardService : IAuditDashboardService
             : BuildAuditAreaSummaries(scopedExceptions);
 
         // 9. Top Findings (Ordered by Critical, High, Amount, Risk score)
-        var topFindings = await BuildTopFindingsAsync(companyId, scopedExceptions, cancellationToken);
+        var topFindingExceptions = await _repository.GetTopExceptionsForPeriodAsync(
+            companyId, periodFrom, periodTo, limit: 10, cancellationToken: cancellationToken)
+            ?? scopedExceptions.OrderByDescending(e => e.Severity)
+                .ThenByDescending(e => e.FlaggedAmount ?? 0m).Take(10).ToList();
+        var topFindings = await BuildTopFindingsAsync(companyId, topFindingExceptions, cancellationToken);
 
         // Status message
         string statusMessage;
@@ -242,7 +237,7 @@ public class AuditDashboardService : IAuditDashboardService
 
         if (allCompanyExceptions.Count >= findingLimit || totalScopedFindingCount > scopedExceptions.Count)
         {
-            statusMessage += $" Headline counts, total exception amount, and audit-area breakdowns are complete for the selected period; category amount summaries and top findings use a bounded detail page (up to {findingLimit:N0} company findings) and may be incomplete. Open Exceptions for the full filtered review.";
+            statusMessage += $" Headline counts, total exception amount, and audit-area breakdowns are complete for the selected period; category amount summaries and top findings are also complete for the full period scope. Some dashboard detail rows may be incomplete because the detail page is bounded to up to {findingLimit:N0} company findings for memory efficiency. Open Exceptions for the full filtered review.";
         }
 
         var summary = new AuditDashboardSummary
