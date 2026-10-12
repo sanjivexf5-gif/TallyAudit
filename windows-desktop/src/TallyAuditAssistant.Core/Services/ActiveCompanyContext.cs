@@ -219,10 +219,12 @@ public class ActiveCompanyContext : IActiveCompanyContext
 
             if (!IsSelectableFinancialYear(company, financialYearStartYear))
             {
+                var firstAvailableYear = GetFinancialYearStart(GetBooksStartDate(company)).Year;
+                var lastSelectableYear = Math.Max(firstAvailableYear, GetFinancialYearStart(DateTime.Today).Year);
                 throw new ArgumentOutOfRangeException(
                     nameof(financialYearStartYear),
                     financialYearStartYear,
-                    $"Financial year must be between FY {GetFinancialYearStart(GetBooksStartDate(company)).Year}-{(GetFinancialYearStart(GetBooksStartDate(company)).Year + 1) % 100:D2} and FY {GetFinancialYearStart(DateTime.Today).Year}-{(GetFinancialYearStart(DateTime.Today).Year + 1) % 100:D2}.");
+                    $"Financial year must be between FY {firstAvailableYear}-{(firstAvailableYear + 1) % 100:D2} and FY {lastSelectableYear}-{(lastSelectableYear + 1) % 100:D2}.");
             }
 
             _currentPeriod = CreatePeriodForYear(company, financialYearStartYear);
