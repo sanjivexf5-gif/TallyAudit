@@ -190,6 +190,47 @@ public class AuditTrailTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RecordActivityAsync_UsesFullVerifiableHashForEveryStoredField()
+    {
+        await _service.RecordActivityAsync(
+            actionType: "Finding resolved",
+            module: "EXCEPTIONS",
+            description: "Resolved after reviewer confirmation",
+            entityType: "AuditException",
+            entityId: "EXC-INTEGRITY-01",
+            previousState: "Pending",
+            newState: "Resolved",
+            details: "{\"source\":\"review\",\"count\":2}",
+            companyName: "Test Corp Ltd",
+            financialYear: "FY 2025-26");
+
+        var entry = Assert.Single(await _repository.GetEntriesAsync(companyName: "Test Corp Ltd"));
+
+        Assert.Matches("^SHA256V2-[A-F0-9]{64}$", entry.IntegrityHash);
+        Assert.True(AuditTrailIntegrity.VerifyHash(entry));
+
+        entry.Details = "{\"source\":\"tampered\"}";
+        Assert.False(AuditTrailIntegrity.VerifyHash(entry));
+    }
+
+    [Fact]
+    public async Task ExportToExcel_ProtectsFormulaCellsAndIncludesIntegrityHash()
+    {
+        await _service.RecordActivityAsync(
+            actionType: "Export test",
+            module: "TEST",
+            description: " =HYPERLINK(\"https://example.invalid\",\"click\")",
+            companyName: "Test Corp Ltd");
+
+        var entries = await _repository.GetEntriesAsync(companyName: "Test Corp Ltd");
+        var csv = Encoding.UTF8.GetString(await _service.ExportToExcelAsync(entries));
+
+        Assert.Contains("Integrity Hash", csv);
+        Assert.Contains("' =HYPERLINK(", csv);
+        Assert.Contains("SHA256V2-", csv);
+    }
+
+    [Fact]
     public async Task ExportToExcelAndPdf_ReturnsExpectedPayloads()
     {
         await _service.RecordActivityAsync("Synchronization completed", "SYNC", "Synced 100 vouchers", companyName: "Test Corp");
@@ -202,13 +243,18 @@ public class AuditTrailTests : IAsyncLifetime
         Assert.NotEmpty(excelBytes);
         Assert.NotEmpty(pdfBytes);
 
-        var excelText = Encoding.UTF8.GetString(excelBytes);
-        var pdfText = Encoding.UTF8.GetString(pdfBytes);
+        var pdfSignature = Encoding.ASCII.GetString(pdfBytes, 0, Math.Min(5, pdfBytes.Length));
+        Assert.Equal("%PDF-", pdfSignature);
+        using var pdfStream = new MemoryStream(pdfBytes);
+        using var parsedPdf = PdfSharp.Pdf.IO.PdfReader.Open(
+            pdfStream,
+            PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        Assert.True(parsedPdf.PageCount >= 1);
 
+        var excelText = Encoding.UTF8.GetString(excelBytes);
         Assert.Contains("Synchronization completed", excelText);
         Assert.Contains("Audit run completed", excelText);
-        Assert.Contains("TALLY AUDIT ASSISTANT — STATUTORY AUDIT TRAIL", pdfText);
-        Assert.Contains("Synced 100 vouchers", pdfText);
+        Assert.Contains("Integrity Hash", excelText);
     }
 
     [Fact]
