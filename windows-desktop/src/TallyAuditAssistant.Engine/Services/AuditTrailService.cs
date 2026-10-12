@@ -2,9 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using PdfSharp;
+using PdfSharp.Drawing;
+using PdfSharp.Fonts;
+using PdfSharp.Pdf;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -74,11 +78,6 @@ public class AuditTrailService : IAuditTrailService
 
             var entryId = $"LOG-{timestamp:yyyyMMddHHmmss}-{Guid.NewGuid().ToString()[..6]}";
 
-            // Compute deterministic SHA256 integrity hash
-            string rawHashString = $"{entryId}|{timestamp:O}|{userName}|{actionType}|{module}|{effectiveCompany}|{effectiveFy}|{entityType}|{entityId}|{sanitizedDescription}";
-            byte[] hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawHashString));
-            string integrityHash = "SHA256-" + Convert.ToHexString(hashBytes)[..16];
-
             var entry = new AuditTrailEntry
             {
                 Id = entryId,
@@ -95,9 +94,9 @@ public class AuditTrailService : IAuditTrailService
                 Description = sanitizedDescription,
                 Details = sanitizedDetails,
                 ApplicationVersion = AppVersion.Version,
-                MachineName = Environment.MachineName,
-                IntegrityHash = integrityHash
+                MachineName = Environment.MachineName
             };
+            entry.IntegrityHash = AuditTrailIntegrity.ComputeHash(entry);
 
             await _repository.InsertAsync(entry, ct);
         }
@@ -153,13 +152,13 @@ public class AuditTrailService : IAuditTrailService
     {
         var sb = new StringBuilder();
         // CSV with UTF-8 BOM for universal Excel compatibility
-        sb.AppendLine("ID,Timestamp (UTC),User Name,Action Type,Module,Company Name,Financial Year,Entity Type,Entity ID,Previous State,New State,Description,Details,App Version,Machine Name");
+        sb.AppendLine("ID,Timestamp (UTC),User Name,Action Type,Module,Company Name,Financial Year,Entity Type,Entity ID,Previous State,New State,Description,Details,App Version,Machine Name,Integrity Hash");
 
         foreach (var e in entries)
         {
             sb.AppendLine(string.Join(",",
                 EscapeCsv(e.Id),
-                EscapeCsv(e.TimestampUtc.ToString("yyyy-MM-dd HH:mm:ss")),
+                EscapeCsv(e.TimestampUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)),
                 EscapeCsv(e.UserName),
                 EscapeCsv(e.ActionType),
                 EscapeCsv(e.Module),
@@ -172,7 +171,8 @@ public class AuditTrailService : IAuditTrailService
                 EscapeCsv(e.Description),
                 EscapeCsv(e.Details ?? string.Empty),
                 EscapeCsv(e.ApplicationVersion),
-                EscapeCsv(e.MachineName)
+                EscapeCsv(e.MachineName),
+                EscapeCsv(e.IntegrityHash)
             ));
         }
 
@@ -187,39 +187,180 @@ public class AuditTrailService : IAuditTrailService
 
     public Task<byte[]> ExportToPdfAsync(IReadOnlyList<AuditTrailEntry> entries, CancellationToken ct = default)
     {
-        // Generate formatted text/PDF report stream
-        var sb = new StringBuilder();
-        sb.AppendLine("==========================================================================================================");
-        sb.AppendLine("                                TALLY AUDIT ASSISTANT — STATUTORY AUDIT TRAIL");
-        sb.AppendLine($" Generated At (UTC): {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} | Application Version: {AppVersion.Version} | Total Records: {entries.Count}");
-        sb.AppendLine("==========================================================================================================");
-        sb.AppendLine();
+        ArgumentNullException.ThrowIfNull(entries);
+        ct.ThrowIfCancellationRequested();
+        EnsurePdfSharpFontSettings();
 
-        foreach (var e in entries)
+        using var document = new PdfDocument();
+        document.Info.Title = "Tally Audit Assistant - Statutory Audit Trail";
+        document.Info.Author = "Tally Audit Assistant";
+        document.Info.Subject = "Audit trail event report including record integrity hashes";
+
+        var titleFont = new XFont("Arial", 14, XFontStyleEx.Bold);
+        var headerFont = new XFont("Arial", 9, XFontStyleEx.Bold);
+        var bodyFont = new XFont("Arial", 9, XFontStyleEx.Regular);
+        using var stream = new MemoryStream();
+
+        const double margin = 40;
+        PdfPage? page = null;
+        XGraphics? graphics = null;
+        var pageNumber = 0;
+        var y = 0d;
+        var contentWidth = 0d;
+
+        void StartPage()
         {
-            sb.AppendLine($"[{e.TimestampUtc:yyyy-MM-dd HH:mm:ss}] [{e.Module}] {e.ActionType}");
-            sb.AppendLine($"  User: {e.UserName} | Machine: {e.MachineName} | Version: {e.ApplicationVersion}");
-            if (!string.IsNullOrWhiteSpace(e.CompanyName))
-            {
-                sb.AppendLine($"  Company: {e.CompanyName} | FY: {e.FinancialYear ?? "N/A"}");
-            }
-            if (!string.IsNullOrWhiteSpace(e.EntityType) || !string.IsNullOrWhiteSpace(e.EntityId))
-            {
-                sb.AppendLine($"  Entity: {e.EntityType ?? "N/A"} #{e.EntityId ?? "N/A"}");
-            }
-            if (!string.IsNullOrWhiteSpace(e.PreviousState) || !string.IsNullOrWhiteSpace(e.NewState))
-            {
-                sb.AppendLine($"  State Change: '{e.PreviousState ?? "None"}' -> '{e.NewState ?? "None"}'");
-            }
-            sb.AppendLine($"  Description: {e.Description}");
-            if (!string.IsNullOrWhiteSpace(e.Details))
-            {
-                sb.AppendLine($"  Details: {e.Details}");
-            }
-            sb.AppendLine(new string('-', 106));
+            page = document.AddPage();
+            page.Size = PageSize.A4;
+            graphics = XGraphics.FromPdfPage(page);
+            pageNumber++;
+            contentWidth = page.Width.Point - (2 * margin);
+            y = margin;
+
+            var heading = pageNumber == 1
+                ? "TALLY AUDIT ASSISTANT - STATUTORY AUDIT TRAIL"
+                : "STATUTORY AUDIT TRAIL (CONTINUED)";
+            graphics.DrawString(heading, titleFont, XBrushes.DarkBlue,
+                new XRect(margin, y, contentWidth, 24), XStringFormats.TopLeft);
+            y += 28;
+            graphics.DrawLine(XPens.LightGray, margin, y, page.Width.Point - margin, y);
+            y += 12;
         }
 
-        return Task.FromResult(Encoding.UTF8.GetBytes(sb.ToString()));
+        void DrawFooter()
+        {
+            if (page == null || graphics == null) return;
+            graphics.DrawString($"Page {pageNumber}", bodyFont, XBrushes.Gray,
+                new XRect(margin, page.Height.Point - margin + 4, contentWidth, 14), XStringFormats.TopRight);
+        }
+
+        void DrawWrappedLine(string value, XFont? chosenFont = null)
+        {
+            var font = chosenFont ?? bodyFont;
+            // Materialize wrapping before drawing: moving to a new page disposes the old
+            // XGraphics instance, so lazy measurement must not continue against it.
+            var wrappedLines = WrapPdfLine(value, font, graphics!, contentWidth);
+            foreach (var wrappedLine in wrappedLines)
+            {
+                ct.ThrowIfCancellationRequested();
+                var lineHeight = font.Size + 4;
+                if (y + lineHeight > page!.Height.Point - margin - 18)
+                {
+                    DrawFooter();
+                    graphics!.Dispose();
+                    StartPage();
+                }
+
+                graphics!.DrawString(wrappedLine, font, XBrushes.Black,
+                    new XRect(margin, y, contentWidth, lineHeight), XStringFormats.TopLeft);
+                y += lineHeight;
+            }
+        }
+
+        StartPage();
+        DrawWrappedLine($"Generated at (UTC): {DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}");
+        DrawWrappedLine($"Application version: {AppVersion.Version}");
+        DrawWrappedLine($"Total records: {entries.Count}");
+        DrawWrappedLine(new string('=', 82));
+
+        if (entries.Count == 0)
+        {
+            DrawWrappedLine("No audit trail records were selected.");
+        }
+
+        foreach (var entry in entries)
+        {
+            ct.ThrowIfCancellationRequested();
+            DrawWrappedLine(
+                $"[{entry.TimestampUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}] [{entry.Module}] {entry.ActionType}",
+                headerFont);
+            DrawWrappedLine($"  Record ID: {entry.Id}");
+            DrawWrappedLine($"  User: {entry.UserName} | Machine: {entry.MachineName} | Version: {entry.ApplicationVersion}");
+            if (!string.IsNullOrWhiteSpace(entry.CompanyName))
+                DrawWrappedLine($"  Company: {entry.CompanyName} | Financial year: {entry.FinancialYear ?? "N/A"}");
+            if (!string.IsNullOrWhiteSpace(entry.EntityType) || !string.IsNullOrWhiteSpace(entry.EntityId))
+                DrawWrappedLine($"  Entity: {entry.EntityType ?? "N/A"} #{entry.EntityId ?? "N/A"}");
+            if (!string.IsNullOrWhiteSpace(entry.PreviousState) || !string.IsNullOrWhiteSpace(entry.NewState))
+                DrawWrappedLine($"  State change: '{entry.PreviousState ?? "None"}' -> '{entry.NewState ?? "None"}'");
+            DrawWrappedLine($"  Description: {entry.Description}");
+            if (!string.IsNullOrWhiteSpace(entry.Details))
+                DrawWrappedLine($"  Details: {entry.Details}");
+            DrawWrappedLine($"  Integrity hash: {entry.IntegrityHash}");
+            DrawWrappedLine(new string('-', 82));
+        }
+
+        DrawFooter();
+        graphics?.Dispose();
+        document.Save(stream, false);
+        return Task.FromResult(stream.ToArray());
+    }
+
+    private static List<string> WrapPdfLine(string value, XFont font, XGraphics graphics, double maxWidth)
+    {
+        var output = new List<string>();
+        var normalized = (value ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n');
+        foreach (var paragraph in normalized.Split('\n'))
+        {
+            if (paragraph.Length == 0)
+            {
+                output.Add(string.Empty);
+                continue;
+            }
+
+            var words = paragraph.Split(' ', StringSplitOptions.None);
+            var current = new StringBuilder();
+            foreach (var word in words)
+            {
+                var candidate = current.Length == 0 ? word : current.ToString() + " " + word;
+                if (graphics.MeasureString(candidate, font).Width <= maxWidth)
+                {
+                    if (current.Length > 0) current.Append(' ');
+                    current.Append(word);
+                    continue;
+                }
+
+                if (current.Length > 0)
+                {
+                    output.Add(current.ToString());
+                    current.Clear();
+                }
+
+                if (graphics.MeasureString(word, font).Width <= maxWidth)
+                {
+                    current.Append(word);
+                    continue;
+                }
+
+                var part = new StringBuilder();
+                foreach (var character in word)
+                {
+                    var next = part.ToString() + character;
+                    if (part.Length > 0 && graphics.MeasureString(next, font).Width > maxWidth)
+                    {
+                        output.Add(part.ToString());
+                        part.Clear();
+                    }
+                    part.Append(character);
+                }
+                if (part.Length > 0) current.Append(part);
+            }
+            if (current.Length > 0) output.Add(current.ToString());
+        }
+        return output;
+    }
+
+    private static readonly object PdfFontSettingsLock = new();
+    private static bool _pdfFontSettingsInitialized;
+
+    private static void EnsurePdfSharpFontSettings()
+    {
+        lock (PdfFontSettingsLock)
+        {
+            if (_pdfFontSettingsInitialized) return;
+            // This product targets Windows; PDFsharp's Core build needs the Windows font resolver before XFont creation.
+            GlobalFontSettings.UseWindowsFontsUnderWindows = true;
+            _pdfFontSettingsInitialized = true;
+        }
     }
 
     private static string? Sanitize(string? input)
@@ -228,10 +369,19 @@ public class AuditTrailService : IAuditTrailService
         return SensitivePatterns.Replace(input, "$1: [REDACTED]");
     }
 
-    private static string EscapeCsv(string field)
+    private static string EscapeCsv(string? field)
     {
-        if (string.IsNullOrEmpty(field)) return "\"\"";
-        return "\"" + field.Replace("\"", "\"\"").Replace("\r", " ").Replace("\n", " ") + "\"";
+        var normalized = field ?? string.Empty;
+        var trimmed = normalized.TrimStart();
+        var formulaLike = trimmed.Length > 0 &&
+                          (trimmed[0] == '=' || trimmed[0] == '+' ||
+                           trimmed[0] == '-' || trimmed[0] == '@');
+        var startsWithControl = normalized.Length > 0 &&
+                                (normalized[0] == '\t' || normalized[0] == '\r' || normalized[0] == '\n');
+
+        // CSV quoting alone does not prevent spreadsheet formula execution.
+        if (formulaLike || startsWithControl) normalized = "'" + normalized;
+        return "\"" + normalized.Replace("\"", "\"\"").Replace("\r", " ").Replace("\n", " ") + "\"";
     }
 }
 
