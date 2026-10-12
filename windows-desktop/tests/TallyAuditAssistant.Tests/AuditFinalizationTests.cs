@@ -321,6 +321,33 @@ public class AuditFinalizationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FinalizeAudit_RejectsWhenLifecycleIsNotReadyForFinalization()
+    {
+        const string companyId = "COMP-FIN-07B";
+        const string periodId = "FY-2025-26";
+        var state = await GetOrCreateStateAsync(companyId, periodId);
+        state.Status = AuditLifecycleStatus.InProgress;
+        state.AuditorConclusionText = "Conclusion recorded";
+        await _repository.SaveStateAsync(state);
+
+        var checklist = await _repository.GetChecklistAsync(state.Id);
+        foreach (var item in checklist)
+        {
+            await _service.SetChecklistItemCompletedAsync(item.Id, true, "Auditor-S", "Done");
+        }
+
+        // Completing the checklist is not a substitute for reviewer approval.
+        var updated = await _repository.GetStateByIdAsync(state.Id);
+        Assert.NotNull(updated);
+        updated.Status = AuditLifecycleStatus.InProgress;
+        await _repository.SaveStateAsync(updated);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.FinalizeAuditAsync(state.Id, "Auditor-S"));
+        Assert.Contains("Ready for Finalization", error.Message);
+    }
+
+    [Fact]
     public async Task ReopenAudit_CreatesAmendmentHistoryAndReopensToInProgress()
     {
         string companyId = "COMP-FIN-08";
