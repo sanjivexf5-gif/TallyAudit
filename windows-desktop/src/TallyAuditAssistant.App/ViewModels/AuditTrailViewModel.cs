@@ -10,6 +10,7 @@ using Microsoft.Win32;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
+using TallyAuditAssistant.Engine.Services;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
@@ -23,6 +24,34 @@ public partial class AuditTrailViewModel : ObservableObject, INavigationAware
 
     [ObservableProperty]
     private AuditTrailEntry? _selectedEntry;
+
+    [ObservableProperty]
+    private string _selectedEntryIntegrityStatus = "Select an event to check its record hash.";
+
+    partial void OnSelectedEntryChanged(AuditTrailEntry? value)
+    {
+        if (value == null)
+        {
+            SelectedEntryIntegrityStatus = "Select an event to check its record hash.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(value.IntegrityHash))
+        {
+            SelectedEntryIntegrityStatus = "No integrity hash stored for this event.";
+            return;
+        }
+
+        if (!value.IntegrityHash.StartsWith(AuditTrailIntegrity.HashPrefix, StringComparison.Ordinal))
+        {
+            SelectedEntryIntegrityStatus = "Legacy hash format; this record cannot be verified by the current checker.";
+            return;
+        }
+
+        SelectedEntryIntegrityStatus = AuditTrailIntegrity.VerifyHash(value)
+            ? "HASH VERIFIED — the stored event fields match this record hash."
+            : "INTEGRITY CHECK FAILED — the stored event fields differ from this record hash.";
+    }
 
     [ObservableProperty]
     private bool _isDetailsOpen;
