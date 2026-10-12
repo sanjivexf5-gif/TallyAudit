@@ -251,16 +251,18 @@ public partial class AuditTrailViewModel : ObservableObject, INavigationAware
         {
             var saveDialog = new SaveFileDialog
             {
-                Filter = "Audit Trail Report (*.txt;*.pdf)|*.txt;*.pdf|All Files (*.*)|*.*",
-                FileName = $"AuditTrail_Report_{DateTime.UtcNow:yyyyMMdd_HHmmss}.txt",
-                Title = "Export Audit Trail Report"
+                Filter = "PDF document (*.pdf)|*.pdf|All Files (*.*)|*.*",
+                DefaultExt = ".pdf",
+                AddExtension = true,
+                FileName = $"AuditTrail_Report_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf",
+                Title = "Export Audit Trail to PDF"
             };
 
             if (saveDialog.ShowDialog() == true)
             {
                 var bytes = await _auditTrailService.ExportToPdfAsync(Entries.ToList());
                 await File.WriteAllBytesAsync(saveDialog.FileName, bytes);
-                StatusMessage = $"Audit Trail report exported to {Path.GetFileName(saveDialog.FileName)}";
+                StatusMessage = $"Audit Trail PDF successfully exported to {Path.GetFileName(saveDialog.FileName)}";
             }
         }
         catch (Exception ex)
