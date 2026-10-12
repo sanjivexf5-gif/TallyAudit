@@ -24,8 +24,10 @@ public static class AuditRiskScoring
             (long)Math.Max(0, lowCount) * options.LowWeight;
 
         var benchmark = Math.Max(1, options.BenchmarkMaxPoints);
-        var normalized = (int)Math.Round((decimal)rawPoints * 100m / benchmark);
-        return Math.Clamp(normalized, 0, 100);
+        var normalized = Math.Round((decimal)rawPoints * 100m / benchmark);
+        if (normalized <= 0m) return 0;
+        if (normalized >= 100m) return 100;
+        return (int)normalized;
     }
 
     public static string GetRiskLevel(int score, RiskScoringOptions? options = null)
