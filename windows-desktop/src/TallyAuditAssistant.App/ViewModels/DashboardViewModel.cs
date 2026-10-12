@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TallyAuditAssistant.Core.Domain.Audit;
+using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Domain.Tally;
 using TallyAuditAssistant.Core.Interfaces;
 
@@ -67,7 +68,12 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
     private string _operationsStatusText = "Connection, company selection, and synchronization are grouped here for a simpler workflow.";
 
     [ObservableProperty]
-    private string _financialYear = "FY 2025-26";
+    private string _financialYear = "—";
+
+    [ObservableProperty]
+    private FinancialPeriod? _selectedFinancialPeriod;
+
+    public ObservableCollection<FinancialPeriod> AvailableFinancialPeriods { get; } = new();
 
     // Category Counts
     [ObservableProperty]
@@ -283,6 +289,42 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
     private async Task RefreshDashboardAsync()
     {
         await LoadDashboardDataAsync();
+    }
+
+    [RelayCommand]
+    private async Task ApplyFinancialPeriodAsync()
+    {
+        if (IsAuditing)
+        {
+            AuditStatusText = "The audit is running. Wait for it to finish before changing the financial year.";
+            return;
+        }
+
+        if (SelectedFinancialPeriod == null)
+        {
+            AuditStatusText = "Select a financial year before applying it.";
+            return;
+        }
+
+        try
+        {
+            var selectedYear = SelectedFinancialPeriod.StartDate.Year;
+            await _companyContext.SetActiveFinancialYearAsync(selectedYear);
+            var activePeriod = await _companyContext.GetActivePeriodAsync();
+            await LoadDashboardDataAsync();
+
+            if (activePeriod != null)
+            {
+                FinancialYear = activePeriod.FinancialYear;
+                AuditStatusText = $"Active audit period set to {activePeriod.StartDate:dd-MMM-yyyy} through {activePeriod.EndDate:dd-MMM-yyyy}. Verify synchronization for this period before running the audit.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to apply selected financial year.");
+            AuditStatusText = $"Could not change financial year: {ex.Message}";
+            await LoadDashboardDataAsync();
+        }
     }
 
     [RelayCommand]
@@ -821,6 +863,8 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
             {
                 ActiveCompanyName = "No Company Selected";
                 FinancialYear = "—";
+                AvailableFinancialPeriods.Clear();
+                SelectedFinancialPeriod = null;
                 TotalVouchersSynchronized = 0;
                 LastSyncTime = "Never";
                 LastAuditRunTime = "Never";
@@ -852,7 +896,28 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
 
             var current = comp;
             ActiveCompanyName = current.TallyCompanyName;
-            FinancialYear = $"FY {current.BooksFromDate.Year}-{(current.BooksFromDate.Year + 1) % 100:D2}";
+
+            var booksFrom = current.BooksFromDate == default ? DateTime.Today : current.BooksFromDate;
+            var earliestFinancialYear = booksFrom.Month < 4 ? booksFrom.Year - 1 : booksFrom.Year;
+            var currentFinancialYear = DateTime.Today.Month < 4 ? DateTime.Today.Year - 1 : DateTime.Today.Year;
+            var latestSelectableYear = Math.Max(earliestFinancialYear, currentFinancialYear);
+
+            AvailableFinancialPeriods.Clear();
+            for (var year = earliestFinancialYear; year <= latestSelectableYear; year++)
+            {
+                AvailableFinancialPeriods.Add(new FinancialPeriod
+                {
+                    Id = $"{current.Id}-FY{year}",
+                    CompanyId = current.Id,
+                    StartDate = new DateTime(year, 4, 1),
+                    EndDate = new DateTime(year + 1, 3, 31)
+                });
+            }
+
+            var activePeriod = await _companyContext.GetActivePeriodAsync();
+            FinancialYear = activePeriod?.FinancialYear ?? "—";
+            SelectedFinancialPeriod = AvailableFinancialPeriods.FirstOrDefault(
+                period => period.StartDate.Year == activePeriod?.StartDate.Year);
             TotalVouchersSynchronized = await _repository.GetVoucherCountAsync(current.Id);
             LastSyncTime = current.LastSyncDate?.ToString("g") ?? "Never";
 

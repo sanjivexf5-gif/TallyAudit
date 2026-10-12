@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,17 +31,69 @@ public class ActiveCompanyContext : IActiveCompanyContext
     public DateTime? ActivePeriodTo => CurrentPeriod?.EndDate;
     public DateTime? BooksFrom => CurrentPeriod?.StartDate;
 
-    private static FinancialPeriod CreatePeriodForCompany(Company company)
+    private const string FinancialYearSettingPrefix = "AuditPeriodYear:";
+
+    private static DateTime GetFinancialYearStart(DateTime date)
     {
-        var startDate = company.BooksFromDate != default ? company.BooksFromDate : new DateTime(DateTime.Today.Month < 4 ? DateTime.Today.Year - 1 : DateTime.Today.Year, 4, 1);
-        var endDate = startDate.AddYears(1).AddDays(-1);
-        return new FinancialPeriod
+        if (date == default) date = DateTime.Today;
+        return new DateTime(date.Month < 4 ? date.Year - 1 : date.Year, 4, 1);
+    }
+
+    private static DateTime GetBooksStartDate(Company company) =>
+        company.BooksFromDate == default ? GetFinancialYearStart(DateTime.Today) : company.BooksFromDate;
+
+    private static int GetDefaultFinancialYearStartYear(Company company)
+    {
+        var firstAvailableYear = GetFinancialYearStart(GetBooksStartDate(company)).Year;
+        var currentFinancialYear = GetFinancialYearStart(DateTime.Today).Year;
+        return Math.Max(firstAvailableYear, currentFinancialYear);
+    }
+
+    private static FinancialPeriod CreatePeriodForYear(Company company, int financialYearStartYear) =>
+        new()
         {
-            Id = $"{company.Id}-FY{startDate.Year}",
+            Id = $"{company.Id}-FY{financialYearStartYear}",
             CompanyId = company.Id,
-            StartDate = startDate,
-            EndDate = endDate
+            StartDate = new DateTime(financialYearStartYear, 4, 1),
+            EndDate = new DateTime(financialYearStartYear + 1, 3, 31)
         };
+
+    private static FinancialPeriod CreatePeriodForCompany(Company company) =>
+        CreatePeriodForYear(company, GetDefaultFinancialYearStartYear(company));
+
+    private static bool IsSelectableFinancialYear(Company company, int financialYearStartYear)
+    {
+        var firstAvailableYear = GetFinancialYearStart(GetBooksStartDate(company)).Year;
+        var currentFinancialYear = GetFinancialYearStart(DateTime.Today).Year;
+        return financialYearStartYear >= firstAvailableYear &&
+               financialYearStartYear <= Math.Max(firstAvailableYear, currentFinancialYear);
+    }
+
+    private async Task<FinancialPeriod> ResolveFinancialPeriodAsync(Company company, CancellationToken cancellationToken)
+    {
+        var savedYear = await _settingsService.GetSettingAsync(
+            $"{FinancialYearSettingPrefix}{company.Id}", string.Empty, cancellationToken);
+
+        if (int.TryParse(savedYear, NumberStyles.None, CultureInfo.InvariantCulture, out var selectedYear) &&
+            IsSelectableFinancialYear(company, selectedYear))
+        {
+            return CreatePeriodForYear(company, selectedYear);
+        }
+
+        return CreatePeriodForCompany(company);
+    }
+
+    private async Task PersistFinancialPeriodSettingsAsync(
+        Company company, FinancialPeriod period, CancellationToken cancellationToken)
+    {
+        await _settingsService.SetSettingAsync(
+            $"{FinancialYearSettingPrefix}{company.Id}",
+            period.StartDate.Year.ToString(CultureInfo.InvariantCulture),
+            cancellationToken);
+        await _settingsService.SetSettingAsync("FinancialYear", period.FinancialYear, cancellationToken);
+        await _settingsService.SetSettingAsync("FinancialPeriodId", period.FinancialPeriodId, cancellationToken);
+        await _settingsService.SetSettingAsync("AuditPeriodFrom", period.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), cancellationToken);
+        await _settingsService.SetSettingAsync("AuditPeriodTo", period.EndDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), cancellationToken);
     }
 
     public ActiveCompanyContext(
@@ -79,7 +132,11 @@ public class ActiveCompanyContext : IActiveCompanyContext
                 try { await _repository.EnsureCompanyAsync(_currentCompany, cancellationToken); } catch { }
             }
 
-            if (_currentPeriod == null) _currentPeriod = CreatePeriodForCompany(_currentCompany);
+            if (_currentPeriod == null)
+            {
+                _currentPeriod = await ResolveFinancialPeriodAsync(_currentCompany, cancellationToken);
+                await PersistFinancialPeriodSettingsAsync(_currentCompany, _currentPeriod, cancellationToken);
+            }
             return _currentCompany;
         }
 
@@ -98,7 +155,8 @@ public class ActiveCompanyContext : IActiveCompanyContext
                 }
 
                 _currentCompany = comp;
-                _currentPeriod = CreatePeriodForCompany(_currentCompany);
+                _currentPeriod = await ResolveFinancialPeriodAsync(_currentCompany, cancellationToken);
+                await PersistFinancialPeriodSettingsAsync(_currentCompany, _currentPeriod, cancellationToken);
                 return _currentCompany;
             }
             else if (!isMock)
@@ -114,7 +172,8 @@ public class ActiveCompanyContext : IActiveCompanyContext
                     CreatedAt = DateTime.UtcNow
                 };
                 _currentCompany = compObj;
-                _currentPeriod = CreatePeriodForCompany(compObj);
+                _currentPeriod = await ResolveFinancialPeriodAsync(compObj, cancellationToken);
+                await PersistFinancialPeriodSettingsAsync(compObj, _currentPeriod, cancellationToken);
                 try { await _repository.EnsureCompanyAsync(compObj, cancellationToken); } catch { }
                 return _currentCompany;
             }
@@ -129,8 +188,53 @@ public class ActiveCompanyContext : IActiveCompanyContext
         if (_currentPeriod != null) return _currentPeriod;
         var comp = await GetActiveCompanyAsync(cancellationToken);
         if (comp == null) return null;
-        _currentPeriod = CreatePeriodForCompany(comp);
-        return _currentPeriod;
+
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_currentCompany == null) return null;
+            if (_currentPeriod == null)
+            {
+                _currentPeriod = await ResolveFinancialPeriodAsync(_currentCompany, cancellationToken);
+                await PersistFinancialPeriodSettingsAsync(_currentCompany, _currentPeriod, cancellationToken);
+            }
+            return _currentPeriod;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    public async Task SetActiveFinancialYearAsync(int financialYearStartYear, CancellationToken cancellationToken = default)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            var company = await GetActiveCompanyInternalAsync(cancellationToken);
+            if (company == null)
+            {
+                throw new InvalidOperationException("Select a Tally company before choosing a financial year.");
+            }
+
+            if (!IsSelectableFinancialYear(company, financialYearStartYear))
+            {
+                var firstAvailableYear = GetFinancialYearStart(GetBooksStartDate(company)).Year;
+                var lastSelectableYear = Math.Max(firstAvailableYear, GetFinancialYearStart(DateTime.Today).Year);
+                throw new ArgumentOutOfRangeException(
+                    nameof(financialYearStartYear),
+                    financialYearStartYear,
+                    $"Financial year must be between FY {firstAvailableYear}-{(firstAvailableYear + 1) % 100:D2} and FY {lastSelectableYear}-{(lastSelectableYear + 1) % 100:D2}.");
+            }
+
+            _currentPeriod = CreatePeriodForYear(company, financialYearStartYear);
+            await PersistFinancialPeriodSettingsAsync(company, _currentPeriod, cancellationToken);
+            ActiveCompanyChanged?.Invoke(this, company);
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 
     public async Task ClearActiveCompanyAsync(CancellationToken cancellationToken = default)
@@ -176,14 +280,10 @@ public class ActiveCompanyContext : IActiveCompanyContext
         }
 
         _currentCompany = company;
-        _currentPeriod = CreatePeriodForCompany(company);
+        _currentPeriod = await ResolveFinancialPeriodAsync(company, cancellationToken);
 
         await _settingsService.SetSettingAsync("ActiveCompany", company.TallyCompanyName, cancellationToken);
-        var fy = _currentPeriod.FinancialYear;
-        await _settingsService.SetSettingAsync("FinancialYear", fy, cancellationToken);
-        await _settingsService.SetSettingAsync("FinancialPeriodId", _currentPeriod.FinancialPeriodId, cancellationToken);
-        await _settingsService.SetSettingAsync("AuditPeriodFrom", _currentPeriod.StartDate.ToString("yyyy-MM-dd"), cancellationToken);
-        await _settingsService.SetSettingAsync("AuditPeriodTo", _currentPeriod.EndDate.ToString("yyyy-MM-dd"), cancellationToken);
+        await PersistFinancialPeriodSettingsAsync(company, _currentPeriod, cancellationToken);
 
         ActiveCompanyChanged?.Invoke(this, _currentCompany);
     }
@@ -377,14 +477,10 @@ public class ActiveCompanyContext : IActiveCompanyContext
 
             var saved = await _repository.EnsureCompanyAsync(companyToEnsure, cancellationToken);
             _currentCompany = saved ?? companyToEnsure;
-            _currentPeriod = CreatePeriodForCompany(_currentCompany);
+            _currentPeriod = await ResolveFinancialPeriodAsync(_currentCompany, cancellationToken);
 
             await _settingsService.SetSettingAsync("ActiveCompany", _currentCompany.TallyCompanyName, cancellationToken);
-            var fy = _currentPeriod.FinancialYear;
-            await _settingsService.SetSettingAsync("FinancialYear", fy, cancellationToken);
-            await _settingsService.SetSettingAsync("FinancialPeriodId", _currentPeriod.FinancialPeriodId, cancellationToken);
-            await _settingsService.SetSettingAsync("AuditPeriodFrom", _currentPeriod.StartDate.ToString("yyyy-MM-dd"), cancellationToken);
-            await _settingsService.SetSettingAsync("AuditPeriodTo", _currentPeriod.EndDate.ToString("yyyy-MM-dd"), cancellationToken);
+            await PersistFinancialPeriodSettingsAsync(_currentCompany, _currentPeriod, cancellationToken);
 
             ActiveCompanyChanged?.Invoke(this, _currentCompany);
             return _currentCompany;
