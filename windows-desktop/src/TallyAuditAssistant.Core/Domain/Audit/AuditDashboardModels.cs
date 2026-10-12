@@ -66,6 +66,18 @@ public sealed class AuditDashboardAggregates
     public decimal TotalExceptionAmount { get; set; }
 }
 
+/// <summary>Complete period-scoped amounts for dashboard financial categories.</summary>
+public sealed class AuditDashboardCategoryAmounts
+{
+    public decimal GstExceptionAmount { get; set; }
+    public decimal TdsExceptionAmount { get; set; }
+    public decimal DuplicateExceptionAmount { get; set; }
+    public decimal JournalExceptionAmount { get; set; }
+    public decimal SalesExceptionAmount { get; set; }
+    public decimal PurchaseExceptionAmount { get; set; }
+    public decimal ExpenseExceptionAmount { get; set; }
+}
+
 /// <summary>Complete period-scoped aggregate for one dashboard audit area.</summary>
 public sealed class AuditAreaAggregate
 {
