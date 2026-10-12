@@ -355,7 +355,7 @@ public class DatabaseForeignKeyAndAuditWorkflowTests : IAsyncLifetime
                 ('LEGACY-DUPLICATE-COPY', @CompanyId, @RuleId, 'Duplicate invoice reference',
                  0, 3, 'VOUCH-LEGACY-DUP-01', 'Voucher', 'VOUCH-LEGACY-DUP-01', NULL,
                  'PUR-303', NULL, 7500, 'Invoice reference repeats.',
-                 '{"Reference":"INV-303"}', 'Invoice reference repeats.', 0, NULL, NULL,
+                 '{""Reference"":""INV-303""}', 'Invoice reference repeats.', 0, NULL, NULL,
                  '2026-10-12 15:00:00', '2026-10-12 15:00:00', NULL);
         ", new { CompanyId = companyId, RuleId = ruleId });
 
