@@ -242,7 +242,13 @@ public partial class AuditFinalizationViewModel : ObservableObject, INavigationA
         // Refresh readiness from persisted data immediately before finalization.
         // The displayed counts may have become stale after another user changed findings,
         // evidence, queries, or open items.
+        var pendingConclusionText = ConclusionText;
+        var pendingConclusionStatus = ConclusionStatus;
         await LoadAsync();
+        // Keep any conclusion edits the auditor has made in this screen; the guarded
+        // save below persists them only after readiness has been revalidated.
+        ConclusionText = pendingConclusionText;
+        ConclusionStatus = pendingConclusionStatus;
 
         if (!CanMarkReady)
         {
