@@ -234,6 +234,32 @@ public class AuditRepository : IAuditRepository
         return await connection.ExecuteScalarAsync<int>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
     }
 
+    public async Task<int> GetExceptionCountForPeriodAsync(
+        string companyId,
+        DateTime? periodFrom,
+        DateTime? periodTo,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        var sql = ExceptionQuerySql.RankedFindingsCte + @"
+            SELECT COUNT(*)
+            FROM Exceptions e
+            INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+            WHERE e.CompanyId = @CompanyId
+              AND (e.VoucherDate IS NULL OR
+                   ((@PeriodFrom IS NULL OR date(e.VoucherDate) >= date(@PeriodFrom))
+                    AND (@PeriodTo IS NULL OR date(e.VoucherDate) <= date(@PeriodTo))))";
+        return await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+            sql,
+            new
+            {
+                CompanyId = companyId,
+                PeriodFrom = periodFrom?.ToString("yyyy-MM-dd"),
+                PeriodTo = periodTo?.ToString("yyyy-MM-dd")
+            },
+            cancellationToken: cancellationToken));
+    }
+
     public async Task UpdateExceptionStatusAsync(string exceptionId, ReviewStatus newStatus, string? auditorNote, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);

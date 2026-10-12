@@ -144,7 +144,7 @@ public sealed class AuditDashboardFinancialYearIsolationTests
 
         Assert.Equal(10000, summary.TotalFindings);
         Assert.Contains("may be incomplete", summary.StatusMessage);
-        Assert.Contains("first 10,000 company findings", summary.StatusMessage);
+        Assert.Contains("up to 10,000 company findings", summary.StatusMessage);
     }
 
 }
