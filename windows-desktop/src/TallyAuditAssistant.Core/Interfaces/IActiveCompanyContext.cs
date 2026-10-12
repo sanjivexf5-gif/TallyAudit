@@ -26,6 +26,7 @@ public interface IActiveCompanyContext
 
     Task<Company?> GetActiveCompanyAsync(CancellationToken cancellationToken = default);
     Task<FinancialPeriod?> GetActivePeriodAsync(CancellationToken cancellationToken = default);
+    Task SetActiveFinancialYearAsync(int financialYearStartYear, CancellationToken cancellationToken = default);
     Task SetActiveCompanyAsync(Company company, CancellationToken cancellationToken = default);
     Task SetActiveCompanyNameAsync(string companyName, CancellationToken cancellationToken = default);
     Task<Company> ReconcileLiveTallyCompanyAsync(string companyName, CancellationToken cancellationToken = default);
