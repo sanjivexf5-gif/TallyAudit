@@ -33,7 +33,7 @@
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button Content="🔄 Refresh" Command="{Binding RefreshCommand}" Background="#1E293B" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Padding="12,6" Margin="0,0,8,0" FontWeight="SemiBold" Cursor="Hand"/>
-                <Button Content="📊 Export Excel" Command="{Binding ExportExcelCommand}" Background="#047857" Foreground="White" BorderThickness="0" Padding="12,6" Margin="0,0,8,0" FontWeight="SemiBold" Cursor="Hand"/>
+                <Button Content="📊 Export CSV" Command="{Binding ExportExcelCommand}" Background="#047857" Foreground="White" BorderThickness="0" Padding="12,6" Margin="0,0,8,0" FontWeight="SemiBold" Cursor="Hand"/>
                 <Button Content="📑 Export Report" Command="{Binding ExportPdfCommand}" Background="#0284C7" Foreground="White" BorderThickness="0" Padding="12,6" FontWeight="SemiBold" Cursor="Hand"/>
             </StackPanel>
         </Grid>
