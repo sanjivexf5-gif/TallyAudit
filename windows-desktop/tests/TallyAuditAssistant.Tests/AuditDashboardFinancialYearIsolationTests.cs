@@ -185,7 +185,7 @@ public sealed class AuditDashboardFinancialYearIsolationTests
         Assert.Equal(2500, summary.ReviewedFindings);
         Assert.Equal(1500, summary.ResolvedFindings);
         Assert.Equal(1234567.89m, summary.TotalExceptionAmount);
-        Assert.Contains("Headline counts and total exception amount are complete", summary.StatusMessage);
+        Assert.Contains("Headline counts, total exception amount, and audit-area breakdowns are complete", summary.StatusMessage);
     }
 
 }
