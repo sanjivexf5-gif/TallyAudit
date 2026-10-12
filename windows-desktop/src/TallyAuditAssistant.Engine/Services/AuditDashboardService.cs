@@ -177,13 +177,22 @@ public class AuditDashboardService : IAuditDashboardService
 
         var categoryAmounts = await _repository.GetDashboardCategoryAmountsForPeriodAsync(
             companyId, periodFrom, periodTo, cancellationToken);
-        decimal gstExceptionAmount = categoryAmounts.GstExceptionAmount;
-        decimal tdsExceptionAmount = categoryAmounts.TdsExceptionAmount;
-        decimal duplicateExceptionAmount = categoryAmounts.DuplicateExceptionAmount;
-        decimal journalExceptionAmount = categoryAmounts.JournalExceptionAmount;
-        decimal salesExceptionAmount = categoryAmounts.SalesExceptionAmount;
-        decimal purchaseExceptionAmount = categoryAmounts.PurchaseExceptionAmount;
-        decimal expenseExceptionAmount = categoryAmounts.ExpenseExceptionAmount;
+        // Keep graceful compatibility with test doubles and alternate repository
+        // implementations that have not yet supplied category aggregates.
+        decimal gstExceptionAmount = categoryAmounts?.GstExceptionAmount ??
+            scopedExceptions.Where(IsGstException).Sum(e => e.FlaggedAmount ?? 0m);
+        decimal tdsExceptionAmount = categoryAmounts?.TdsExceptionAmount ??
+            scopedExceptions.Where(IsTdsException).Sum(e => e.FlaggedAmount ?? 0m);
+        decimal duplicateExceptionAmount = categoryAmounts?.DuplicateExceptionAmount ??
+            scopedExceptions.Where(IsDuplicateException).Sum(e => e.FlaggedAmount ?? 0m);
+        decimal journalExceptionAmount = categoryAmounts?.JournalExceptionAmount ??
+            scopedExceptions.Where(IsJournalException).Sum(e => e.FlaggedAmount ?? 0m);
+        decimal salesExceptionAmount = categoryAmounts?.SalesExceptionAmount ??
+            scopedExceptions.Where(IsSalesException).Sum(e => e.FlaggedAmount ?? 0m);
+        decimal purchaseExceptionAmount = categoryAmounts?.PurchaseExceptionAmount ??
+            scopedExceptions.Where(IsPurchaseException).Sum(e => e.FlaggedAmount ?? 0m);
+        decimal expenseExceptionAmount = categoryAmounts?.ExpenseExceptionAmount ??
+            scopedExceptions.Where(IsExpenseException).Sum(e => e.FlaggedAmount ?? 0m);
 
         // 8. Complete area breakdowns are aggregated in SQLite; only 15 rows cross
         // into the UI process, regardless of how many findings the company has.
@@ -206,7 +215,9 @@ public class AuditDashboardService : IAuditDashboardService
 
         // 9. Top Findings (Ordered by Critical, High, Amount, Risk score)
         var topFindingExceptions = await _repository.GetTopExceptionsForPeriodAsync(
-            companyId, periodFrom, periodTo, limit: 10, cancellationToken: cancellationToken);
+            companyId, periodFrom, periodTo, limit: 10, cancellationToken: cancellationToken)
+            ?? scopedExceptions.OrderByDescending(e => e.Severity)
+                .ThenByDescending(e => e.FlaggedAmount ?? 0m).Take(10).ToList();
         var topFindings = await BuildTopFindingsAsync(companyId, topFindingExceptions, cancellationToken);
 
         // Status message
