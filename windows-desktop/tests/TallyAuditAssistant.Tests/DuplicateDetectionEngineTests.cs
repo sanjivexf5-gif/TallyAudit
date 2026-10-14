@@ -112,6 +112,42 @@ public class DuplicateDetectionEngineTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DuplicateEngine_DoesNotClassifySameDaySameAmountDifferentInvoiceNumbersAsExact()
+    {
+        using (var conn = await _factory.CreateConnectionAsync())
+        {
+            await conn.ExecuteAsync(@"
+                INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, ReferenceNumber, VoucherDate, TotalAmount, PartyLedgerName, Narration, AlterId)
+                VALUES
+                    ('V-SAME-DAY-A', @Comp, 'Purchase', 'Purchase', 'INV-A-100', 'SUPPLIER-INV-A', '2025-09-10', 12500, 'Same-Day Invoice Vendor', 'Invoice A', 50001),
+                    ('V-SAME-DAY-B', @Comp, 'Purchase', 'Purchase', 'INV-B-200', 'SUPPLIER-INV-B', '2025-09-10', 12500, 'Same-Day Invoice Vendor', 'Invoice B', 50002);
+            ", new { Comp = _companyId });
+        }
+
+        var repo = new DuplicateRepository(_factory, NullLogger<DuplicateRepository>.Instance);
+        var engine = new DuplicateDetectionEngine(_factory, repo, NullLogger<DuplicateDetectionEngine>.Instance);
+
+        await engine.DetectDuplicatesAsync(_companyId);
+
+        // The repository's read model currently returns summary rows rather than hydrated voucher pairs,
+        // so assert against the persisted evidence for this specific pair.
+        using var resultConnection = await _factory.CreateConnectionAsync();
+        var matches = (await resultConnection.QueryAsync<(string EvidenceJson, string Severity)>(@"
+            SELECT EvidenceJson, Severity
+            FROM Exceptions
+            WHERE CompanyId = @Comp
+              AND Category LIKE 'Duplicate%'
+              AND EvidenceJson LIKE '%V-SAME-DAY-A%'
+              AND EvidenceJson LIKE '%V-SAME-DAY-B%';
+        ", new { Comp = _companyId })).ToList();
+
+        var match = Assert.Single(matches);
+        Assert.Contains("\"MatchTier\":\"LikelyDuplicate\"", match.EvidenceJson);
+        Assert.Equal("Medium", match.Severity);
+        Assert.DoesNotContain("\"MatchTier\":\"ExactDuplicate\"", match.EvidenceJson);
+    }
+
+    [Fact]
     public async Task DuplicateEngine_Handles_Large_Datasets_Efficiently_Via_Blocking()
     {
         var repo = new DuplicateRepository(_factory, NullLogger<DuplicateRepository>.Instance);
