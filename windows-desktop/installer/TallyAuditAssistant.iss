@@ -4,7 +4,7 @@
 ; =====================================================================
 
 #define MyAppName "Tally Audit Assistant"
-#define MyAppVersion "1.0.97"
+#define MyAppVersion "1.0.98"
 #define MyAppPublisher "Tally Audit Assistant Systems"
 #define MyAppURL "https://github.com/sanjivexf5-gif/TallyAudit"
 #define MyAppExeName "TallyAuditAssistant.App.exe"
