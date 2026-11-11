@@ -224,6 +224,62 @@ public class TdsAuditEngineTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AggregateTdsThresholds_GroupLedgerAliasesByPan()
+    {
+        using var conn = await _factory.CreateConnectionAsync();
+        await conn.ExecuteAsync(@"
+            INSERT INTO Ledgers (Id, CompanyId, Name, ParentGroup, PAN)
+            VALUES
+                ('L-PAN-J-1', @Comp, 'Professional Vendor - Branch A', 'Sundry Creditors', 'AABCP1234D'),
+                ('L-PAN-J-2', @Comp, 'Professional Vendor - Branch B', 'Sundry Creditors', 'AABCP1234D'),
+                ('L-PAN-H-1', @Comp, 'Commission Vendor - Branch A', 'Sundry Creditors', 'AACCH1234E'),
+                ('L-PAN-H-2', @Comp, 'Commission Vendor - Branch B', 'Sundry Creditors', 'AACCH1234E'),
+                ('L-PAN-I-1', @Comp, 'Landlord Vendor - Branch A', 'Sundry Creditors', 'AAACI1234F'),
+                ('L-PAN-I-2', @Comp, 'Landlord Vendor - Branch B', 'Sundry Creditors', 'AAACI1234F'),
+                ('L-PAN-C-1', @Comp, 'Contract Vendor - Branch A', 'Sundry Creditors', 'AABCC1234G'),
+                ('L-PAN-C-2', @Comp, 'Contract Vendor - Branch B', 'Sundry Creditors', 'AABCC1234G');
+            INSERT INTO Vouchers (Id, CompanyId, VoucherTypeId, VoucherTypeName, VoucherNumber, VoucherDate, TotalAmount, PartyLedgerName, AlterId)
+            VALUES
+                ('V-PAN-J-1', @Comp, 'Purchase', 'Purchase', 'PAN-J-01', '2025-05-05', 30000, 'Professional Vendor - Branch A', 41001),
+                ('V-PAN-J-2', @Comp, 'Purchase', 'Purchase', 'PAN-J-02', '2025-08-05', 25000, 'Professional Vendor - Branch B', 41002),
+                ('V-PAN-H-1', @Comp, 'Payment', 'Payment', 'PAN-H-01', '2025-05-05', 12000, 'Commission Vendor - Branch A', 41003),
+                ('V-PAN-H-2', @Comp, 'Payment', 'Payment', 'PAN-H-02', '2025-08-05', 9000, 'Commission Vendor - Branch B', 41004),
+                ('V-PAN-I-1', @Comp, 'Payment', 'Payment', 'PAN-I-01', '2025-05-05', 30000, 'Landlord Vendor - Branch A', 41005),
+                ('V-PAN-I-2', @Comp, 'Payment', 'Payment', 'PAN-I-02', '2025-05-20', 25000, 'Landlord Vendor - Branch B', 41006),
+                ('V-PAN-C-1', @Comp, 'Payment', 'Payment', 'PAN-C-01', '2025-05-05', 55000, 'Contract Vendor - Branch A', 41007),
+                ('V-PAN-C-2', @Comp, 'Payment', 'Payment', 'PAN-C-02', '2025-06-05', 50000, 'Contract Vendor - Branch B', 41008);
+            INSERT INTO VoucherEntries (Id, VoucherId, LedgerName, Amount, IsDebit)
+            VALUES
+                ('E-PAN-J-1', 'V-PAN-J-1', 'Legal & Professional Fees', 30000, 1),
+                ('E-PAN-J-2', 'V-PAN-J-2', 'Legal & Professional Fees', 25000, 1),
+                ('E-PAN-H-1', 'V-PAN-H-1', 'Commission Expense', 12000, 1),
+                ('E-PAN-H-2', 'V-PAN-H-2', 'Brokerage Expense', 9000, 1),
+                ('E-PAN-I-1', 'V-PAN-I-1', 'Office Rent Expenses', 30000, 1),
+                ('E-PAN-I-2', 'V-PAN-I-2', 'Office Rent Expenses', 25000, 1),
+                ('E-PAN-C-1', 'V-PAN-C-1', 'Freight & Transport Charges', 55000, 1),
+                ('E-PAN-C-2', 'V-PAN-C-2', 'Contract Labour Expense', 50000, 1);
+        ", new { Comp = _companyId });
+
+        var thresholdResults = await new ThresholdMonitoringRule(_factory).EvaluateAsync(CreateContext());
+
+        var professional = Assert.Single(thresholdResults.Where(r => r.Section == "194J" &&
+            r.PartyPan == "AABCP1234D"));
+        Assert.Equal(55000m, professional.TransactionAmount);
+
+        var commission = Assert.Single(thresholdResults.Where(r => r.Section == "194H" &&
+            r.PartyPan == "AACCH1234E"));
+        Assert.Equal(21000m, commission.TransactionAmount);
+
+        var rent = Assert.Single(thresholdResults.Where(r => r.Section == "194I" &&
+            r.PartyPan == "AAACI1234F"));
+        Assert.Equal(55000m, rent.TransactionAmount);
+
+        var contractorResults = await new VendorCumulativeAnalysisRule(_factory).EvaluateAsync(CreateContext());
+        var contractor = Assert.Single(contractorResults.Where(r => r.PartyPan == "AABCC1234G"));
+        Assert.Equal(105000m, contractor.TransactionAmount);
+    }
+
+    [Fact]
     public async Task Check07_VendorCumulativeAnalysis_OnlyCountsContractExpensesInSelectedPeriod()
     {
         using var conn = await _factory.CreateConnectionAsync();
