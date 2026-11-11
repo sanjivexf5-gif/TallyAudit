@@ -59,7 +59,8 @@ public class Gstr2BReconciliationServiceTests
                     INSERT INTO Vouchers(Id,CompanyId,VoucherTypeId,VoucherTypeName,VoucherNumber,ReferenceNumber,VoucherDate,TotalAmount,PartyLedgerName,AlterId)
                     VALUES('V1','C1','Purchase','Purchase','P-1','INV-1','2025-05-10',118000,'Supplier A',1),
                           ('V2','C1','Purchase','Purchase','P-2','INV-2','2025-05-11',59000,'Supplier A',2),
-                          ('V3','C1','Purchase','Purchase','P-3','INV-3','2025-05-12',23600,'Supplier B',3);");
+                          ('V3','C1','Purchase','Purchase','P-3','INV-3','2025-05-12',23600,'Supplier B',3),
+                          ('V4','C1','Purchase','Purchase','P-4','INV-5','2025-05-13',11800,'Supplier A',4);");
             }
             await File.WriteAllTextAsync(csvPath,
                 "GSTIN of supplier,Invoice number,Invoice Date,Invoice Value,Taxable Value,Integrated Tax,Central Tax,State/UT Tax,Cess\n"+
@@ -73,8 +74,9 @@ public class Gstr2BReconciliationServiceTests
             Assert.Single(report.Items.Where(x=>x.Status==Gstr2BMatchStatus.Matched));
             Assert.Single(report.Items.Where(x=>x.Status==Gstr2BMatchStatus.ValueMismatch));
             Assert.Single(report.Items.Where(x=>x.Status==Gstr2BMatchStatus.GstinMismatch));
+            Assert.Single(report.Items.Where(x=>x.Status==Gstr2BMatchStatus.BooksOnly));
             Assert.Single(report.Items.Where(x=>x.Status==Gstr2BMatchStatus.Gstr2BOnly));
-            Assert.Equal(3,report.ExceptionCount);
+            Assert.Equal(4,report.ExceptionCount);
         }
         finally
         {
