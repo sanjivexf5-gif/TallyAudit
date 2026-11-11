@@ -42,7 +42,6 @@
                         <TextBlock Text="To" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <DatePicker SelectedDate="{Binding Gstr2BToDate}" Width="130" Margin="0,0,12,0"/>
                         <Button Content="Import GSTR-2B CSV &amp; Reconcile" Command="{Binding ImportGstr2BCsvCommand}"
-                                IsEnabled="{Binding IsReconciling, Converter={StaticResource InverseBooleanConverter}}"
                                 Padding="12,5"/>
                     </WrapPanel>
                     <TextBlock Text="{Binding Gstr2BSummary}" Foreground="#BFDBFE" TextWrapping="Wrap" Margin="0,8,0,0"/>
