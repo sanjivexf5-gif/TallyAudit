@@ -45,17 +45,33 @@
                 </Border>
 
                 <!-- State 2: Data Available (DataGrid) -->
-                <DataGrid ItemsSource="{Binding Ledgers}" GridLinesVisibility="None" HeadersVisibility="Column"
-                          Visibility="{Binding HasLedgers, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Ledger Name" Binding="{Binding Name}" Width="2*"/>
-                        <DataGridTextColumn Header="Parent Group" Binding="{Binding ParentGroup}" Width="1.5*"/>
-                        <DataGridTextColumn Header="GSTIN" Binding="{Binding GSTIN, TargetNullValue='—'}" Width="150"/>
-                        <DataGridTextColumn Header="PAN" Binding="{Binding PAN, TargetNullValue='—'}" Width="120"/>
-                        <DataGridTextColumn Header="Opening Bal" Binding="{Binding OpeningBalance, StringFormat={}{0:C}}" Width="120"/>
-                        <DataGridTextColumn Header="Closing Bal" Binding="{Binding ClosingBalance, StringFormat={}{0:C}}" Width="120"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+                <StackPanel Visibility="{Binding HasLedgers, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <DataGrid ItemsSource="{Binding Ledgers}" GridLinesVisibility="None" HeadersVisibility="Column" Height="260">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Ledger Name" Binding="{Binding Name}" Width="2*"/>
+                            <DataGridTextColumn Header="Parent Group" Binding="{Binding ParentGroup}" Width="1.5*"/>
+                            <DataGridTextColumn Header="GSTIN" Binding="{Binding GSTIN, TargetNullValue='—'}" Width="150"/>
+                            <DataGridTextColumn Header="PAN" Binding="{Binding PAN, TargetNullValue='—'}" Width="120"/>
+                            <DataGridTextColumn Header="Opening Bal" Binding="{Binding OpeningBalance, StringFormat={}{0:C}}" Width="120"/>
+                            <DataGridTextColumn Header="Closing Bal" Binding="{Binding ClosingBalance, StringFormat={}{0:C}}" Width="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Text="Vendor GSTIN / PAN Intelligence — review findings against source documents"
+                               FontWeight="Bold" Foreground="White" Margin="0,12,0,6"/>
+                    <DataGrid ItemsSource="{Binding VendorFindings}" Height="190" AutoGenerateColumns="False"
+                              CanUserAddRows="False" IsReadOnly="True" HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Risk" Binding="{Binding RiskLevel}" Width="85"/>
+                            <DataGridTextColumn Header="Vendor Ledger" Binding="{Binding LedgerName}" Width="1.3*"/>
+                            <DataGridTextColumn Header="GSTIN" Binding="{Binding Gstin}" Width="150"/>
+                            <DataGridTextColumn Header="Recorded PAN" Binding="{Binding RecordedPan}" Width="115"/>
+                            <DataGridTextColumn Header="Derived PAN" Binding="{Binding DerivedPan}" Width="115"/>
+                            <DataGridTextColumn Header="Finding" Binding="{Binding Finding}" Width="2*"/>
+                            <DataGridTextColumn Header="Auditor Action" Binding="{Binding AuditorAction}" Width="2*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
 
                 <!-- State 3: Empty State -->
                 <Border Background="#1E293B" CornerRadius="6" Padding="40"
