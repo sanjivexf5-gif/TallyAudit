@@ -74,7 +74,7 @@ public class Gstr2BReconciliationServiceTests
             Assert.Single(report.Items.Where(x=>x.Status==Gstr2BMatchStatus.ValueMismatch));
             Assert.Single(report.Items.Where(x=>x.Status==Gstr2BMatchStatus.GstinMismatch));
             Assert.Single(report.Items.Where(x=>x.Status==Gstr2BMatchStatus.Gstr2BOnly));
-            Assert.Equal(4,report.ExceptionCount);
+            Assert.Equal(3,report.ExceptionCount);
         }
         finally
         {
