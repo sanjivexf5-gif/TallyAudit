@@ -67,7 +67,7 @@ public class Gstr2BReconciliationServiceTests
                 "GSTIN of supplier,Invoice number,Invoice Date,Invoice Value,Taxable Value,Integrated Tax,Central Tax,State/UT Tax,Cess\n"+
                 "27AAACB2222D1Z9,INV-1,10-05-2025,118000,100000,0,9000,9000,0\n"+
                 "27AAACB2222D1Z9,INV-2,11-05-2025,60000,50847.46,0,4576.27,4576.27,0\n"+
-                "29BBBCD3333E1Z4,INV-3,12-05-2025,23600,20000,3600,0,0,0\n"+
+                "27AAACB2222D1Z9,INV-3,12-05-2025,23600,20000,3600,0,0,0\n"+
                 "27AAACB2222D1Z9,INV-4,13-05-2025,11800,10000,0,900,900,0\n");
             var report=await new Gstr2BReconciliationService(factory).ReconcileCsvAsync("C1",
                 new DateTime(2025,4,1),new DateTime(2026,3,31),csvPath);
