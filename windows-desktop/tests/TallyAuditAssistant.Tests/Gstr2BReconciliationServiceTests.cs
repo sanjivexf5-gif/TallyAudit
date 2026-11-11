@@ -1,4 +1,5 @@
 using Dapper;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 using TallyAuditAssistant.Data;
 using TallyAuditAssistant.Engine.Gst;
@@ -80,6 +81,9 @@ public class Gstr2BReconciliationServiceTests
         }
         finally
         {
+            // Microsoft.Data.Sqlite pools closed handles by default; clear the pool before
+            // deleting this per-test database on Windows runners.
+            SqliteConnection.ClearAllPools();
             if(File.Exists(csvPath))File.Delete(csvPath);
             if(File.Exists(dbPath))File.Delete(dbPath);
         }
