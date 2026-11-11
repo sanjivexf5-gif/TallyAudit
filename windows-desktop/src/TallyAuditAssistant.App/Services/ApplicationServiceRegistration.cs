@@ -73,6 +73,7 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<ScheduledAuditTaskService>();
 
         services.AddAuditEngine();
+        services.AddSingleton<Gstr2BReconciliationService>();
         services.AddSingleton<INavigationService, NavigationService>();
 
         // Use an explicit factory because the view model retains a compatibility constructor
