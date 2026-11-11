@@ -5,6 +5,20 @@ using TallyAuditAssistant.Data;
 
 namespace TallyAuditAssistant.Engine.Tds.Rules;
 
+internal static class TdsPayeeIdentity
+{
+    public static string Create(string? pan, string? ledgerName)
+    {
+        var normalizedPan = pan?.Trim().Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+        if (!string.IsNullOrWhiteSpace(normalizedPan))
+        {
+            return "PAN:" + normalizedPan;
+        }
+
+        return "LEDGER:" + (ledgerName ?? string.Empty).Trim().ToUpperInvariant();
+    }
+}
+
 // 1. Potential TDS Applicability Rule
 public class PotentialTdsApplicabilityRule : BaseTdsRule
 {
@@ -224,7 +238,7 @@ public class ThresholdMonitoringRule : BaseTdsRule
             .Where(x => x.Section == "194J" && !string.IsNullOrWhiteSpace(x.PartyLedgerName))
             .GroupBy(x => new
             {
-                Payee = x.PartyLedgerName!,
+                PayeeIdentity = TdsPayeeIdentity.Create(x.PartyPan, x.PartyLedgerName),
                 FinancialYearStart = GetFinancialYearStart(x.VoucherDate)
             }))
         {
@@ -248,7 +262,7 @@ public class ThresholdMonitoringRule : BaseTdsRule
         // Section 194H uses an annual aggregate and applies only to commission/brokerage expense lines.
         foreach (var group in expenseLines
             .Where(x => x.Section == "194H" && !string.IsNullOrWhiteSpace(x.PartyLedgerName))
-            .GroupBy(x => new { Payee = x.PartyLedgerName!, FinancialYearStart = GetFinancialYearStart(x.VoucherDate) }))
+            .GroupBy(x => new { PayeeIdentity = TdsPayeeIdentity.Create(x.PartyPan, x.PartyLedgerName), FinancialYearStart = GetFinancialYearStart(x.VoucherDate) }))
         {
             var lines = group.OrderBy(x => x.VoucherDate).ToArray();
             var amount = lines.Sum(x => x.Amount);
@@ -273,7 +287,7 @@ public class ThresholdMonitoringRule : BaseTdsRule
             .Where(x => x.Section == "194I" && !string.IsNullOrWhiteSpace(x.PartyLedgerName))
             .GroupBy(x => new
             {
-                Payee = x.PartyLedgerName!,
+                PayeeIdentity = TdsPayeeIdentity.Create(x.PartyPan, x.PartyLedgerName),
                 IsMonthly = x.VoucherDate >= FinanceAct2025EffectiveDate,
                 PeriodKey = x.VoucherDate >= FinanceAct2025EffectiveDate
                     ? x.VoucherDate.ToString("yyyy-MM")
@@ -343,7 +357,8 @@ public class ThresholdMonitoringRule : BaseTdsRule
             RelevantVoucherCount = lines.Select(x => x.VoucherId).Distinct(StringComparer.Ordinal).Count(),
             VoucherNumbers = voucherNumbers,
             VoucherDateUsedAsProxyForCreditOrPaymentDate = true,
-            SeparateTdsJournalPostingsRequireManualReconciliation = true
+            SeparateTdsJournalPostingsRequireManualReconciliation = true,
+            PayeeAggregationKey = "PAN where available; normalized ledger name otherwise"
         };
 
         var result = CreateResult(
@@ -560,7 +575,7 @@ public class VendorCumulativeAnalysisRule : BaseTdsRule
         }
 
         var results = new List<TdsCheckResult>();
-        foreach (var payeeGroup in expenseLines.GroupBy(x => x.PartyLedgerName, StringComparer.OrdinalIgnoreCase))
+        foreach (var payeeGroup in expenseLines.GroupBy(x => TdsPayeeIdentity.Create(x.PartyPan, x.PartyLedgerName), StringComparer.Ordinal))
         {
             var lines = payeeGroup.OrderBy(x => x.VoucherDate).ToArray();
             var amount = lines.Sum(x => x.Amount);
@@ -612,7 +627,8 @@ public class VendorCumulativeAnalysisRule : BaseTdsRule
                     Threshold = contractThreshold,
                     PeriodFrom = context.FromDate.ToString("yyyy-MM-dd"),
                     PeriodTo = context.ToDate.ToString("yyyy-MM-dd"),
-                    SeparateTdsJournalPostingsRequireManualReconciliation = true
+                    SeparateTdsJournalPostingsRequireManualReconciliation = true,
+                    PayeeAggregationKey = "PAN where available; normalized ledger name otherwise"
                 }));
         }
 
