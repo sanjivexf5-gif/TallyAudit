@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Win32;
+using TallyAuditAssistant.Engine.Gst;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
@@ -21,6 +23,7 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
     private readonly IActiveCompanyContext _companyContext;
     private readonly INavigationService _navigationService;
     private readonly ILogger<GstAuditViewModel> _logger;
+    private readonly Gstr2BReconciliationService? _gstr2BService;
 
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private readonly object _ctsLock = new();
@@ -46,6 +49,20 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
     [ObservableProperty]
     private bool _hasExceptions;
 
+    [ObservableProperty]
+    private bool _isReconciling;
+
+    [ObservableProperty]
+    private DateTime _gstr2BFromDate = GetCurrentFinancialYearStart();
+
+    [ObservableProperty]
+    private DateTime _gstr2BToDate = DateTime.Today;
+
+    [ObservableProperty]
+    private string _gstr2BSummary = string.Empty;
+
+    public ObservableCollection<Gstr2BReconciliationItem> Gstr2BItems { get; } = new();
+
     public ObservableCollection<AuditException> Exceptions { get; } = new();
 
     public GstAuditViewModel(
@@ -53,13 +70,15 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
         ISettingsService settingsService,
         IActiveCompanyContext companyContext,
         INavigationService navigationService,
-        ILogger<GstAuditViewModel>? logger = null)
+        ILogger<GstAuditViewModel>? logger = null,
+        Gstr2BReconciliationService? gstr2BService = null)
     {
         _repository = repository;
         _settingsService = settingsService;
         _companyContext = companyContext;
         _navigationService = navigationService;
         _logger = logger ?? NullLogger<GstAuditViewModel>.Instance;
+        _gstr2BService = gstr2BService;
 
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
         _ = SafeLoadGstExceptionsAsync();
@@ -211,6 +230,69 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
             }
             _loadGate.Release();
         }
+    }
+
+    [RelayCommand]
+    private async Task ImportGstr2BCsvAsync()
+    {
+        if (_gstr2BService == null)
+        {
+            StatusMessage = "GSTR-2B reconciliation is unavailable. Restart after updating the application.";
+            return;
+        }
+
+        if (Gstr2BFromDate.Date > Gstr2BToDate.Date)
+        {
+            StatusMessage = "GSTR-2B period start date must not be after its end date.";
+            return;
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select GSTR-2B B2B invoice CSV export",
+            Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        IsReconciling = true;
+        Gstr2BSummary = "Importing and matching GSTR-2B invoices…";
+        Gstr2BItems.Clear();
+        try
+        {
+            var company = await _companyContext.GetActiveCompanyAsync();
+            if (company == null)
+            {
+                Gstr2BSummary = "Select an active Tally company before reconciliation.";
+                return;
+            }
+
+            var report = await _gstr2BService.ReconcileCsvAsync(
+                company.Id, Gstr2BFromDate, Gstr2BToDate, dialog.FileName);
+            foreach (var item in report.Items) Gstr2BItems.Add(item);
+            Gstr2BSummary = $"Imported {report.ImportedRows} portal invoices | Matched: {report.MatchedCount} | " +
+                $"Exceptions: {report.ExceptionCount} (Value: {report.Items.Count(x => x.Status == Gstr2BMatchStatus.ValueMismatch)}, " +
+                $"GSTIN: {report.Items.Count(x => x.Status == Gstr2BMatchStatus.GstinMismatch)}, " +
+                $"Tally only: {report.Items.Count(x => x.Status == Gstr2BMatchStatus.BooksOnly)}, " +
+                $"2B only: {report.Items.Count(x => x.Status == Gstr2BMatchStatus.Gstr2BOnly)}).";
+            StatusMessage = "GSTR-2B reconciliation completed. Review every exception before deciding ITC treatment.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GSTR-2B CSV reconciliation failed.");
+            Gstr2BSummary = $"Reconciliation failed: {ex.Message}";
+        }
+        finally
+        {
+            IsReconciling = false;
+        }
+    }
+
+    private static DateTime GetCurrentFinancialYearStart()
+    {
+        var today = DateTime.Today;
+        return new DateTime(today.Month >= 4 ? today.Year : today.Year - 1, 4, 1);
     }
 
     [RelayCommand]
