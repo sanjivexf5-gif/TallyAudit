@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using System.Linq;
 using Microsoft.Win32;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
