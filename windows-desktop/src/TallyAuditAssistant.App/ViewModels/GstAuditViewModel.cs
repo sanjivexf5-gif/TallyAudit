@@ -24,6 +24,7 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
     private readonly INavigationService _navigationService;
     private readonly ILogger<GstAuditViewModel> _logger;
     private readonly Gstr2BReconciliationService? _gstr2BService;
+    private readonly ItcRiskScreeningService? _itcRiskService;
 
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private readonly object _ctsLock = new();
@@ -63,6 +64,8 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
 
     public ObservableCollection<Gstr2BReconciliationItem> Gstr2BItems { get; } = new();
 
+    public ObservableCollection<ItcRiskScreeningItem> ItcRiskItems { get; } = new();
+
     public ObservableCollection<AuditException> Exceptions { get; } = new();
 
     public GstAuditViewModel(
@@ -71,7 +74,8 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
         IActiveCompanyContext companyContext,
         INavigationService navigationService,
         ILogger<GstAuditViewModel>? logger = null,
-        Gstr2BReconciliationService? gstr2BService = null)
+        Gstr2BReconciliationService? gstr2BService = null,
+        ItcRiskScreeningService? itcRiskService = null)
     {
         _repository = repository;
         _settingsService = settingsService;
@@ -79,6 +83,7 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
         _navigationService = navigationService;
         _logger = logger ?? NullLogger<GstAuditViewModel>.Instance;
         _gstr2BService = gstr2BService;
+        _itcRiskService = itcRiskService;
 
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
         _ = SafeLoadGstExceptionsAsync();
@@ -259,6 +264,7 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
         IsReconciling = true;
         Gstr2BSummary = "Importing and matching GSTR-2B invoices…";
         Gstr2BItems.Clear();
+        ItcRiskItems.Clear();
         try
         {
             var company = await _companyContext.GetActiveCompanyAsync();
@@ -271,6 +277,10 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
             var report = await _gstr2BService.ReconcileCsvAsync(
                 company.Id, Gstr2BFromDate, Gstr2BToDate, dialog.FileName);
             foreach (var item in report.Items) Gstr2BItems.Add(item);
+            if (_itcRiskService != null)
+            {
+                foreach (var item in _itcRiskService.Assess(report)) ItcRiskItems.Add(item);
+            }
             Gstr2BSummary = $"Imported {report.ImportedRows} portal invoices | Matched: {report.MatchedCount} | " +
                 $"Exceptions: {report.ExceptionCount} (Value: {report.Items.Count(x => x.Status == Gstr2BMatchStatus.ValueMismatch)}, " +
                 $"GSTIN: {report.Items.Count(x => x.Status == Gstr2BMatchStatus.GstinMismatch)}, " +
