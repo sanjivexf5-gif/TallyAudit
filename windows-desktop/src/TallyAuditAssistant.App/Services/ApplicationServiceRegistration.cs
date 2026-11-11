@@ -12,6 +12,7 @@ using TallyAuditAssistant.Data;
 using TallyAuditAssistant.Data.Repositories;
 using TallyAuditAssistant.Engine;
 using TallyAuditAssistant.Engine.Services;
+using TallyAuditAssistant.Engine.Gst;
 using TallyAuditAssistant.TallyIntegration;
 using TallyAuditAssistant.TallyIntegration.Mocks;
 
@@ -73,6 +74,7 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<ScheduledAuditTaskService>();
 
         services.AddAuditEngine();
+        services.AddSingleton<Gstr2BReconciliationService>();
         services.AddSingleton<INavigationService, NavigationService>();
 
         // Use an explicit factory because the view model retains a compatibility constructor
