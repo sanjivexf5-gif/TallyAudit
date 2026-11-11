@@ -9,6 +9,7 @@ using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Domain.Ledgers;
 using TallyAuditAssistant.Core.Interfaces;
 using TallyAuditAssistant.Data;
+using TallyAuditAssistant.Engine.Vendors;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
@@ -19,6 +20,7 @@ public partial class LedgersViewModel : ObservableObject, INavigationAware
     private readonly IAuditRepository _repository;
     private readonly IActiveCompanyContext _companyContext;
     private readonly INavigationService _navigationService;
+    private readonly VendorGstinPanIntelligenceService? _vendorIntelligenceService;
 
     [ObservableProperty]
     private bool _isLoading;
@@ -37,18 +39,22 @@ public partial class LedgersViewModel : ObservableObject, INavigationAware
 
     public ObservableCollection<Ledger> Ledgers { get; } = new();
 
+    public ObservableCollection<VendorMasterFinding> VendorFindings { get; } = new();
+
     public LedgersViewModel(
         SqliteConnectionFactory connectionFactory,
         ISettingsService settingsService,
         IAuditRepository repository,
         IActiveCompanyContext companyContext,
-        INavigationService navigationService)
+        INavigationService navigationService,
+        VendorGstinPanIntelligenceService? vendorIntelligenceService = null)
     {
         _connectionFactory = connectionFactory;
         _settingsService = settingsService;
         _repository = repository;
         _companyContext = companyContext;
         _navigationService = navigationService;
+        _vendorIntelligenceService = vendorIntelligenceService;
 
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
         _ = LoadLedgersAsync();
@@ -76,6 +82,7 @@ public partial class LedgersViewModel : ObservableObject, INavigationAware
                 ActiveCompanyName = "No Company Selected";
                 FinancialYear = "—";
                 Ledgers.Clear();
+                VendorFindings.Clear();
                 HasLedgers = false;
                 return;
             }
@@ -115,6 +122,16 @@ public partial class LedgersViewModel : ObservableObject, INavigationAware
                 Ledgers.Add(l);
             }
             HasLedgers = Ledgers.Count > 0;
+
+            VendorFindings.Clear();
+            if (_vendorIntelligenceService != null)
+            {
+                // Analyze the full synchronized company master, not just the 100 visible search results.
+                const string vendorSql = @"SELECT * FROM Ledgers WHERE CompanyId = @CompanyId";
+                var companyLedgers = (await connection.QueryAsync<Ledger>(vendorSql, new { CompanyId = current.Id })).ToList();
+                foreach (var finding in _vendorIntelligenceService.Analyze(companyLedgers))
+                    VendorFindings.Add(finding);
+            }
         }
         finally
         {
