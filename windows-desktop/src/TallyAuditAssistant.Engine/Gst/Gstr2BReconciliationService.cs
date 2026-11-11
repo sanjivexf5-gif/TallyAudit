@@ -71,8 +71,14 @@ public sealed class Gstr2BReconciliationService
         {
             var book=books[bi];
             if (!portalByInvoice.TryGetValue(book.Invoice,out var candidates)) continue;
-            var pi=candidates.FirstOrDefault(i=>remainingPortal.Contains(i),-1);
-            if (pi<0) continue;
+            var available = candidates.Where(remainingPortal.Contains).ToArray();
+            if (available.Length == 0) continue;
+            var exactGstin = available.FirstOrDefault(i =>
+                NormalizeGstin(portal[i].SupplierGstin).Equals(book.Gstin, StringComparison.OrdinalIgnoreCase), -1);
+            // If the same invoice number exists for multiple suppliers and none has
+            // the Tally GSTIN, do not guess which portal row belongs to this voucher.
+            var pi = exactGstin >= 0 ? exactGstin : available.Length == 1 ? available[0] : -1;
+            if (pi < 0) continue;
             var p=portal[pi]; remainingBooks.Remove(bi); remainingPortal.Remove(pi);
             var bg=book.Gstin; var pg=NormalizeGstin(p.SupplierGstin); var diff=Math.Abs(book.Value-p.InvoiceValue);
             if (bg.Length>0 && pg.Length>0 && !bg.Equals(pg,StringComparison.OrdinalIgnoreCase))
