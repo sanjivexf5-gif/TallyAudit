@@ -53,6 +53,7 @@ public interface IAuditRepository
     Task UpdateExceptionStatusAsync(string exceptionId, ReviewStatus newStatus, string? auditorNote, CancellationToken cancellationToken = default);
     Task UpdateExceptionAssignmentAsync(string exceptionId, string? assignedTo, CancellationToken cancellationToken = default);
     Task UpdateExceptionDueDateAsync(string exceptionId, DateTime? dueDate, CancellationToken cancellationToken = default);
+    Task<FindingDueDateSummary> GetFindingDueDateSummaryAsync(string companyId, DateTime asOfDate, int upcomingDays = 7, CancellationToken cancellationToken = default);
     
     Task<IReadOnlyList<AuditRule>> GetActiveRulesAsync(CancellationToken cancellationToken = default);
 
