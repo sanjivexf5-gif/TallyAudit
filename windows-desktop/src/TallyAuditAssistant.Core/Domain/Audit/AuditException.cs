@@ -34,6 +34,7 @@ public class AuditException
     public ReviewStatus Status { get; set; } = ReviewStatus.Pending;
     public string? AuditorNote { get; set; }
     public string? AuditorAssignedTo { get; set; }
+    public DateTime? DueDate { get; set; }
     public DateTime FlaggedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ReviewedAt { get; set; }
 }

@@ -52,6 +52,7 @@ public interface IAuditRepository
     Task<IReadOnlyList<AuditException>> GetTopExceptionsForPeriodAsync(string companyId, DateTime? periodFrom, DateTime? periodTo, int limit = 10, CancellationToken cancellationToken = default);
     Task UpdateExceptionStatusAsync(string exceptionId, ReviewStatus newStatus, string? auditorNote, CancellationToken cancellationToken = default);
     Task UpdateExceptionAssignmentAsync(string exceptionId, string? assignedTo, CancellationToken cancellationToken = default);
+    Task UpdateExceptionDueDateAsync(string exceptionId, DateTime? dueDate, CancellationToken cancellationToken = default);
     
     Task<IReadOnlyList<AuditRule>> GetActiveRulesAsync(CancellationToken cancellationToken = default);
 
