@@ -77,6 +77,16 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
     [ObservableProperty]
     private int _dueSoonFindingsCount;
 
+    [ObservableProperty]
+    private int _currentPage = 1;
+
+    [ObservableProperty]
+    private int _totalFilteredFindings;
+
+    private const int PageSize = 100;
+    public int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalFilteredFindings / (double)PageSize));
+    public string PageSummary => TotalFilteredFindings == 0 ? "No findings" : $"Page {CurrentPage} of {TotalPages} · {TotalFilteredFindings:N0} findings";
+
     public ObservableCollection<AuditException> Exceptions { get; } = new();
     public ObservableCollection<ReviewerWorkloadSummary> ReviewerWorkloads { get; } = new();
 
@@ -181,6 +191,10 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
                 OverdueFindingsCount = 0;
                 DueSoonFindingsCount = 0;
                 ReviewerWorkloads.Clear();
+                TotalFilteredFindings = 0;
+                CurrentPage = 1;
+                OnPropertyChanged(nameof(TotalPages));
+                OnPropertyChanged(nameof(PageSummary));
                 return;
             }
 
@@ -189,16 +203,13 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
 
             _logger.LogInformation("Fetching exceptions from repository. Generation: {Generation}, CompanyId: {CompanyId}", currentGen, compId);
 
+            TotalFilteredFindings = await _repository.GetFilteredExceptionCountAsync(compId, SelectedCategoryFilter, SelectedSeverityFilter, SelectedStatusFilter, SearchQuery, token);
+            OnPropertyChanged(nameof(TotalPages));
+            if (CurrentPage > TotalPages) CurrentPage = TotalPages;
             IReadOnlyList<AuditException> list = await _repository.GetExceptionsFilteredAsync(
-                compId,
-                SelectedCategoryFilter,
-                SelectedSeverityFilter,
-                SelectedStatusFilter,
-                SearchQuery,
-                SelectedSortColumn,
-                IsSortDescending,
-                token
-            );
+                compId, SelectedCategoryFilter, SelectedSeverityFilter, SelectedStatusFilter, SearchQuery,
+                SelectedSortColumn, IsSortDescending, token,
+                skip: (CurrentPage - 1) * PageSize, take: PageSize);
 
             var dueDateSummary = await _repository.GetFindingDueDateSummaryAsync(compId, DateTime.Today, 7, token);
             var reviewerWorkloads = await _repository.GetReviewerWorkloadSummaryAsync(compId, DateTime.Today, 7, token);
@@ -225,7 +236,8 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
                 Exceptions.Add(ex);
             }
 
-            HasExceptions = Exceptions.Count > 0;
+            HasExceptions = TotalFilteredFindings > 0;
+            OnPropertyChanged(nameof(PageSummary));
             if (Exceptions.Count > 0)
             {
                 var existingId = SelectedException?.Id;
@@ -371,10 +383,13 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
         }
     }
 
-    async partial void OnSearchQueryChanged(string value) => await SafeLoadExceptionsAsync();
-    async partial void OnSelectedCategoryFilterChanged(string value) => await SafeLoadExceptionsAsync();
-    async partial void OnSelectedSeverityFilterChanged(string value) => await SafeLoadExceptionsAsync();
-    async partial void OnSelectedStatusFilterChanged(string value) => await SafeLoadExceptionsAsync();
+    [RelayCommand] private async Task GoToPreviousPageAsync() { if (CurrentPage <= 1 || IsLoading) return; CurrentPage--; await SafeLoadExceptionsAsync(); }
+    [RelayCommand] private async Task GoToNextPageAsync() { if (CurrentPage >= TotalPages || IsLoading) return; CurrentPage++; await SafeLoadExceptionsAsync(); }
+    partial void OnCurrentPageChanged(int value) => OnPropertyChanged(nameof(PageSummary));
+    async partial void OnSearchQueryChanged(string value) { CurrentPage = 1; await SafeLoadExceptionsAsync(); }
+    async partial void OnSelectedCategoryFilterChanged(string value) { CurrentPage = 1; await SafeLoadExceptionsAsync(); }
+    async partial void OnSelectedSeverityFilterChanged(string value) { CurrentPage = 1; await SafeLoadExceptionsAsync(); }
+    async partial void OnSelectedStatusFilterChanged(string value) { CurrentPage = 1; await SafeLoadExceptionsAsync(); }
 
     public void Dispose()
     {

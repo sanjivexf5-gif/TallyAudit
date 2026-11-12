@@ -108,4 +108,38 @@ public sealed class DashboardSqliteAggregationTests : IAsyncLifetime
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             _auditRepository.GetTopExceptionsForPeriodAsync("company", null, null, limit: 0));
     }
+
+    [Fact]
+    public async Task FilteredExceptionCount_MatchesPagedDeduplicatedRegisterFilters()
+    {
+        const string companyId = "FILTERED-REGISTER-CO";
+        await _auditRepository.SaveCompanyAsync(new Company { Id = companyId, TallyCompanyName = companyId });
+
+        AuditResult Finding(string ruleId, RuleCategory category, SeverityLevel severity, string voucherNumber) => new()
+        {
+            CompanyId = companyId, RuleId = ruleId, RuleName = ruleId, Category = category,
+            Severity = severity, VoucherId = ruleId, VoucherNumber = voucherNumber, FlaggedAmount = 10m,
+            Explanation = "Filtered register integration test", Evidence = "{}"
+        };
+
+        await _resultRepository.SaveResultsBatchAsync(new[]
+        {
+            Finding("GST-REGISTER-HIGH-1", RuleCategory.GST, SeverityLevel.High, "Alpha Supplies"),
+            Finding("GST-REGISTER-LOW-1", RuleCategory.GST, SeverityLevel.Low, "Beta Supplies"),
+            Finding("TDS-REGISTER-HIGH-1", RuleCategory.TDS, SeverityLevel.High, "Alpha Services")
+        });
+
+        var gstCount = await _auditRepository.GetFilteredExceptionCountAsync(companyId, category: "GST");
+        var highCount = await _auditRepository.GetFilteredExceptionCountAsync(companyId, severity: "High");
+        var searchCount = await _auditRepository.GetFilteredExceptionCountAsync(companyId, searchQuery: "Alpha");
+        var firstPage = await _auditRepository.GetExceptionsFilteredAsync(companyId, category: "GST", take: 1);
+        var secondPage = await _auditRepository.GetExceptionsFilteredAsync(companyId, category: "GST", skip: 1, take: 1);
+
+        Assert.Equal(2, gstCount);
+        Assert.Equal(2, highCount);
+        Assert.Equal(2, searchCount);
+        Assert.Single(firstPage);
+        Assert.Single(secondPage);
+        Assert.NotEqual(firstPage[0].Id, secondPage[0].Id);
+    }
 }
