@@ -2,12 +2,14 @@ using System;
 using System.Threading;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
+using System.Linq;
 using Microsoft.Win32;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.App.Services;
 using TallyAuditAssistant.Core.Interfaces;
+using TallyAuditAssistant.Engine.Compliance;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
@@ -20,8 +22,12 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
     private readonly ScheduledAuditTaskService _scheduledAuditTaskService;
     private readonly AutomationRunHistoryService _runHistoryService;
     private readonly AutomationReadinessService? _readinessService;
+    private readonly ComplianceDeadlineService _complianceDeadlineService;
 
     public ObservableCollection<AutomationRunHistoryEntry> RecentRuns { get; } = new();
+    public ObservableCollection<ComplianceDeadlineItem> ComplianceDeadlines { get; } = new();
+
+    [ObservableProperty] private string _complianceDeadlineStatus = "Loading compliance reminders...";
 
     [ObservableProperty] private bool _isRunning;
     [ObservableProperty] private string _companyName = "No Company Selected";
@@ -49,7 +55,8 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
         AuditReportPackViewModel? reportPackViewModel = null,
         ScheduledAuditTaskService? scheduledAuditTaskService = null,
         AutomationRunHistoryService? runHistoryService = null,
-        AutomationReadinessService? readinessService = null)
+        AutomationReadinessService? readinessService = null,
+        ComplianceDeadlineService? complianceDeadlineService = null)
     {
         _automationService = automationService;
         _navigationService = navigationService;
@@ -58,7 +65,9 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
         _scheduledAuditTaskService = scheduledAuditTaskService ?? new ScheduledAuditTaskService();
         _runHistoryService = runHistoryService ?? new AutomationRunHistoryService();
         _readinessService = readinessService;
+        _complianceDeadlineService = complianceDeadlineService ?? new ComplianceDeadlineService();
         RefreshRunHistory();
+        RefreshComplianceDeadlines();
 
         _automationService.ProgressChanged += OnProgressChanged;
         _companyContext.ActiveCompanyChanged += OnCompanyChanged;
@@ -69,7 +78,30 @@ public partial class AuditAutomationViewModel : ObservableObject, INavigationAwa
     public async Task OnNavigatedToAsync()
     {
         RefreshCompany();
+        RefreshComplianceDeadlines();
         await RefreshScheduleAsync();
+    }
+
+    [RelayCommand]
+    private void RefreshComplianceDeadlines()
+    {
+        try
+        {
+            var items = _complianceDeadlineService.GenerateUpcoming(DateTime.Today, monthsAhead: 3);
+            ComplianceDeadlines.Clear();
+            foreach (var item in items)
+            {
+                ComplianceDeadlines.Add(item);
+            }
+
+            var overdue = items.Count(x => x.Status == "Overdue");
+            var dueSoon = items.Count(x => x.Status is "Due today" or "Due soon");
+            ComplianceDeadlineStatus = $"{items.Count} reminder(s) in the next 3 months • {overdue} overdue • {dueSoon} due within 7 days.";
+        }
+        catch (Exception ex)
+        {
+            ComplianceDeadlineStatus = $"Compliance reminders could not be generated: {ex.Message}";
+        }
     }
 
     [RelayCommand]
