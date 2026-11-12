@@ -49,7 +49,7 @@ public interface IAuditRepository
     Task<int> GetExceptionCountAsync(string companyId, RuleCategory? category = null, SeverityLevel? minSeverity = null, ReviewStatus? status = null, CancellationToken cancellationToken = default);
     Task<int> GetFilteredExceptionCountAsync(string companyId, string? category = null, string? severity = null, string? status = null, string? searchQuery = null, CancellationToken cancellationToken = default);
     Task<int> GetExceptionCountForPeriodAsync(string companyId, DateTime? periodFrom, DateTime? periodTo, CancellationToken cancellationToken = default);
-    Task<AuditDashboardAggregates> GetDashboardAggregatesForPeriodAsync(string companyId, DateTime? periodFrom, DateTime? periodTo, CancellationToken cancellationToken = default);
+    Task<AuditDashboardAggregates> GetDashboardAggregatesForPeriodAsync(string companyId, DateTime? periodFrom, DateTime? periodTo, CancellationToken cancellationToken = default, DateTime? asOfDate = null);
     Task<IReadOnlyList<AuditAreaAggregate>> GetAuditAreaAggregatesForPeriodAsync(string companyId, DateTime? periodFrom, DateTime? periodTo, CancellationToken cancellationToken = default);
     Task<AuditDashboardCategoryAmounts> GetDashboardCategoryAmountsForPeriodAsync(string companyId, DateTime? periodFrom, DateTime? periodTo, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AuditException>> GetTopExceptionsForPeriodAsync(string companyId, DateTime? periodFrom, DateTime? periodTo, int limit = 10, CancellationToken cancellationToken = default);

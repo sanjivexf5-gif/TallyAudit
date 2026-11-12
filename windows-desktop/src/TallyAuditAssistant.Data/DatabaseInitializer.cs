@@ -185,7 +185,8 @@ public class DatabaseInitializer : IDatabaseInitializer
                 AuditorAssignedTo TEXT,
                 FlaggedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
                 DetectedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-                ReviewedAt DATETIME
+                ReviewedAt DATETIME,
+                DueDate DATE
             );
 
             -- 6. Synchronization Logs
@@ -505,6 +506,22 @@ CREATE TABLE IF NOT EXISTS AuditPlans (
         ";
 
         await connection.ExecuteAsync(new CommandDefinition(schemaSql, cancellationToken: cancellationToken));
+
+        // Keep the finding due-date field available even when the database is
+        // initialized directly (e.g. fresh installs and test databases) rather
+        // than through the versioned migration runner. Existing databases are
+        // upgraded idempotently without touching finding data.
+        var exceptionColumns = await connection.QueryAsync<string>(
+            new CommandDefinition("SELECT name FROM pragma_table_info('Exceptions');", cancellationToken: cancellationToken));
+        if (!exceptionColumns.Contains("DueDate", StringComparer.OrdinalIgnoreCase))
+        {
+            await connection.ExecuteAsync(new CommandDefinition(
+                "ALTER TABLE Exceptions ADD COLUMN DueDate DATE;",
+                cancellationToken: cancellationToken));
+        }
+        await connection.ExecuteAsync(new CommandDefinition(
+            "CREATE INDEX IF NOT EXISTS idx_exceptions_due_date ON Exceptions(CompanyId, DueDate, Status);",
+            cancellationToken: cancellationToken));
 
         // Explicit upgrade safety net for installations created before the
         // Audit Planning / Working Papers schema was introduced. The main
