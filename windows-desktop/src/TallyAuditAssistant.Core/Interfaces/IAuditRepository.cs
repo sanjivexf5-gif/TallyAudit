@@ -42,7 +42,9 @@ public interface IAuditRepository
         string? searchQuery = null,
         string? sortBy = null,
         bool isDescending = true,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        int skip = 0,
+        int take = int.MaxValue);
 
     Task<int> GetExceptionCountAsync(string companyId, RuleCategory? category = null, SeverityLevel? minSeverity = null, ReviewStatus? status = null, CancellationToken cancellationToken = default);
     Task<int> GetExceptionCountForPeriodAsync(string companyId, DateTime? periodFrom, DateTime? periodTo, CancellationToken cancellationToken = default);
