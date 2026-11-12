@@ -293,6 +293,36 @@ public class TdsRepository : ITdsRepository, ITdsExceptionService
         };
     }
 
+
+    public async Task<IReadOnlyList<TdsLedgerMovement>> GetTdsLedgerMovementsAsync(
+        string companyId, DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(companyId)) throw new ArgumentException("A company ID is required.", nameof(companyId));
+        if (fromDate.Date > toDate.Date) throw new ArgumentException("The period start date must be on or before its end date.");
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = @"
+            SELECT l.Name AS LedgerName,
+                   COALESCE(SUM(CASE WHEN e.IsDebit = 1 THEN ABS(e.Amount) ELSE 0 END), 0) AS DebitTotal,
+                   COALESCE(SUM(CASE WHEN e.IsDebit = 0 THEN ABS(e.Amount) ELSE 0 END), 0) AS CreditTotal,
+                   COUNT(DISTINCT v.Id) AS VoucherCount
+            FROM Ledgers l
+            INNER JOIN VoucherEntries e ON e.LedgerName = l.Name
+            INNER JOIN Vouchers v ON v.Id = e.VoucherId AND v.CompanyId = l.CompanyId
+            WHERE l.CompanyId = @CompanyId
+              AND v.VoucherDate >= @FromDate
+              AND v.VoucherDate < @ToDateExclusive
+              AND COALESCE(v.IsCancelled, 0) = 0
+              AND (UPPER(COALESCE(l.TaxType, '')) LIKE '%TDS%' OR UPPER(l.Name) LIKE '%TDS%')
+            GROUP BY l.Name
+            ORDER BY l.Name COLLATE NOCASE;";
+        var from = fromDate.Date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var toExclusive = toDate.Date.AddDays(1).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var rows = await connection.QueryAsync<TdsLedgerMovement>(new CommandDefinition(sql,
+            new { CompanyId = companyId, FromDate = from, ToDateExclusive = toExclusive },
+            cancellationToken: cancellationToken));
+        return rows.ToList();
+    }
+
     public async Task UpdateStatusAsync(string resultId, ReviewStatus status, string reviewer, string? notes, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
