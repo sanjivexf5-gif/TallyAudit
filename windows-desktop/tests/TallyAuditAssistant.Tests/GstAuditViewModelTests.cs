@@ -53,7 +53,7 @@ public class GstAuditViewModelTests : IDisposable
     {
         // Arrange
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
-                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>()))
+                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>(), 0, int.MaxValue))
             .ReturnsAsync(Array.Empty<AuditException>());
 
         using var vm = new GstAuditViewModel(
@@ -92,7 +92,7 @@ public class GstAuditViewModelTests : IDisposable
         };
 
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
-                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>()))
+                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>(), 0, int.MaxValue))
             .ReturnsAsync(new[] { finding });
 
         using var vm = new GstAuditViewModel(
@@ -132,7 +132,7 @@ public class GstAuditViewModelTests : IDisposable
 
         var returnedList = new List<AuditException> { finding };
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
-                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>()))
+                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>(), 0, int.MaxValue))
             .ReturnsAsync(() => returnedList.ToArray());
 
         using var vm = new GstAuditViewModel(
@@ -179,7 +179,7 @@ public class GstAuditViewModelTests : IDisposable
 
         // Start with initial setup returning empty list for constructor
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
-                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>()))
+                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>(), 0, int.MaxValue))
             .ReturnsAsync(initialResult);
 
         using var vm = new GstAuditViewModel(
@@ -194,8 +194,8 @@ public class GstAuditViewModelTests : IDisposable
         // Configure mock sequence for overlapping calls: first call gets slowTcs, second gets fastTcs
         int callCount = 0;
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
-                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>()))
-            .Returns((string c, string cat, string sev, string stat, string q, string sb, bool desc, CancellationToken ct) =>
+                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>(), 0, int.MaxValue))
+            .Returns((string c, string cat, string sev, string stat, string q, string sb, bool desc, CancellationToken ct, int skip, int take) =>
             {
                 int count = Interlocked.Increment(ref callCount);
                 if (count == 1)
@@ -235,11 +235,11 @@ public class GstAuditViewModelTests : IDisposable
         };
 
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
-                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>()))
+                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>(), 0, int.MaxValue))
             .ReturnsAsync(companyAResult);
 
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
-                _testCompanyB.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>()))
+                _testCompanyB.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>(), 0, int.MaxValue))
             .ReturnsAsync(companyBResult);
 
         using var vm = new GstAuditViewModel(
@@ -279,7 +279,7 @@ public class GstAuditViewModelTests : IDisposable
         };
 
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
-                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>()))
+                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>(), 0, int.MaxValue))
             .ReturnsAsync(findings);
 
         using var vm = new GstAuditViewModel(
@@ -338,7 +338,7 @@ public class GstAuditViewModelTests : IDisposable
         };
 
         _mockRepository.Setup(r => r.GetExceptionsFilteredAsync(
-                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>()))
+                _testCompanyA.Id, "GST", "All", "All", null, "Priority", true, It.IsAny<CancellationToken>(), 0, int.MaxValue))
             .ReturnsAsync(() => new[] { finding });
 
         _mockRepository.Setup(r => r.UpdateExceptionStatusAsync(
