@@ -45,6 +45,10 @@
                     <TextBlock Text="{Binding ReturnLineCount}" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="4,0,0,6"/>
                 </WrapPanel>
                 <TextBlock Text="{Binding ReconciliationStatus}" Foreground="#CBD5E1" FontSize="12" Margin="0,2,0,8" TextWrapping="Wrap"/>
+                <WrapPanel Margin="0,0,0,6">
+                    <Button Content="Compare Return with Tally TDS Ledgers" Command="{Binding CompareWithTallyLedgersCommand}" Padding="12,6" Margin="0,0,8,4"/>
+                </WrapPanel>
+                <TextBlock Text="{Binding LedgerComparisonStatus}" Foreground="#FBBF24" FontSize="11" Margin="0,0,0,8" TextWrapping="Wrap"/>
                 <TextBlock Text="Challan CSV columns: TAN, FinancialYear, Quarter, Section, BSRCode, ChallanDate, SerialNumber, TaxAmount. Return CSV columns: TAN, DeducteePAN, FinancialYear, Quarter, Section, BSRCode, ChallanDate, ChallanSerialNumber, DeductedAmount. Dates: yyyy-MM-dd; amounts: invariant decimals."
                            Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="0,0,0,8" TextWrapping="Wrap"/>
                 <DataGrid ItemsSource="{Binding ReconciliationFindings}" AutoGenerateColumns="False" IsReadOnly="True"
