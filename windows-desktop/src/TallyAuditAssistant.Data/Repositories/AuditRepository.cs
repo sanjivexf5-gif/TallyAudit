@@ -22,6 +22,26 @@ public class AuditRepository : IAuditRepository
         return result.ToList();
     }
 
+
+    public async Task<IReadOnlyList<CompanyComplianceOverview>> GetCompanyComplianceOverviewAsync(CancellationToken cancellationToken = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = @"
+            SELECT c.Id AS CompanyId,
+                   c.TallyCompanyName AS CompanyName,
+                   c.GSTIN,
+                   c.LastSyncDate,
+                   (SELECT COUNT(*) FROM Vouchers v WHERE v.CompanyId = c.Id) AS VoucherCount,
+                   (SELECT COUNT(*) FROM Exceptions e WHERE e.CompanyId = c.Id) AS RecordedFindingCount,
+                   (SELECT COUNT(*) FROM Exceptions e WHERE e.CompanyId = c.Id AND e.Severity >= 3) AS HighPriorityFindingCount,
+                   (SELECT COUNT(*) FROM Exceptions e WHERE e.CompanyId = c.Id AND e.Status = 0) AS PendingReviewCount
+            FROM Companies c
+            ORDER BY c.TallyCompanyName COLLATE NOCASE;";
+        var rows = await connection.QueryAsync<CompanyComplianceOverview>(
+            new CommandDefinition(sql, cancellationToken: cancellationToken));
+        return rows.ToList();
+    }
+
     public async Task<Company?> GetCompanyByIdAsync(string companyId, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
