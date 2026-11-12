@@ -284,7 +284,8 @@ public class AuditRepository : IAuditRepository
         string companyId,
         DateTime? periodFrom,
         DateTime? periodTo,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        DateTime? asOfDate = null)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
         // Aggregate in SQLite so large companies do not require loading every finding
@@ -300,8 +301,27 @@ public class AuditRepository : IAuditRepository
                 COALESCE(SUM(CASE WHEN e.Severity = @Informational THEN 1 ELSE 0 END), 0) AS InformationalCount,
                 COALESCE(SUM(CASE WHEN e.Status IN (@Pending, @Clarification) THEN 1 ELSE 0 END), 0) AS OpenFindings,
                 COALESCE(SUM(CASE WHEN e.Status = @Reviewed THEN 1 ELSE 0 END), 0) AS ReviewedFindings,
+                COALESCE(SUM(CASE WHEN e.Status = @Resolved THEN 1 ELSE 0 END), 0) AS ResolvedOnlyFindings,
                 COALESCE(SUM(CASE WHEN e.Status IN (@Resolved, @FalsePositive) THEN 1 ELSE 0 END), 0) AS ResolvedFindings,
-                COALESCE(SUM(COALESCE(e.FlaggedAmount, 0)), 0) AS TotalExceptionAmount
+                COALESCE(SUM(COALESCE(e.FlaggedAmount, 0)), 0) AS TotalExceptionAmount,
+                COALESCE(SUM(CASE WHEN e.Category = @GSTCategory THEN 1 ELSE 0 END), 0) AS GstFindings,
+                COALESCE(SUM(CASE WHEN e.Category = @TDSCategory THEN 1 ELSE 0 END), 0) AS TdsFindings,
+                COALESCE(SUM(CASE WHEN e.Category = @DuplicateCategory THEN 1 ELSE 0 END), 0) AS DuplicateDetectionFindings,
+                COALESCE(SUM(CASE WHEN e.Category = @AccountingCategory THEN 1 ELSE 0 END), 0) AS GeneralAccountingFindings,
+                COALESCE(SUM(CASE WHEN e.Category = @VoucherCategory THEN 1 ELSE 0 END), 0) AS VoucherSequencingFindings,
+                COALESCE(SUM(CASE WHEN e.Category = @AnomalyCategory THEN 1 ELSE 0 END), 0) AS AnomalyDetectionFindings,
+                COALESCE(SUM(CASE WHEN e.Category = @BankingCategory THEN 1 ELSE 0 END), 0) AS BankingFindings,
+                COALESCE(SUM(CASE WHEN e.Severity >= @High THEN 1 ELSE 0 END), 0) AS HighPriorityFindings,
+                COALESCE(SUM(CASE WHEN e.Status = @Pending THEN 1 ELSE 0 END), 0) AS PendingFindings,
+                COALESCE(SUM(CASE WHEN e.Status = @Clarification THEN 1 ELSE 0 END), 0) AS ClarificationFindings,
+                COALESCE(SUM(CASE WHEN e.Status IN (@Pending, @Clarification) AND e.DueDate IS NOT NULL
+                    AND date(e.DueDate) < date(@AsOfDate) THEN 1 ELSE 0 END), 0) AS OverdueFindingReviews,
+                COALESCE(SUM(CASE WHEN e.Status IN (@Pending, @Clarification) AND e.DueDate IS NOT NULL
+                    AND date(e.DueDate) >= date(@AsOfDate) AND date(e.DueDate) <= date(@UpcomingThrough)
+                    THEN 1 ELSE 0 END), 0) AS DueSoonFindingReviews,
+                COALESCE(SUM(CASE WHEN e.RuleId LIKE 'REC-%' THEN 1 ELSE 0 END), 0) AS ReconciliationDifferences,
+                COALESCE(SUM(CASE WHEN e.RuleId LIKE 'REC-%' AND e.Severity < @High THEN 1 ELSE 0 END), 0) AS ReconciliationWarnings,
+                COUNT(DISTINCT CASE WHEN e.RuleId LIKE 'REC-%' THEN e.RuleId END) AS ReconciliationRuleCount
             FROM Exceptions e
             INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
             WHERE e.CompanyId = @CompanyId
@@ -324,7 +344,16 @@ public class AuditRepository : IAuditRepository
                 Clarification = (int)ReviewStatus.RequiresClientClarification,
                 Reviewed = (int)ReviewStatus.Reviewed,
                 Resolved = (int)ReviewStatus.Resolved,
-                FalsePositive = (int)ReviewStatus.FlaggedAsFalsePositive
+                FalsePositive = (int)ReviewStatus.FlaggedAsFalsePositive,
+                GSTCategory = (int)RuleCategory.GST,
+                TDSCategory = (int)RuleCategory.TDS,
+                DuplicateCategory = (int)RuleCategory.DuplicateDetection,
+                AccountingCategory = (int)RuleCategory.GeneralAccounting,
+                VoucherCategory = (int)RuleCategory.VoucherSequencing,
+                AnomalyCategory = (int)RuleCategory.AnomalyDetection,
+                BankingCategory = (int)RuleCategory.Banking,
+                AsOfDate = (asOfDate ?? DateTime.Today).Date.ToString("yyyy-MM-dd"),
+                UpcomingThrough = (asOfDate ?? DateTime.Today).Date.AddDays(7).ToString("yyyy-MM-dd")
             },
             cancellationToken: cancellationToken));
     }
