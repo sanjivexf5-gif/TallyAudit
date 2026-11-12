@@ -535,6 +535,29 @@ public class AuditRepository : IAuditRepository
             cancellationToken: cancellationToken));
     }
 
+    public async Task UpdateExceptionAssignmentAsync(string exceptionId, string? assignedTo, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(exceptionId))
+        {
+            throw new ArgumentException("A finding ID is required.", nameof(exceptionId));
+        }
+
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = @"
+            UPDATE Exceptions
+            SET AuditorAssignedTo = NULLIF(TRIM(@AssignedTo), '')
+            WHERE Id = @Id;";
+        var affected = await connection.ExecuteAsync(new CommandDefinition(
+            sql,
+            new { Id = exceptionId, AssignedTo = assignedTo },
+            cancellationToken: cancellationToken));
+
+        if (affected == 0)
+        {
+            throw new InvalidOperationException("The finding could not be found or its assignment was not saved.");
+        }
+    }
+
     public async Task<IReadOnlyList<AuditRule>> GetActiveRulesAsync(CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
