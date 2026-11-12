@@ -115,10 +115,10 @@ public sealed class DashboardSqliteAggregationTests : IAsyncLifetime
         const string companyId = "FILTERED-REGISTER-CO";
         await _auditRepository.SaveCompanyAsync(new Company { Id = companyId, TallyCompanyName = companyId });
 
-        AuditResult Finding(string ruleId, RuleCategory category, SeverityLevel severity, string ledger) => new()
+        AuditResult Finding(string ruleId, RuleCategory category, SeverityLevel severity, string voucherNumber) => new()
         {
             CompanyId = companyId, RuleId = ruleId, RuleName = ruleId, Category = category,
-            Severity = severity, VoucherId = ruleId, LedgerName = ledger, FlaggedAmount = 10m,
+            Severity = severity, VoucherId = ruleId, VoucherNumber = voucherNumber, FlaggedAmount = 10m,
             Explanation = "Filtered register integration test", Evidence = "{\\"test\\":true}"
         };
 
