@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.IO;
+using Microsoft.Win32;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -11,6 +13,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using TallyAuditAssistant.Core.Domain.Audit;
 using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
+using TallyAuditAssistant.Engine.Tds.Reconciliation;
 
 namespace TallyAuditAssistant.App.ViewModels;
 
@@ -21,6 +24,9 @@ public partial class TdsAuditViewModel : ObservableObject, INavigationAware, IDi
     private readonly IActiveCompanyContext _companyContext;
     private readonly INavigationService _navigationService;
     private readonly ILogger<TdsAuditViewModel> _logger;
+    private readonly TdsChallanReturnReconciliationService _reconciliationService;
+    private IReadOnlyList<TdsChallanRecord> _importedChallans = Array.Empty<TdsChallanRecord>();
+    private IReadOnlyList<TdsReturnLine> _importedReturnLines = Array.Empty<TdsReturnLine>();
 
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private readonly object _ctsLock = new();
@@ -47,19 +53,26 @@ public partial class TdsAuditViewModel : ObservableObject, INavigationAware, IDi
     private bool _hasExceptions;
 
     public ObservableCollection<AuditException> Exceptions { get; } = new();
+    public ObservableCollection<TdsReconciliationFinding> ReconciliationFindings { get; } = new();
+
+    [ObservableProperty] private string _reconciliationStatus = "Import a challan CSV and a TDS return allocation CSV to begin.";
+    [ObservableProperty] private int _challanRecordCount;
+    [ObservableProperty] private int _returnLineCount;
 
     public TdsAuditViewModel(
         IAuditRepository repository,
         ISettingsService settingsService,
         IActiveCompanyContext companyContext,
         INavigationService navigationService,
-        ILogger<TdsAuditViewModel>? logger = null)
+        ILogger<TdsAuditViewModel>? logger = null,
+        TdsChallanReturnReconciliationService? reconciliationService = null)
     {
         _repository = repository;
         _settingsService = settingsService;
         _companyContext = companyContext;
         _navigationService = navigationService;
         _logger = logger ?? NullLogger<TdsAuditViewModel>.Instance;
+        _reconciliationService = reconciliationService ?? new TdsChallanReturnReconciliationService();
 
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
         _ = SafeLoadTdsExceptionsAsync();
@@ -211,6 +224,55 @@ public partial class TdsAuditViewModel : ObservableObject, INavigationAware, IDi
             }
             _loadGate.Release();
         }
+    }
+
+    [RelayCommand]
+    private void ImportChallans()
+    {
+        var dialog = new OpenFileDialog { Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*", Title = "Select normalized TDS challan CSV" };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            _importedChallans = _reconciliationService.ReadChallansCsv(File.ReadAllText(dialog.FileName));
+            ChallanRecordCount = _importedChallans.Count;
+            ReconcileImportedTdsData();
+        }
+        catch (Exception ex)
+        {
+            ReconciliationStatus = $"Challan import failed: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void ImportReturnStatement()
+    {
+        var dialog = new OpenFileDialog { Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*", Title = "Select normalized TDS return allocation CSV" };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            _importedReturnLines = _reconciliationService.ReadReturnCsv(File.ReadAllText(dialog.FileName));
+            ReturnLineCount = _importedReturnLines.Count;
+            ReconcileImportedTdsData();
+        }
+        catch (Exception ex)
+        {
+            ReconciliationStatus = $"Return import failed: {ex.Message}";
+        }
+    }
+
+    private void ReconcileImportedTdsData()
+    {
+        if (_importedChallans.Count == 0 || _importedReturnLines.Count == 0)
+        {
+            ReconciliationStatus = $"{ChallanRecordCount} challan row(s) and {ReturnLineCount} return allocation row(s) imported. Import both files to reconcile.";
+            return;
+        }
+
+        var findings = _reconciliationService.Reconcile(_importedChallans, _importedReturnLines);
+        ReconciliationFindings.Clear();
+        foreach (var finding in findings) ReconciliationFindings.Add(finding);
+        var matched = findings.Count(x => x.Status == "Matched");
+        ReconciliationStatus = $"{findings.Count} CIN group(s) checked • {matched} matched • {findings.Count - matched} requiring review.";
     }
 
     [RelayCommand]
