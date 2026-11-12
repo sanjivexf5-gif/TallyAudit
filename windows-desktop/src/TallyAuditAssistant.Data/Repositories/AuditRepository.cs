@@ -621,6 +621,53 @@ public class AuditRepository : IAuditRepository
             cancellationToken: cancellationToken));
     }
 
+    public async Task<IReadOnlyList<ReviewerWorkloadSummary>> GetReviewerWorkloadSummaryAsync(
+        string companyId,
+        DateTime asOfDate,
+        int upcomingDays = 7,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(companyId))
+            throw new ArgumentException("A company ID is required.", nameof(companyId));
+        if (upcomingDays < 0 || upcomingDays > 366)
+            throw new ArgumentOutOfRangeException(nameof(upcomingDays), "Upcoming window must be between 0 and 366 days.");
+
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        var sql = ExceptionQuerySql.RankedFindingsCte + @"
+            SELECT
+                COALESCE(NULLIF(trim(e.AuditorAssignedTo), ''), 'Unassigned') AS Reviewer,
+                COUNT(*) AS TotalFindings,
+                SUM(CASE WHEN e.Status = @PendingStatus THEN 1 ELSE 0 END) AS PendingCount,
+                SUM(CASE WHEN e.Status = @ClarificationStatus THEN 1 ELSE 0 END) AS ClarificationCount,
+                SUM(CASE WHEN e.Status = @ReviewedStatus THEN 1 ELSE 0 END) AS ReviewedCount,
+                SUM(CASE WHEN e.Status = @ResolvedStatus THEN 1 ELSE 0 END) AS ResolvedCount,
+                SUM(CASE WHEN e.Status IN (@PendingStatus, @ClarificationStatus)
+                    AND e.DueDate IS NOT NULL AND date(e.DueDate) < date(@AsOfDate) THEN 1 ELSE 0 END) AS OverdueCount,
+                SUM(CASE WHEN e.Status IN (@PendingStatus, @ClarificationStatus)
+                    AND e.DueDate IS NOT NULL AND date(e.DueDate) >= date(@AsOfDate)
+                    AND date(e.DueDate) <= date(@UpcomingThrough) THEN 1 ELSE 0 END) AS DueSoonCount
+            FROM Exceptions e
+            INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+            WHERE e.CompanyId = @CompanyId
+            GROUP BY COALESCE(NULLIF(trim(e.AuditorAssignedTo), ''), 'Unassigned')
+            ORDER BY CASE WHEN Reviewer = 'Unassigned' THEN 1 ELSE 0 END, Reviewer COLLATE NOCASE;";
+
+        var rows = await connection.QueryAsync<ReviewerWorkloadSummary>(new CommandDefinition(
+            sql,
+            new
+            {
+                CompanyId = companyId,
+                AsOfDate = asOfDate.Date,
+                UpcomingThrough = asOfDate.Date.AddDays(upcomingDays),
+                PendingStatus = (int)ReviewStatus.Pending,
+                ClarificationStatus = (int)ReviewStatus.RequiresClientClarification,
+                ReviewedStatus = (int)ReviewStatus.Reviewed,
+                ResolvedStatus = (int)ReviewStatus.Resolved
+            },
+            cancellationToken: cancellationToken));
+        return rows.ToList();
+    }
+
     public async Task<IReadOnlyList<AuditRule>> GetActiveRulesAsync(CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
