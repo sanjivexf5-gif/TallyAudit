@@ -960,38 +960,36 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
                 RecentExceptions.Add(ex);
             }
 
-            // Load reconciliation metrics
-            var allExceptions = await _repository.GetExceptionsAsync(current.Id, take: 1000);
-            var recExceptions = allExceptions.Where(x => x.RuleId != null && x.RuleId.StartsWith("REC-")).ToList();
+            // One SQLite aggregate replaces a capped 1,000-row scan and multiple sequential count queries.
+            // This keeps dashboard metrics exact for the full deduplicated company scope.
+            var aggregates = await _repository.GetDashboardAggregatesForPeriodAsync(
+                current.Id, null, null, asOfDate: DateTime.Today);
+
             ReconciliationTotalChecks = 12;
-            ReconciliationDifferences = recExceptions.Count;
-            ReconciliationWarnings = recExceptions.Count(x => x.Severity < SeverityLevel.High);
-            ReconciliationPassed = Math.Max(0, 12 - recExceptions.Select(x => x.RuleId).Distinct().Count());
+            ReconciliationDifferences = aggregates.ReconciliationDifferences;
+            ReconciliationWarnings = aggregates.ReconciliationWarnings;
+            ReconciliationPassed = Math.Max(0, 12 - aggregates.ReconciliationRuleCount);
             ReconciliationUnableToCheck = 0;
 
-            // General counts
-            GstExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.GST);
-            TdsExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.TDS);
-            DuplicateExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.DuplicateDetection);
-            LedgerExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.GeneralAccounting);
-            VoucherSequencingCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.VoucherSequencing);
-            AnomalyDetectionCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.AnomalyDetection);
-            BankingCount = await _repository.GetExceptionCountAsync(current.Id, category: RuleCategory.Banking);
+            GstExceptionsCount = aggregates.GstFindings;
+            TdsExceptionsCount = aggregates.TdsFindings;
+            DuplicateExceptionsCount = aggregates.DuplicateDetectionFindings;
+            LedgerExceptionsCount = aggregates.GeneralAccountingFindings;
+            VoucherSequencingCount = aggregates.VoucherSequencingFindings;
+            AnomalyDetectionCount = aggregates.AnomalyDetectionFindings;
+            BankingCount = aggregates.BankingFindings;
+            TotalFindings = GstExceptionsCount + TdsExceptionsCount + DuplicateExceptionsCount
+                + LedgerExceptionsCount + VoucherSequencingCount + AnomalyDetectionCount + BankingCount;
 
-            TotalFindings = GstExceptionsCount + TdsExceptionsCount + DuplicateExceptionsCount + LedgerExceptionsCount + VoucherSequencingCount + AnomalyDetectionCount + BankingCount;
-            
             AccountingExceptionsCount = LedgerExceptionsCount; // Alias compatibility
-            HighPriorityCount = await _repository.GetExceptionCountAsync(current.Id, minSeverity: SeverityLevel.High);
-            PendingAuditorReviews = await _repository.GetExceptionCountAsync(current.Id, status: ReviewStatus.Pending);
-            var findingDueDates = await _repository.GetFindingDueDateSummaryAsync(current.Id, DateTime.Today, 7);
-            OverdueFindingReviews = findingDueDates.OverdueCount;
-            DueSoonFindingReviews = findingDueDates.DueSoonCount;
-
-            // Specific status counts
+            HighPriorityCount = aggregates.HighPriorityFindings;
+            PendingAuditorReviews = aggregates.PendingFindings;
+            OverdueFindingReviews = aggregates.OverdueFindingReviews;
+            DueSoonFindingReviews = aggregates.DueSoonFindingReviews;
             UnreviewedExceptionsCount = PendingAuditorReviews;
-            ReviewedExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, status: ReviewStatus.Reviewed);
-            AcceptedExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, status: ReviewStatus.Resolved);
-            NeedsFollowUpExceptionsCount = await _repository.GetExceptionCountAsync(current.Id, status: ReviewStatus.RequiresClientClarification);
+            ReviewedExceptionsCount = aggregates.ReviewedFindings;
+            AcceptedExceptionsCount = aggregates.ResolvedFindings;
+            NeedsFollowUpExceptionsCount = aggregates.ClarificationFindings;
 
             // Compute completion progress
             var totalExceptions = TotalFindings;
