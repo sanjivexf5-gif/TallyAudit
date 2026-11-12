@@ -25,6 +25,7 @@ public partial class TdsAuditViewModel : ObservableObject, INavigationAware, IDi
     private readonly INavigationService _navigationService;
     private readonly ILogger<TdsAuditViewModel> _logger;
     private readonly TdsChallanReturnReconciliationService _reconciliationService;
+    private readonly ITdsRepository? _tdsRepository;
     private IReadOnlyList<TdsChallanRecord> _importedChallans = Array.Empty<TdsChallanRecord>();
     private IReadOnlyList<TdsReturnLine> _importedReturnLines = Array.Empty<TdsReturnLine>();
 
@@ -58,6 +59,7 @@ public partial class TdsAuditViewModel : ObservableObject, INavigationAware, IDi
     [ObservableProperty] private string _reconciliationStatus = "Import a challan CSV and a TDS return allocation CSV to begin.";
     [ObservableProperty] private int _challanRecordCount;
     [ObservableProperty] private int _returnLineCount;
+    [ObservableProperty] private string _ledgerComparisonStatus = "Import return allocation data, then compare it with Tally TDS ledger movements.";
 
     public TdsAuditViewModel(
         IAuditRepository repository,
@@ -65,7 +67,8 @@ public partial class TdsAuditViewModel : ObservableObject, INavigationAware, IDi
         IActiveCompanyContext companyContext,
         INavigationService navigationService,
         ILogger<TdsAuditViewModel>? logger = null,
-        TdsChallanReturnReconciliationService? reconciliationService = null)
+        TdsChallanReturnReconciliationService? reconciliationService = null,
+        ITdsRepository? tdsRepository = null)
     {
         _repository = repository;
         _settingsService = settingsService;
@@ -73,6 +76,7 @@ public partial class TdsAuditViewModel : ObservableObject, INavigationAware, IDi
         _navigationService = navigationService;
         _logger = logger ?? NullLogger<TdsAuditViewModel>.Instance;
         _reconciliationService = reconciliationService ?? new TdsChallanReturnReconciliationService();
+        _tdsRepository = tdsRepository;
 
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
         _ = SafeLoadTdsExceptionsAsync();
@@ -282,6 +286,37 @@ public partial class TdsAuditViewModel : ObservableObject, INavigationAware, IDi
         foreach (var finding in findings) ReconciliationFindings.Add(finding);
         var matched = findings.Count(x => x.Status == "Matched");
         ReconciliationStatus = $"{findings.Count} CIN group(s) checked • {matched} matched • {findings.Count - matched} requiring review.";
+    }
+
+
+    [RelayCommand]
+    private async Task CompareWithTallyLedgersAsync()
+    {
+        if (_tdsRepository == null) { LedgerComparisonStatus = "Tally ledger comparison is unavailable because the TDS repository is not configured."; return; }
+        if (_importedReturnLines.Count == 0) { LedgerComparisonStatus = "Import a TDS return allocation CSV first."; return; }
+        try
+        {
+            var company = await _companyContext.GetActiveCompanyAsync();
+            if (company == null) { LedgerComparisonStatus = "Select a company before comparing ledger movements."; return; }
+            var years = _importedReturnLines.Select(x => x.FinancialYear).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var quarters = _importedReturnLines.Select(x => x.Quarter).Distinct().ToArray();
+            if (years.Length != 1 || quarters.Length != 1) { LedgerComparisonStatus = "Import one financial year and one quarter at a time."; return; }
+            var parts = years[0].Split('-', StringSplitOptions.TrimEntries);
+            if (parts.Length != 2 || !int.TryParse(parts[0], out var startYear) || !int.TryParse(parts[1], out var endYear))
+            { LedgerComparisonStatus = "Financial year must use YYYY-YY format, for example 2026-27."; return; }
+            if (endYear < 100) endYear += (startYear / 100) * 100;
+            var quarter = quarters[0];
+            var from = new DateTime(startYear, 4, 1).AddMonths((quarter - 1) * 3);
+            var to = quarter == 4 ? new DateTime(endYear, 3, 31) : from.AddMonths(3).AddDays(-1);
+            var movements = await _tdsRepository.GetTdsLedgerMovementsAsync(company.Id, from, to);
+            var statement = _importedReturnLines.Sum(x => x.DeductedAmount);
+            var credits = movements.Sum(x => x.CreditTotal);
+            var debits = movements.Sum(x => x.DebitTotal);
+            var details = movements.Count == 0 ? "No TDS ledgers identified." :
+                string.Join("; ", movements.Select(x => $"{x.LedgerName}: Cr {x.CreditTotal:N2} / Dr {x.DebitTotal:N2}"));
+            LedgerComparisonStatus = $"FY {years[0]} Q{quarter} | Return allocations {statement:N2} | Tally TDS credits {credits:N2} | Difference (credits − return) {credits - statement:N2} | Tally debits {debits:N2}. {details} Check ledger classification, timing and journal adjustments. Movement comparison only; it does not prove challan payment or return filing.";
+        }
+        catch (Exception ex) { LedgerComparisonStatus = $"Ledger comparison failed: {ex.Message}"; }
     }
 
     [RelayCommand]
