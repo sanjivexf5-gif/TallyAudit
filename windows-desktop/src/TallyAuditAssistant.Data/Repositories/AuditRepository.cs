@@ -755,6 +755,32 @@ public class AuditRepository : IAuditRepository
         return results.ToList();
     }
 
+    public async Task<int> GetFilteredExceptionCountAsync(
+        string companyId, string? category = null, string? severity = null, string? status = null,
+        string? searchQuery = null, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(companyId)) throw new ArgumentException("A company ID is required.", nameof(companyId));
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        var sql = ExceptionQuerySql.RankedFindingsCte + @"
+            SELECT COUNT(*) FROM Exceptions e
+            INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+            WHERE e.CompanyId = @CompanyId";
+        var parameters = new DynamicParameters();
+        parameters.Add("CompanyId", companyId);
+        if (!string.IsNullOrWhiteSpace(category) && category != "All" && Enum.TryParse<RuleCategory>(category, out var cat))
+        { sql += " AND e.Category = @Category"; parameters.Add("Category", (int)cat); }
+        if (!string.IsNullOrWhiteSpace(severity) && severity != "All" && Enum.TryParse<SeverityLevel>(severity, out var sev))
+        { sql += " AND e.Severity = @Severity"; parameters.Add("Severity", (int)sev); }
+        if (!string.IsNullOrWhiteSpace(status) && status != "All")
+        {
+            var term = status == "Unreviewed" ? "Pending" : status == "Accepted" ? "Resolved" : status == "Needs Follow-up" ? "RequiresClientClarification" : status;
+            if (Enum.TryParse<ReviewStatus>(term, out var stat)) { sql += " AND e.Status = @Status"; parameters.Add("Status", (int)stat); }
+        }
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        { sql += " AND (e.VoucherNumber LIKE @Query OR e.LedgerName LIKE @Query OR e.RuleName LIKE @Query OR e.SuggestedCorrection LIKE @Query)"; parameters.Add("Query", "%" + searchQuery + "%"); }
+        return await connection.ExecuteScalarAsync<int>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+    }
+
     public async Task SaveAuditRunAsync(AuditRun run, CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
