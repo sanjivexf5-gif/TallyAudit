@@ -92,6 +92,8 @@ public record TdsAuditProgress(
     double Percentage
 );
 
+public sealed record TdsLedgerMovement(string LedgerName, decimal DebitTotal, decimal CreditTotal, int VoucherCount);
+
 public class TdsAuditSummary
 {
     public int TotalTransactionsChecked { get; set; }
