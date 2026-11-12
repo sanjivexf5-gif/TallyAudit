@@ -57,6 +57,14 @@
                     <ProgressBar IsIndeterminate="{Binding IsAuditing}" Height="4" Margin="0,8,0,0" Foreground="#3B82F6" Background="#0F172A" Visibility="{Binding IsAuditing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                 </StackPanel>
             </Border>
+            <Border Margin="0,8,0,0" Padding="9,8" Background="#111827" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <WrapPanel VerticalAlignment="Center">
+                    <TextBlock Text="REVIEW DEADLINES  " Foreground="#CBD5E1" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                    <TextBlock Text="{Binding OverdueFindingReviews, StringFormat='Overdue: {0}'}" Foreground="#FCA5A5" FontWeight="Bold" Margin="0,0,18,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding DueSoonFindingReviews, StringFormat='Due within 7 days: {0}'}" Foreground="#FCD34D" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <TextBlock Text="  • Actionable review dates only; not statutory deadlines." Foreground="#94A3B8" FontSize="10" VerticalAlignment="Center"/>
+                </WrapPanel>
+            </Border>
         </StackPanel>
 
         <!-- Multi-tab Workspace -->
