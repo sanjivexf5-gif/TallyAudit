@@ -15,6 +15,21 @@
         <StackPanel Grid.Row="0" Margin="0,0,0,16">
             <TextBlock Text="Central Audit Exception Register" FontSize="22" FontWeight="Bold" Foreground="White"/>
             <TextBlock Text="Manage, search, sort, and record working remarks on all exceptions, hygiene anomalies, and statutory flags generated across the entire audit suite." Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,12"/>
+            <WrapPanel Margin="0,0,0,4">
+                <Border Background="#3B1D24" BorderBrush="#7F1D1D" BorderThickness="1" CornerRadius="5" Padding="9,5" Margin="0,0,8,6">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="OVERDUE REVIEWS  " Foreground="#FCA5A5" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding OverdueFindingsCount}" Foreground="White" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                <Border Background="#332B18" BorderBrush="#854D0E" BorderThickness="1" CornerRadius="5" Padding="9,5" Margin="0,0,8,6">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="DUE WITHIN 7 DAYS  " Foreground="#FCD34D" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding DueSoonFindingsCount}" Foreground="White" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                <TextBlock Text="Actionable findings only; based on assigned review dates, not statutory deadlines." Foreground="{StaticResource TextMutedBrush}" FontSize="10" VerticalAlignment="Center" Margin="0,0,0,6"/>
+            </WrapPanel>
         </StackPanel>
 
         <!-- Dynamic Filter Ribbon -->

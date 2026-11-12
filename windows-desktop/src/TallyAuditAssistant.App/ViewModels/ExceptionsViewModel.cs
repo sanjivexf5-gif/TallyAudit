@@ -71,6 +71,12 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
     [ObservableProperty]
     private bool _hasExceptions;
 
+    [ObservableProperty]
+    private int _overdueFindingsCount;
+
+    [ObservableProperty]
+    private int _dueSoonFindingsCount;
+
     public ObservableCollection<AuditException> Exceptions { get; } = new();
 
     public ExceptionsViewModel(
@@ -171,6 +177,8 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
                 SelectedException = null;
                 Exceptions.Clear();
                 HasExceptions = false;
+                OverdueFindingsCount = 0;
+                DueSoonFindingsCount = 0;
                 return;
             }
 
@@ -190,6 +198,8 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
                 token
             );
 
+            var dueDateSummary = await _repository.GetFindingDueDateSummaryAsync(compId, DateTime.Today, 7, token);
+
             if (token.IsCancellationRequested || currentGen != Interlocked.Read(ref _loadGeneration))
             {
                 _logger.LogInformation("Exceptions load superseded after repository query. Generation: {Generation} (Current: {CurrentGen})", currentGen, Interlocked.Read(ref _loadGeneration));
@@ -200,6 +210,8 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
 
             // Mutate UI ObservableCollection safely on current generation
             ActiveCompanyName = compName;
+            OverdueFindingsCount = dueDateSummary.OverdueCount;
+            DueSoonFindingsCount = dueDateSummary.DueSoonCount;
             SelectedException = null;
             Exceptions.Clear();
 
