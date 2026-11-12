@@ -544,6 +544,27 @@ public class MigrationService : IMigrationService
                 }
             });
         yield return new MigrationDefinition(
+            "011_FindingDueDates",
+            "2.0.0",
+            "Add optional due dates to audit findings for review follow-up",
+            "SELECT 1;",
+            async (conn, tx, ct) =>
+            {
+                var columns = await conn.QueryAsync<string>(
+                    new CommandDefinition("SELECT name FROM pragma_table_info('Exceptions');", transaction: tx, cancellationToken: ct));
+                if (!columns.Contains("DueDate", StringComparer.OrdinalIgnoreCase))
+                {
+                    await conn.ExecuteAsync(
+                        new CommandDefinition("ALTER TABLE Exceptions ADD COLUMN DueDate DATE;", transaction: tx, cancellationToken: ct));
+                }
+
+                await conn.ExecuteAsync(new CommandDefinition(
+                    "CREATE INDEX IF NOT EXISTS idx_exceptions_due_date ON Exceptions(CompanyId, DueDate, Status);",
+                    transaction: tx,
+                    cancellationToken: ct));
+            });
+
+        yield return new MigrationDefinition(
             "010_AuditChecklistProgram",
             "1.9.0",
             "Professional audit checklist program with status tracking",
