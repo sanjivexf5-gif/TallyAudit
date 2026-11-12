@@ -35,3 +35,18 @@ public class FinancialPeriod
 public class FinancialYear : FinancialPeriod
 {
 }
+
+
+/// <summary>Read-only, all-time portfolio snapshot for one synchronized company.</summary>
+public sealed class CompanyComplianceOverview
+{
+    public string CompanyId { get; set; } = string.Empty;
+    public string CompanyName { get; set; } = string.Empty;
+    public string? GSTIN { get; set; }
+    public DateTime? LastSyncDate { get; set; }
+    public int VoucherCount { get; set; }
+    public int RecordedFindingCount { get; set; }
+    public int HighPriorityFindingCount { get; set; }
+    public int PendingReviewCount { get; set; }
+    public string DataStatus => VoucherCount == 0 ? "Not synchronized" : "Data available";
+}
