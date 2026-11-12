@@ -12,8 +12,8 @@ public class TdsChallanReturnReconciliationServiceTests
     private static TdsChallanRecord Challan(decimal amount = 10000m, string serial = "12345") =>
         new("MUMB12345A", "2026-27", 1, "194C", "0001234", ChallanDate, serial, amount);
 
-    private static TdsReturnLine Line(decimal amount = 10000m, string pan = "ABCDE1234F", string serial = "12345") =>
-        new("MUMB12345A", pan, "2026-27", 1, "194C", "0001234", ChallanDate, serial, amount, "Test Deductee");
+    private static TdsReturnLine Line(decimal amount = 10000m, string pan = "ABCDE1234F", string serial = "12345", string tan = "MUMB12345A") =>
+        new(tan, pan, "2026-27", 1, "194C", "0001234", ChallanDate, serial, amount, "Test Deductee");
 
     [Fact]
     public void Reconcile_MatchesChallanAndReturnAllocations()
@@ -47,8 +47,16 @@ public class TdsChallanReturnReconciliationServiceTests
     [Fact]
     public void Reconcile_UsesFullCinAndPeriodKey()
     {
-        var another = Challan(10000m, "99999");
         var result = _service.Reconcile(new[] { Challan() }, new[] { Line(serial: "99999") });
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, x => x.Status == "Missing challan");
+        Assert.Contains(result, x => x.Status == "Unallocated challan");
+    }
+
+    [Fact]
+    public void Reconcile_DoesNotMatchDifferentDeductorTan()
+    {
+        var result = _service.Reconcile(new[] { Challan() }, new[] { Line(tan: "DELD54321B") });
         Assert.Equal(2, result.Count);
         Assert.Contains(result, x => x.Status == "Missing challan");
         Assert.Contains(result, x => x.Status == "Unallocated challan");
