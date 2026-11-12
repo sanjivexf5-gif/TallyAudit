@@ -63,6 +63,9 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
     private string _assignedToInput = string.Empty;
 
     [ObservableProperty]
+    private DateTime? _dueDateInput;
+
+    [ObservableProperty]
     private string _statusMessage = string.Empty;
 
     [ObservableProperty]
@@ -288,6 +291,26 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
     }
 
     [RelayCommand]
+    private async Task SaveDueDateAsync()
+    {
+        if (SelectedException == null) return;
+
+        try
+        {
+            await _repository.UpdateExceptionDueDateAsync(SelectedException.Id, DueDateInput);
+            SelectedException.DueDate = DueDateInput?.Date;
+            StatusMessage = DueDateInput.HasValue
+                ? $"Review due date set to {DueDateInput.Value:dd-MMM-yyyy}."
+                : "Review due date cleared.";
+            await SafeLoadExceptionsAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to save due date: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
     private async Task MarkAsReviewedAsync()
     {
         if (SelectedException == null) return;
@@ -321,11 +344,13 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
         {
             AuditorNoteInput = value.AuditorNote ?? string.Empty;
             AssignedToInput = value.AuditorAssignedTo ?? string.Empty;
+            DueDateInput = value.DueDate;
         }
         else
         {
             AuditorNoteInput = string.Empty;
             AssignedToInput = string.Empty;
+            DueDateInput = null;
         }
     }
 
