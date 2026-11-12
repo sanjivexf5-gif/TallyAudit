@@ -157,6 +157,16 @@
 
                                 <Separator Background="{StaticResource BorderBrush}" Margin="0,0,0,12"/>
 
+                                <TextBlock Text="ASSIGNED REVIEWER / OWNER" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Text="{Binding AssignedToInput, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Padding="6" ToolTip="Enter reviewer or team member name"/>
+                                    <Button Grid.Column="1" Content="Save Owner" Command="{Binding SaveAssignmentCommand}" Margin="8,0,0,0" Padding="10,5"/>
+                                </Grid>
+
                                 <TextBlock Text="Review Notes &amp; Working Remarks" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
                                 <TextBox Text="{Binding AuditorNoteInput, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Height="80" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AcceptsReturn="True" Padding="6"/>
                                 <TextBlock Text="{Binding StatusMessage}" Foreground="#10B981" FontWeight="SemiBold" Margin="0,6,0,0"/>
