@@ -301,6 +301,7 @@ public class AuditRepository : IAuditRepository
                 COALESCE(SUM(CASE WHEN e.Severity = @Informational THEN 1 ELSE 0 END), 0) AS InformationalCount,
                 COALESCE(SUM(CASE WHEN e.Status IN (@Pending, @Clarification) THEN 1 ELSE 0 END), 0) AS OpenFindings,
                 COALESCE(SUM(CASE WHEN e.Status = @Reviewed THEN 1 ELSE 0 END), 0) AS ReviewedFindings,
+                COALESCE(SUM(CASE WHEN e.Status = @Resolved THEN 1 ELSE 0 END), 0) AS ResolvedOnlyFindings,
                 COALESCE(SUM(CASE WHEN e.Status IN (@Resolved, @FalsePositive) THEN 1 ELSE 0 END), 0) AS ResolvedFindings,
                 COALESCE(SUM(COALESCE(e.FlaggedAmount, 0)), 0) AS TotalExceptionAmount,
                 COALESCE(SUM(CASE WHEN e.Category = @GSTCategory THEN 1 ELSE 0 END), 0) AS GstFindings,
