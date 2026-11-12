@@ -10,7 +10,7 @@ public sealed record TdsChallanRecord(
     string BsrCode, DateOnly ChallanDate, string SerialNumber, decimal TaxAmount);
 
 public sealed record TdsReturnLine(
-    string DeducteePan, string FinancialYear, int Quarter, string Section,
+    string Tan, string DeducteePan, string FinancialYear, int Quarter, string Section,
     string BsrCode, DateOnly ChallanDate, string ChallanSerialNumber,
     decimal DeductedAmount, string? DeducteeName = null);
 
@@ -100,11 +100,11 @@ public sealed class TdsChallanReturnReconciliationService
         return findings;
     }
 
-    private static (string FinancialYear, int Quarter, string Section, string BsrCode, DateOnly ChallanDate, string SerialNumber) Key(TdsChallanRecord x)
-        => (Normalize(x.FinancialYear), x.Quarter, Normalize(x.Section), Normalize(x.BsrCode), x.ChallanDate, Normalize(x.SerialNumber));
+    private static (string Tan, string FinancialYear, int Quarter, string Section, string BsrCode, DateOnly ChallanDate, string SerialNumber) Key(TdsChallanRecord x)
+        => (Normalize(x.Tan), Normalize(x.FinancialYear), x.Quarter, Normalize(x.Section), Normalize(x.BsrCode), x.ChallanDate, Normalize(x.SerialNumber));
 
-    private static (string FinancialYear, int Quarter, string Section, string BsrCode, DateOnly ChallanDate, string SerialNumber) Key(TdsReturnLine x)
-        => (Normalize(x.FinancialYear), x.Quarter, Normalize(x.Section), Normalize(x.BsrCode), x.ChallanDate, Normalize(x.ChallanSerialNumber));
+    private static (string Tan, string FinancialYear, int Quarter, string Section, string BsrCode, DateOnly ChallanDate, string SerialNumber) Key(TdsReturnLine x)
+        => (Normalize(x.Tan), Normalize(x.FinancialYear), x.Quarter, Normalize(x.Section), Normalize(x.BsrCode), x.ChallanDate, Normalize(x.ChallanSerialNumber));
 
     private static void Validate(IReadOnlyList<TdsChallanRecord> challans, IReadOnlyList<TdsReturnLine> lines)
     {
@@ -118,7 +118,7 @@ public sealed class TdsChallanReturnReconciliationService
 
         foreach (var line in lines)
         {
-            if (string.IsNullOrWhiteSpace(line.FinancialYear) || string.IsNullOrWhiteSpace(line.Section) ||
+            if (string.IsNullOrWhiteSpace(line.Tan) || string.IsNullOrWhiteSpace(line.FinancialYear) || string.IsNullOrWhiteSpace(line.Section) ||
                 string.IsNullOrWhiteSpace(line.BsrCode) || string.IsNullOrWhiteSpace(line.ChallanSerialNumber) ||
                 line.Quarter is < 1 or > 4 || line.DeductedAmount < 0)
                 throw new ArgumentException("Return lines require financial year, quarter 1-4, section, challan CIN and a non-negative deducted amount.");
