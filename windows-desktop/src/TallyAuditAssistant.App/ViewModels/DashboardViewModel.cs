@@ -950,7 +950,8 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
                 SelectedStatusFilter,
                 SearchQuery,
                 SelectedSortColumn,
-                IsSortDescending
+                IsSortDescending,
+                take: 50
             );
 
             RecentExceptions.Clear();
