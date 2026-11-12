@@ -250,7 +250,7 @@ public partial class TdsAuditViewModel : ObservableObject, INavigationAware, IDi
         if (dialog.ShowDialog() != true) return;
         try
         {
-            _importedReturnLines = _reconciliationService.ReadReturnCsv(File.ReadAllText(dialog.FileName));
+            _importedReturnLines = _reconciliationService.ReadReturnCsv(ReadCsvFile(dialog.FileName));
             ReturnLineCount = _importedReturnLines.Count;
             ReconcileImportedTdsData();
         }
