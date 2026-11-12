@@ -157,7 +157,7 @@ public sealed class AuditDashboardFinancialYearIsolationTests
             .ReturnsAsync(Array.Empty<AuditException>());
         repository
             .Setup(x => x.GetDashboardAggregatesForPeriodAsync(
-                "company-1", null, null, It.IsAny<CancellationToken>()))
+                "company-1", null, null, It.IsAny<CancellationToken>(), null))
             .ReturnsAsync(new AuditDashboardAggregates
             {
                 TotalFindings = 12000,
@@ -196,7 +196,7 @@ public sealed class AuditDashboardFinancialYearIsolationTests
             .Setup(x => x.GetExceptionsAsync("company-1", null, null, null, 0, 10000, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<AuditException>());
         repository
-            .Setup(x => x.GetDashboardAggregatesForPeriodAsync("company-1", null, null, It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetDashboardAggregatesForPeriodAsync("company-1", null, null, It.IsAny<CancellationToken>(), null))
             .ReturnsAsync(new AuditDashboardAggregates { TotalFindings = 15000, CriticalCount = 3 });
         repository
             .Setup(x => x.GetAuditAreaAggregatesForPeriodAsync("company-1", null, null, It.IsAny<CancellationToken>()))
