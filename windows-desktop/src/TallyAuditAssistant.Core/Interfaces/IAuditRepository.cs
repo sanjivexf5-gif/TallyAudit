@@ -15,6 +15,7 @@ public interface IDatabaseInitializer
 public interface IAuditRepository
 {
     Task<IReadOnlyList<Company>> GetAllCompaniesAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CompanyComplianceOverview>> GetCompanyComplianceOverviewAsync(CancellationToken cancellationToken = default);
     Task<Company?> GetCompanyByIdAsync(string companyId, CancellationToken cancellationToken = default);
     Task<Company?> GetCompanyByNameAsync(string companyName, CancellationToken cancellationToken = default);
     Task SaveCompanyAsync(Company company, CancellationToken cancellationToken = default);
