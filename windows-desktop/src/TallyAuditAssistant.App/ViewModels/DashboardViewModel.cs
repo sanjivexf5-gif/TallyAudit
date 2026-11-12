@@ -988,7 +988,7 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
             DueSoonFindingReviews = aggregates.DueSoonFindingReviews;
             UnreviewedExceptionsCount = PendingAuditorReviews;
             ReviewedExceptionsCount = aggregates.ReviewedFindings;
-            AcceptedExceptionsCount = aggregates.ResolvedFindings;
+            AcceptedExceptionsCount = aggregates.ResolvedOnlyFindings;
             NeedsFollowUpExceptionsCount = aggregates.ClarificationFindings;
 
             // Compute completion progress
