@@ -8,6 +8,7 @@
     <Grid Margin="0,0,10,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -31,8 +32,39 @@
             </Border>
         </StackPanel>
 
+        <Border Grid.Row="1" Background="{StaticResource CardBackgroundBrush}" CornerRadius="8"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="12" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="TDS CHALLAN &amp; RETURN RECONCILIATION" FontWeight="Bold" Foreground="White" Margin="0,0,0,8"/>
+                <WrapPanel>
+                    <Button Content="Import Challan CSV" Command="{Binding ImportChallansCommand}" Padding="12,6" Margin="0,0,8,6"/>
+                    <Button Content="Import Return Allocation CSV" Command="{Binding ImportReturnStatementCommand}" Padding="12,6" Margin="0,0,8,6"/>
+                    <TextBlock Text="{Binding ChallanRecordCount, StringFormat=Challans: {0}}" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="4,0,12,6"/>
+                    <TextBlock Text="{Binding ReturnLineCount, StringFormat=Return rows: {0}}" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="4,0,0,6"/>
+                </WrapPanel>
+                <TextBlock Text="{Binding ReconciliationStatus}" Foreground="#CBD5E1" FontSize="12" Margin="0,2,0,8" TextWrapping="Wrap"/>
+                <DataGrid ItemsSource="{Binding ReconciliationFindings}" AutoGenerateColumns="False" IsReadOnly="True"
+                          CanUserAddRows="False" MaxHeight="150" HeadersVisibility="Column"
+                          Background="#0F172A" Foreground="White" RowBackground="#111827"
+                          AlternatingRowBackground="#1E293B" BorderBrush="{StaticResource BorderBrush}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="CIN" Binding="{Binding Reference}" Width="170"/>
+                        <DataGridTextColumn Header="Section" Binding="{Binding Section}" Width="70"/>
+                        <DataGridTextColumn Header="FY" Binding="{Binding FinancialYear}" Width="75"/>
+                        <DataGridTextColumn Header="Qtr" Binding="{Binding Quarter}" Width="45"/>
+                        <DataGridTextColumn Header="Challan tax" Binding="{Binding ChallanTaxAmount, StringFormat={}{0:N2}}" Width="95"/>
+                        <DataGridTextColumn Header="Allocated" Binding="{Binding StatementAllocatedAmount, StringFormat={}{0:N2}}" Width="95"/>
+                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="130"/>
+                        <DataGridTextColumn Header="Auditor action" Binding="{Binding AuditorAction}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+                <TextBlock Text="Use the normalized CSV column layout documented in the PR. Imported files are read locally; no TRACES login, filing, challan payment or correction is performed."
+                           Foreground="#FBBF24" FontSize="10" Margin="0,7,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
         <!-- Main Body Area -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <!-- State 1: Loading Overlay -->
             <Border Background="#1E293B" CornerRadius="8" Padding="30" Panel.ZIndex="10" Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
