@@ -233,7 +233,7 @@ public partial class TdsAuditViewModel : ObservableObject, INavigationAware, IDi
         if (dialog.ShowDialog() != true) return;
         try
         {
-            _importedChallans = _reconciliationService.ReadChallansCsv(File.ReadAllText(dialog.FileName));
+            _importedChallans = _reconciliationService.ReadChallansCsv(ReadCsvFile(dialog.FileName));
             ChallanRecordCount = _importedChallans.Count;
             ReconcileImportedTdsData();
         }
@@ -258,6 +258,15 @@ public partial class TdsAuditViewModel : ObservableObject, INavigationAware, IDi
         {
             ReconciliationStatus = $"Return import failed: {ex.Message}";
         }
+    }
+
+    private static string ReadCsvFile(string path)
+    {
+        var file = new FileInfo(path);
+        const long maximumBytes = 50 * 1024 * 1024;
+        if (file.Length > maximumBytes)
+            throw new InvalidOperationException("CSV file exceeds the 50 MB safety limit. Split the export into smaller period-wise files.");
+        return File.ReadAllText(path);
     }
 
     private void ReconcileImportedTdsData()
