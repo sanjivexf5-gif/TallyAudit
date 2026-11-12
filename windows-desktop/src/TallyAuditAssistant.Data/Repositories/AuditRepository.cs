@@ -558,6 +558,29 @@ public class AuditRepository : IAuditRepository
         }
     }
 
+    public async Task UpdateExceptionDueDateAsync(string exceptionId, DateTime? dueDate, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(exceptionId))
+        {
+            throw new ArgumentException("A finding ID is required.", nameof(exceptionId));
+        }
+
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        const string sql = @"
+            UPDATE Exceptions
+            SET DueDate = @DueDate
+            WHERE Id = @Id;";
+        var affected = await connection.ExecuteAsync(new CommandDefinition(
+            sql,
+            new { Id = exceptionId, DueDate = dueDate?.Date },
+            cancellationToken: cancellationToken));
+
+        if (affected == 0)
+        {
+            throw new InvalidOperationException("The finding could not be found or its due date was not saved.");
+        }
+    }
+
     public async Task<IReadOnlyList<AuditRule>> GetActiveRulesAsync(CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
