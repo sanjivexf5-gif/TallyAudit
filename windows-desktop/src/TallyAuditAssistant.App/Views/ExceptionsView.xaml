@@ -30,6 +30,23 @@
                 </Border>
                 <TextBlock Text="Actionable findings only; based on assigned review dates, not statutory deadlines." Foreground="{StaticResource TextMutedBrush}" FontSize="10" VerticalAlignment="Center" Margin="0,0,0,6"/>
             </WrapPanel>
+            <TextBlock Text="REVIEWER WORKLOAD" Foreground="#CBD5E1" FontSize="11" FontWeight="Bold" Margin="0,4,0,5"/>
+            <DataGrid ItemsSource="{Binding ReviewerWorkloads}" AutoGenerateColumns="False" IsReadOnly="True"
+                      Height="118" MinHeight="80" MaxHeight="150" Background="#111827" Foreground="White"
+                      RowBackground="#162032" AlternatingRowBackground="#1E293B" BorderThickness="0"
+                      HeadersVisibility="Column" CanUserSortColumns="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Reviewer" Binding="{Binding Reviewer}" Width="2*"/>
+                    <DataGridTextColumn Header="Pending" Binding="{Binding PendingCount}" Width="*"/>
+                    <DataGridTextColumn Header="Clarification" Binding="{Binding ClarificationCount}" Width="*"/>
+                    <DataGridTextColumn Header="Overdue" Binding="{Binding OverdueCount}" Width="*"/>
+                    <DataGridTextColumn Header="Due ≤ 7d" Binding="{Binding DueSoonCount}" Width="*"/>
+                    <DataGridTextColumn Header="Reviewed" Binding="{Binding ReviewedCount}" Width="*"/>
+                    <DataGridTextColumn Header="Resolved" Binding="{Binding ResolvedCount}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock Text="Counts use deduplicated findings for the active company; Unassigned is shown as a separate work queue."
+                       Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="0,3,0,0"/>
         </StackPanel>
 
         <!-- Dynamic Filter Ribbon -->
