@@ -138,6 +138,12 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
     private int _pendingAuditorReviews = 0;
 
     [ObservableProperty]
+    private int _overdueFindingReviews = 0;
+
+    [ObservableProperty]
+    private int _dueSoonFindingReviews = 0;
+
+    [ObservableProperty]
     private int _auditCompletionPercentage = 0;
 
     [ObservableProperty]
@@ -898,6 +904,8 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
                 TotalFindings = 0;
                 HighPriorityCount = 0;
                 PendingAuditorReviews = 0;
+                OverdueFindingReviews = 0;
+                DueSoonFindingReviews = 0;
                 UnreviewedExceptionsCount = 0;
                 ReviewedExceptionsCount = 0;
                 AcceptedExceptionsCount = 0;
@@ -974,6 +982,9 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
             AccountingExceptionsCount = LedgerExceptionsCount; // Alias compatibility
             HighPriorityCount = await _repository.GetExceptionCountAsync(current.Id, minSeverity: SeverityLevel.High);
             PendingAuditorReviews = await _repository.GetExceptionCountAsync(current.Id, status: ReviewStatus.Pending);
+            var findingDueDates = await _repository.GetFindingDueDateSummaryAsync(current.Id, DateTime.Today, 7);
+            OverdueFindingReviews = findingDueDates.OverdueCount;
+            DueSoonFindingReviews = findingDueDates.DueSoonCount;
 
             // Specific status counts
             UnreviewedExceptionsCount = PendingAuditorReviews;
