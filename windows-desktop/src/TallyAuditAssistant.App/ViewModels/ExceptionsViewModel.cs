@@ -60,6 +60,9 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
     private string _auditorNoteInput = string.Empty;
 
     [ObservableProperty]
+    private string _assignedToInput = string.Empty;
+
+    [ObservableProperty]
     private string _statusMessage = string.Empty;
 
     [ObservableProperty]
@@ -266,6 +269,25 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
     }
 
     [RelayCommand]
+    private async Task SaveAssignmentAsync()
+    {
+        if (SelectedException == null) return;
+
+        try
+        {
+            await _repository.UpdateExceptionAssignmentAsync(SelectedException.Id, AssignedToInput);
+            StatusMessage = string.IsNullOrWhiteSpace(AssignedToInput)
+                ? "Finding assignment cleared."
+                : $"Finding assigned to {AssignedToInput.Trim()}.";
+            await SafeLoadExceptionsAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to save assignment: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
     private async Task MarkAsReviewedAsync()
     {
         if (SelectedException == null) return;
@@ -298,10 +320,12 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
         if (value != null)
         {
             AuditorNoteInput = value.AuditorNote ?? string.Empty;
+            AssignedToInput = value.AuditorAssignedTo ?? string.Empty;
         }
         else
         {
             AuditorNoteInput = string.Empty;
+            AssignedToInput = string.Empty;
         }
     }
 
