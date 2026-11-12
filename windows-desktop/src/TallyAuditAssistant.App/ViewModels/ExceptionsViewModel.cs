@@ -78,6 +78,7 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
     private int _dueSoonFindingsCount;
 
     public ObservableCollection<AuditException> Exceptions { get; } = new();
+    public ObservableCollection<ReviewerWorkloadSummary> ReviewerWorkloads { get; } = new();
 
     public ExceptionsViewModel(
         IAuditRepository repository,
@@ -179,6 +180,7 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
                 HasExceptions = false;
                 OverdueFindingsCount = 0;
                 DueSoonFindingsCount = 0;
+                ReviewerWorkloads.Clear();
                 return;
             }
 
@@ -199,6 +201,7 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
             );
 
             var dueDateSummary = await _repository.GetFindingDueDateSummaryAsync(compId, DateTime.Today, 7, token);
+            var reviewerWorkloads = await _repository.GetReviewerWorkloadSummaryAsync(compId, DateTime.Today, 7, token);
 
             if (token.IsCancellationRequested || currentGen != Interlocked.Read(ref _loadGeneration))
             {
@@ -212,6 +215,8 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
             ActiveCompanyName = compName;
             OverdueFindingsCount = dueDateSummary.OverdueCount;
             DueSoonFindingsCount = dueDateSummary.DueSoonCount;
+            ReviewerWorkloads.Clear();
+            foreach (var workload in reviewerWorkloads) ReviewerWorkloads.Add(workload);
             SelectedException = null;
             Exceptions.Clear();
 
