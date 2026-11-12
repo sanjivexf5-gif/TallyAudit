@@ -39,8 +39,10 @@
                 <WrapPanel>
                     <Button Content="Import Challan CSV" Command="{Binding ImportChallansCommand}" Padding="12,6" Margin="0,0,8,6"/>
                     <Button Content="Import Return Allocation CSV" Command="{Binding ImportReturnStatementCommand}" Padding="12,6" Margin="0,0,8,6"/>
-                    <TextBlock Text="{Binding ChallanRecordCount, StringFormat={}{0}}}" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="4,0,12,6"/>
-                    <TextBlock Text="{Binding ReturnLineCount, StringFormat={}{0}}}" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="4,0,0,6"/>
+                    <TextBlock Text="Challans:" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="4,0,3,6"/>
+                    <TextBlock Text="{Binding ChallanRecordCount}" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="4,0,12,6"/>
+                    <TextBlock Text="Return rows:" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="4,0,3,6"/>
+                    <TextBlock Text="{Binding ReturnLineCount}" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="4,0,0,6"/>
                 </WrapPanel>
                 <TextBlock Text="{Binding ReconciliationStatus}" Foreground="#CBD5E1" FontSize="12" Margin="0,2,0,8" TextWrapping="Wrap"/>
                 <TextBlock Text="Challan CSV columns: TAN, FinancialYear, Quarter, Section, BSRCode, ChallanDate, SerialNumber, TaxAmount. Return CSV columns: TAN, DeducteePAN, FinancialYear, Quarter, Section, BSRCode, ChallanDate, ChallanSerialNumber, DeductedAmount. Dates: yyyy-MM-dd; amounts: invariant decimals."
