@@ -61,4 +61,12 @@ public class TdsChallanReturnReconciliationServiceTests
         var invalid = Line() with { Quarter = 5 };
         Assert.Throws<ArgumentException>(() => _service.Reconcile(new[] { Challan() }, new[] { invalid }));
     }
+    [Fact]
+    public void CsvReaders_ParseNormalizedImports()
+    {
+        var challans = _service.ReadChallansCsv("TAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,SerialNumber,TaxAmount\nMUMB12345A,2026-27,1,194C,0001234,2026-07-07,12345,10000");
+        var lines = _service.ReadReturnCsv("TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount\nMUMB12345A,ABCDE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000");
+        Assert.Equal("Matched", Assert.Single(_service.Reconcile(challans, lines)).Status);
+    }
+
 }
