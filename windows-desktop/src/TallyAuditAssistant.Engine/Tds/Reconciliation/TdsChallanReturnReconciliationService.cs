@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 
@@ -98,6 +99,86 @@ public sealed class TdsChallanReturnReconciliationService
         }
 
         return findings;
+    }
+
+    public IReadOnlyList<TdsChallanRecord> ReadChallansCsv(string csv)
+    {
+        var rows = ReadCsvRows(csv);
+        if (rows.Count < 2) throw new ArgumentException("The challan CSV must contain a header and at least one data row.", nameof(csv));
+        var header = Header(rows[0]);
+        return rows.Skip(1).Where(r => r.Any(v => !string.IsNullOrWhiteSpace(v))).Select(r =>
+            new TdsChallanRecord(
+                Cell(r, header, "TAN"), Cell(r, header, "FinancialYear"),
+                ParseInt(Cell(r, header, "Quarter")), Cell(r, header, "Section"),
+                Cell(r, header, "BSRCode"), ParseDate(Cell(r, header, "ChallanDate")),
+                Cell(r, header, "SerialNumber"), ParseMoney(Cell(r, header, "TaxAmount")))).ToArray();
+    }
+
+    public IReadOnlyList<TdsReturnLine> ReadReturnCsv(string csv)
+    {
+        var rows = ReadCsvRows(csv);
+        if (rows.Count < 2) throw new ArgumentException("The return CSV must contain a header and at least one data row.", nameof(csv));
+        var header = Header(rows[0]);
+        return rows.Skip(1).Where(r => r.Any(v => !string.IsNullOrWhiteSpace(v))).Select(r =>
+            new TdsReturnLine(
+                Cell(r, header, "TAN"), Cell(r, header, "DeducteePAN"),
+                Cell(r, header, "FinancialYear"), ParseInt(Cell(r, header, "Quarter")),
+                Cell(r, header, "Section"), Cell(r, header, "BSRCode"),
+                ParseDate(Cell(r, header, "ChallanDate")), Cell(r, header, "ChallanSerialNumber"),
+                ParseMoney(Cell(r, header, "DeductedAmount")))).ToArray();
+    }
+
+    private static Dictionary<string, int> Header(IReadOnlyList<string> row)
+        => row.Select((value, index) => new { Name = Normalize(value), Index = index })
+            .ToDictionary(x => x.Name, x => x.Index, StringComparer.OrdinalIgnoreCase);
+
+    private static string Cell(IReadOnlyList<string> row, IReadOnlyDictionary<string, int> header, string name)
+    {
+        if (!header.TryGetValue(Normalize(name), out var index) || index >= row.Count)
+            throw new ArgumentException($"CSV is missing required column '{name}'.");
+        return row[index].Trim();
+    }
+
+    private static int ParseInt(string value)
+        => int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed : throw new ArgumentException($"Invalid integer value '{value}' in CSV.");
+
+    private static decimal ParseMoney(string value)
+        => decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed : throw new ArgumentException($"Invalid amount '{value}' in CSV. Use invariant decimal format.");
+
+    private static DateOnly ParseDate(string value)
+        => DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+            ? parsed : throw new ArgumentException($"Invalid challan date '{value}'. Use yyyy-MM-dd or an unambiguous date.");
+
+    private static List<List<string>> ReadCsvRows(string csv)
+    {
+        ArgumentNullException.ThrowIfNull(csv);
+        var rows = new List<List<string>>();
+        var row = new List<string>();
+        var cell = new System.Text.StringBuilder();
+        var quoted = false;
+        for (var i = 0; i < csv.Length; i++)
+        {
+            var ch = csv[i];
+            if (ch == '"')
+            {
+                if (quoted && i + 1 < csv.Length && csv[i + 1] == '"') { cell.Append('"'); i++; }
+                else quoted = !quoted;
+            }
+            else if (ch == ',' && !quoted) { row.Add(cell.ToString()); cell.Clear(); }
+            else if ((ch == '\n' || ch == '\r') && !quoted)
+            {
+                if (ch == '\r' && i + 1 < csv.Length && csv[i + 1] == '\n') i++;
+                row.Add(cell.ToString()); cell.Clear();
+                if (row.Any(x => x.Length > 0)) rows.Add(row);
+                row = new List<string>();
+            }
+            else cell.Append(ch);
+        }
+        if (quoted) throw new ArgumentException("CSV contains an unterminated quoted field.", nameof(csv));
+        if (cell.Length > 0 || row.Count > 0) { row.Add(cell.ToString()); rows.Add(row); }
+        return rows;
     }
 
     private static (string Tan, string FinancialYear, int Quarter, string Section, string BsrCode, DateOnly ChallanDate, string SerialNumber) Key(TdsChallanRecord x)
