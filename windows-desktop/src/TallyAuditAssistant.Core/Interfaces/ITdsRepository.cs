@@ -15,6 +15,7 @@ public interface ITdsRepository
     Task<IReadOnlyList<TdsCheckResult>> GetResultsAsync(string companyId, string? ruleId = null, string? section = null, SeverityLevel? severity = null, TdsCheckStatus? status = null, CancellationToken cancellationToken = default);
     Task<TdsAuditSummary> GetSummaryAsync(string companyId, CancellationToken cancellationToken = default);
     Task<TdsVoucherDetail?> GetVoucherDetailAsync(string voucherId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TdsLedgerMovement>> GetTdsLedgerMovementsAsync(string companyId, DateTime fromDate, DateTime toDate, CancellationToken cancellationToken = default);
 }
 
 public interface ITdsExceptionService

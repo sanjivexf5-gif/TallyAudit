@@ -43,6 +43,7 @@ public static class ApplicationServiceRegistration
             actualDbPath));
 
         services.AddSingleton<IAuditRepository, AuditRepository>();
+        services.AddSingleton<ITdsRepository, TdsRepository>();
         services.AddSingleton<ISyncRepository, SyncRepository>();
         services.AddSingleton<ISettingsService, SettingsRepository>();
         services.AddSingleton<IAuditFinalizationRepository, AuditFinalizationRepository>();
