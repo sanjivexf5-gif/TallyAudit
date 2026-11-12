@@ -581,6 +581,46 @@ public class AuditRepository : IAuditRepository
         }
     }
 
+    public async Task<FindingDueDateSummary> GetFindingDueDateSummaryAsync(
+        string companyId,
+        DateTime asOfDate,
+        int upcomingDays = 7,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(companyId))
+        {
+            throw new ArgumentException("A company ID is required.", nameof(companyId));
+        }
+
+        if (upcomingDays < 0 || upcomingDays > 366)
+        {
+            throw new ArgumentOutOfRangeException(nameof(upcomingDays), "Upcoming window must be between 0 and 366 days.");
+        }
+
+        using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        var sql = ExceptionQuerySql.RankedFindingsCte + @"
+            SELECT
+                COALESCE(SUM(CASE WHEN e.DueDate IS NOT NULL AND date(e.DueDate) < date(@AsOfDate) THEN 1 ELSE 0 END), 0) AS OverdueCount,
+                COALESCE(SUM(CASE WHEN e.DueDate IS NOT NULL AND date(e.DueDate) >= date(@AsOfDate)
+                    AND date(e.DueDate) <= date(@UpcomingThrough) THEN 1 ELSE 0 END), 0) AS DueSoonCount
+            FROM Exceptions e
+            INNER JOIN RankedFindings ranked ON ranked.Id = e.Id AND ranked.DuplicateRank = 1
+            WHERE e.CompanyId = @CompanyId
+              AND e.Status IN (@PendingStatus, @ClarificationStatus);";
+
+        return await connection.QuerySingleAsync<FindingDueDateSummary>(new CommandDefinition(
+            sql,
+            new
+            {
+                CompanyId = companyId,
+                AsOfDate = asOfDate.Date,
+                UpcomingThrough = asOfDate.Date.AddDays(upcomingDays),
+                PendingStatus = (int)ReviewStatus.Pending,
+                ClarificationStatus = (int)ReviewStatus.RequiresClientClarification
+            },
+            cancellationToken: cancellationToken));
+    }
+
     public async Task<IReadOnlyList<AuditRule>> GetActiveRulesAsync(CancellationToken cancellationToken = default)
     {
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
