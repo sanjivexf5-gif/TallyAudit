@@ -144,6 +144,7 @@ public sealed class DashboardSqliteAggregationTests : IAsyncLifetime
         Assert.Equal(2, totals.PendingFindings);
         Assert.Equal(1, totals.ReviewedFindings);
         Assert.Equal(1, totals.ResolvedFindings);
+        Assert.Equal(1, totals.ResolvedOnlyFindings);
         Assert.Equal(1, totals.ClarificationFindings);
         Assert.Equal(2, totals.ReconciliationDifferences);
         Assert.Equal(1, totals.ReconciliationWarnings);
