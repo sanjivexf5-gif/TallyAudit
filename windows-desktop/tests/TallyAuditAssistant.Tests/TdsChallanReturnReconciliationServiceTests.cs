@@ -13,7 +13,7 @@ public class TdsChallanReturnReconciliationServiceTests
         new("MUMB12345A", "2026-27", 1, "194C", "0001234", ChallanDate, serial, amount);
 
     private static TdsReturnLine Line(decimal amount = 10000m, string pan = "ABCDE1234F", string serial = "12345") =>
-        new(pan, "2026-27", 1, "194C", "0001234", ChallanDate, serial, amount, "Test Deductee");
+        new("MUMB12345A", pan, "2026-27", 1, "194C", "0001234", ChallanDate, serial, amount, "Test Deductee");
 
     [Fact]
     public void Reconcile_MatchesChallanAndReturnAllocations()
