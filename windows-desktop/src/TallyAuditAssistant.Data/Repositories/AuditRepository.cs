@@ -637,8 +637,12 @@ public class AuditRepository : IAuditRepository
         string? searchQuery = null,
         string? sortBy = null,
         bool isDescending = true,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int skip = 0,
+        int take = int.MaxValue)
     {
+        if (skip < 0) throw new ArgumentOutOfRangeException(nameof(skip));
+        if (take < 1) throw new ArgumentOutOfRangeException(nameof(take));
         using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
         var sql = ExceptionQuerySql.RankedFindingsCte + @"
             SELECT e.*
@@ -696,6 +700,9 @@ public class AuditRepository : IAuditRepository
 
         var dir = isDescending ? "DESC" : "ASC";
         sql += $" ORDER BY {sortCol} {dir}, FlaggedAt DESC, Id ASC";
+        sql += " LIMIT @Take OFFSET @Skip";
+        parameters.Add("Take", take);
+        parameters.Add("Skip", skip);
 
         var results = await connection.QueryAsync<AuditException>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
         return results.ToList();
