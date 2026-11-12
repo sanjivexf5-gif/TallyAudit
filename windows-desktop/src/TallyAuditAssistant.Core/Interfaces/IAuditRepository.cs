@@ -51,6 +51,7 @@ public interface IAuditRepository
     Task<AuditDashboardCategoryAmounts> GetDashboardCategoryAmountsForPeriodAsync(string companyId, DateTime? periodFrom, DateTime? periodTo, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<AuditException>> GetTopExceptionsForPeriodAsync(string companyId, DateTime? periodFrom, DateTime? periodTo, int limit = 10, CancellationToken cancellationToken = default);
     Task UpdateExceptionStatusAsync(string exceptionId, ReviewStatus newStatus, string? auditorNote, CancellationToken cancellationToken = default);
+    Task UpdateExceptionAssignmentAsync(string exceptionId, string? assignedTo, CancellationToken cancellationToken = default);
     
     Task<IReadOnlyList<AuditRule>> GetActiveRulesAsync(CancellationToken cancellationToken = default);
 
