@@ -110,6 +110,7 @@
                                     <DataGridTextColumn Header="Voucher No" Binding="{Binding VoucherNumber}" Width="100"/>
                                     <DataGridTextColumn Header="Amount" Binding="{Binding FlaggedAmount, StringFormat={}{0:C}}" Width="110"/>
                                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                                    <DataGridTextColumn Header="Due Date" Binding="{Binding DueDate, StringFormat={}{0:dd-MMM-yyyy}, TargetNullValue='—'}" Width="105"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Grid>
@@ -165,6 +166,16 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBox Grid.Column="0" Text="{Binding AssignedToInput, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Padding="6" ToolTip="Enter reviewer or team member name"/>
                                     <Button Grid.Column="1" Content="Save Owner" Command="{Binding SaveAssignmentCommand}" Margin="8,0,0,0" Padding="10,5"/>
+                                </Grid>
+
+                                <TextBlock Text="REVIEW DUE DATE" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <DatePicker Grid.Column="0" SelectedDate="{Binding DueDateInput, UpdateSourceTrigger=PropertyChanged}" Background="#0F172A" Foreground="White" BorderBrush="{StaticResource BorderBrush}" Padding="6" ToolTip="Optional review due date; clear the date to remove the deadline"/>
+                                    <Button Grid.Column="1" Content="Save Due Date" Command="{Binding SaveDueDateCommand}" Margin="8,0,0,0" Padding="10,5"/>
                                 </Grid>
 
                                 <TextBlock Text="Review Notes &amp; Working Remarks" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
