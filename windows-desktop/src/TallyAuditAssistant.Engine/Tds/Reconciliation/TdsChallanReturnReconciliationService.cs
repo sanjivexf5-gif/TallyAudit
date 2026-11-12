@@ -148,7 +148,7 @@ public sealed class TdsChallanReturnReconciliationService
             ? parsed : throw new ArgumentException($"Invalid amount '{value}' in CSV. Use invariant decimal format.");
 
     private static DateOnly ParseDate(string value)
-        => DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+        => DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
             ? parsed : throw new ArgumentException($"Invalid challan date '{value}'. Use yyyy-MM-dd or an unambiguous date.");
 
     private static List<List<string>> ReadCsvRows(string csv)
@@ -206,5 +206,5 @@ public sealed class TdsChallanReturnReconciliationService
         }
     }
 
-    private static string Normalize(string? value) => (value ?? string.Empty).Trim().ToUpperInvariant();
+    private static string Normalize(string? value) => (value ?? string.Empty).Trim().Trim('\uFEFF').ToUpperInvariant();
 }
