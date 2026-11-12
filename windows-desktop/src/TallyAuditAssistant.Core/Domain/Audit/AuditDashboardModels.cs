@@ -63,6 +63,7 @@ public sealed class AuditDashboardAggregates
     public int OpenFindings { get; set; }
     public int ReviewedFindings { get; set; }
     public int ResolvedFindings { get; set; }
+    public int ResolvedOnlyFindings { get; set; }
     public decimal TotalExceptionAmount { get; set; }
     public int GstFindings { get; set; }
     public int TdsFindings { get; set; }
