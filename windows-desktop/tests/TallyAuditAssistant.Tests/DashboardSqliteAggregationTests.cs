@@ -108,4 +108,45 @@ public sealed class DashboardSqliteAggregationTests : IAsyncLifetime
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             _auditRepository.GetTopExceptionsForPeriodAsync("company", null, null, limit: 0));
     }
+
+    [Fact]
+    public async Task DashboardAggregates_ReturnExactCompanyWideCategoryStatusAndReconciliationCounts()
+    {
+        const string companyId = "DASHBOARD-COUNTS-CO";
+        const string otherCompanyId = "DASHBOARD-COUNTS-OTHER";
+        await _auditRepository.SaveCompanyAsync(new Company { Id = companyId, TallyCompanyName = companyId });
+        await _auditRepository.SaveCompanyAsync(new Company { Id = otherCompanyId, TallyCompanyName = otherCompanyId });
+
+        AuditResult Finding(string ruleId, string company, RuleCategory category, SeverityLevel severity, ReviewStatus status) => new()
+        {
+            CompanyId = company, RuleId = ruleId, RuleName = ruleId, Category = category,
+            Severity = severity, Status = status, VoucherId = ruleId, FlaggedAmount = 10m,
+            Explanation = "Dashboard aggregate integration test", Evidence = "{\\"test\\":true}"
+        };
+
+        await _resultRepository.SaveResultsBatchAsync(new[]
+        {
+            Finding("GST-COUNT-1", companyId, RuleCategory.GST, SeverityLevel.High, ReviewStatus.Pending),
+            Finding("TDS-COUNT-1", companyId, RuleCategory.TDS, SeverityLevel.Medium, ReviewStatus.Reviewed),
+            Finding("DUP-COUNT-1", companyId, RuleCategory.DuplicateDetection, SeverityLevel.Low, ReviewStatus.RequiresClientClarification),
+            Finding("REC-COUNT-1", companyId, RuleCategory.GeneralAccounting, SeverityLevel.High, ReviewStatus.Pending),
+            Finding("REC-COUNT-2", companyId, RuleCategory.GeneralAccounting, SeverityLevel.Low, ReviewStatus.Resolved),
+            Finding("GST-COUNT-OTHER", otherCompanyId, RuleCategory.GST, SeverityLevel.Critical, ReviewStatus.Pending)
+        });
+
+        var totals = await _auditRepository.GetDashboardAggregatesForPeriodAsync(companyId, null, null, asOfDate: DateTime.Today);
+
+        Assert.Equal(1, totals.GstFindings);
+        Assert.Equal(1, totals.TdsFindings);
+        Assert.Equal(1, totals.DuplicateDetectionFindings);
+        Assert.Equal(2, totals.GeneralAccountingFindings);
+        Assert.Equal(2, totals.HighPriorityFindings);
+        Assert.Equal(2, totals.PendingFindings);
+        Assert.Equal(1, totals.ReviewedFindings);
+        Assert.Equal(1, totals.ResolvedFindings);
+        Assert.Equal(1, totals.ClarificationFindings);
+        Assert.Equal(2, totals.ReconciliationDifferences);
+        Assert.Equal(1, totals.ReconciliationWarnings);
+        Assert.Equal(2, totals.ReconciliationRuleCount);
+    }
 }
