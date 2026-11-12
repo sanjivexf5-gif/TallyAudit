@@ -194,6 +194,11 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
 
     public ObservableCollection<AuditException> RecentExceptions { get; } = new();
     public ObservableCollection<AuditRun> AuditRuns { get; } = new();
+    public ObservableCollection<CompanyComplianceOverview> CompanyPortfolio { get; } = new();
+    [ObservableProperty] private int _portfolioCompanyCount;
+    [ObservableProperty] private int _portfolioCompaniesWithData;
+    [ObservableProperty] private int _portfolioPendingReviews;
+    [ObservableProperty] private int _portfolioHighPriorityFindings;
 
     public DashboardViewModel(
         IAuditRepository repository, 
@@ -342,6 +347,14 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
         try
         {
             AuditStatusText = "Loading active company and audit period...";
+            var portfolio = await _repository.GetCompanyComplianceOverviewAsync();
+            CompanyPortfolio.Clear();
+            foreach (var companySummary in portfolio) CompanyPortfolio.Add(companySummary);
+            PortfolioCompanyCount = portfolio.Count;
+            PortfolioCompaniesWithData = portfolio.Count(x => x.VoucherCount > 0);
+            PortfolioPendingReviews = portfolio.Sum(x => x.PendingReviewCount);
+            PortfolioHighPriorityFindings = portfolio.Sum(x => x.HighPriorityFindingCount);
+
             var comp = await _companyContext.GetActiveCompanyAsync();
             if (comp == null)
             {

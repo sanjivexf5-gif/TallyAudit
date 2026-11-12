@@ -62,6 +62,34 @@
         <!-- Multi-tab Workspace -->
         <TabControl Grid.Row="1" Background="#0F172A" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
 
+            <!-- Cross-company portfolio overview; counts cover all synchronized history, not just active FY. -->
+            <TabItem Header="🏢 Multi-Company Overview">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="14">
+                        <TextBlock Text="Company Compliance Portfolio" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                        <TextBlock Text="Read-only overview across every company stored in this workspace. Counts cover all synchronized history; open each company and select a financial year for period-specific audit results." Foreground="#94A3B8" FontSize="12" Margin="0,4,0,12" TextWrapping="Wrap"/>
+                        <UniformGrid Columns="4" Margin="0,0,0,12">
+                            <Border Background="#1E293B" Padding="10" Margin="2" CornerRadius="6"><StackPanel><TextBlock Text="Companies" Foreground="#94A3B8"/><TextBlock Text="{Binding PortfolioCompanyCount}" Foreground="White" FontSize="22" FontWeight="Bold"/></StackPanel></Border>
+                            <Border Background="#1E293B" Padding="10" Margin="2" CornerRadius="6"><StackPanel><TextBlock Text="With synchronized data" Foreground="#94A3B8"/><TextBlock Text="{Binding PortfolioCompaniesWithData}" Foreground="#38BDF8" FontSize="22" FontWeight="Bold"/></StackPanel></Border>
+                            <Border Background="#1E293B" Padding="10" Margin="2" CornerRadius="6"><StackPanel><TextBlock Text="High-priority findings" Foreground="#94A3B8"/><TextBlock Text="{Binding PortfolioHighPriorityFindings}" Foreground="#F87171" FontSize="22" FontWeight="Bold"/></StackPanel></Border>
+                            <Border Background="#1E293B" Padding="10" Margin="2" CornerRadius="6"><StackPanel><TextBlock Text="Pending reviews" Foreground="#94A3B8"/><TextBlock Text="{Binding PortfolioPendingReviews}" Foreground="#FBBF24" FontSize="22" FontWeight="Bold"/></StackPanel></Border>
+                        </UniformGrid>
+                        <DataGrid ItemsSource="{Binding CompanyPortfolio}" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="220" MaxHeight="520" Background="#111827" Foreground="White" RowBackground="#162032" AlternatingRowBackground="#1E293B" BorderThickness="0" HeadersVisibility="Column">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Company" Binding="{Binding CompanyName}" Width="2*"/>
+                                <DataGridTextColumn Header="GSTIN" Binding="{Binding GSTIN}" Width="*"/>
+                                <DataGridTextColumn Header="Data status" Binding="{Binding DataStatus}" Width="*"/>
+                                <DataGridTextColumn Header="Vouchers" Binding="{Binding VoucherCount}" Width="*"/>
+                                <DataGridTextColumn Header="Recorded findings" Binding="{Binding RecordedFindingCount}" Width="*"/>
+                                <DataGridTextColumn Header="High priority" Binding="{Binding HighPriorityFindingCount}" Width="*"/>
+                                <DataGridTextColumn Header="Pending review" Binding="{Binding PendingReviewCount}" Width="*"/>
+                                <DataGridTextColumn Header="Last sync" Binding="{Binding LastSyncDate, StringFormat={}{0:g}}" Width="*"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- Consolidated company setup and synchronization workspace -->
             <TabItem Header="⚙️ Connection, Company &amp; Sync">
                 <Grid Margin="12">
