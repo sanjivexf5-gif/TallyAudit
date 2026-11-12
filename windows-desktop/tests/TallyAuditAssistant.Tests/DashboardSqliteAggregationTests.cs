@@ -121,7 +121,7 @@ public sealed class DashboardSqliteAggregationTests : IAsyncLifetime
         {
             CompanyId = company, RuleId = ruleId, RuleName = ruleId, Category = category,
             Severity = severity, Status = status, VoucherId = ruleId, FlaggedAmount = 10m,
-            Explanation = "Dashboard aggregate integration test", Evidence = "{\\"test\\":true}"
+            Explanation = "Dashboard aggregate integration test", Evidence = "{}"
         };
 
         await _resultRepository.SaveResultsBatchAsync(new[]
