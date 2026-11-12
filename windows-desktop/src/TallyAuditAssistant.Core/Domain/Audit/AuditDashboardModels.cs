@@ -64,6 +64,21 @@ public sealed class AuditDashboardAggregates
     public int ReviewedFindings { get; set; }
     public int ResolvedFindings { get; set; }
     public decimal TotalExceptionAmount { get; set; }
+    public int GstFindings { get; set; }
+    public int TdsFindings { get; set; }
+    public int DuplicateDetectionFindings { get; set; }
+    public int GeneralAccountingFindings { get; set; }
+    public int VoucherSequencingFindings { get; set; }
+    public int AnomalyDetectionFindings { get; set; }
+    public int BankingFindings { get; set; }
+    public int HighPriorityFindings { get; set; }
+    public int PendingFindings { get; set; }
+    public int ClarificationFindings { get; set; }
+    public int OverdueFindingReviews { get; set; }
+    public int DueSoonFindingReviews { get; set; }
+    public int ReconciliationDifferences { get; set; }
+    public int ReconciliationWarnings { get; set; }
+    public int ReconciliationRuleCount { get; set; }
 }
 
 /// <summary>Complete period-scoped amounts for dashboard financial categories.</summary>
