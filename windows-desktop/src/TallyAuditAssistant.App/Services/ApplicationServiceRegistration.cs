@@ -42,6 +42,7 @@ public static class ApplicationServiceRegistration
             sp.GetService<ILogger<DatabaseInitializer>>() ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<DatabaseInitializer>.Instance,
             actualDbPath));
 
+        services.AddSingleton<IPracticeRepository, PracticeRepository>();
         services.AddSingleton<IAuditRepository, AuditRepository>();
         services.AddSingleton<ITdsRepository, TdsRepository>();
         services.AddSingleton<ISyncRepository, SyncRepository>();
