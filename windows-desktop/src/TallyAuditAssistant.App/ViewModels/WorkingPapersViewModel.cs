@@ -47,13 +47,9 @@ public partial class WorkingPapersViewModel : ObservableObject, INavigationAware
         _repository = repository;
         _companyContext = companyContext;
         _auditTrailService = auditTrailService;
-        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
-        _ = LoadAsync();
     }
 
     public async Task OnNavigatedToAsync() => await LoadAsync();
-    private void OnActiveCompanyChanged(object? sender, Company? company) => _ = LoadAsync();
-
     [RelayCommand]
     public async Task LoadAsync()
     {
