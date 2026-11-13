@@ -12,6 +12,7 @@ public class TallyConnectionMonitor : IDisposable
     private CancellationTokenSource? _cts;
     private Task? _monitoringTask;
     private bool _isDisposed;
+    private readonly object _lifecycleLock = new();
 
     public event EventHandler<TallyEndpointInfo?>? EndpointChanged;
     public event EventHandler<ConnectionStatus>? StatusChanged;
@@ -32,19 +33,36 @@ public class TallyConnectionMonitor : IDisposable
 
     public void StartMonitoring(int normalIntervalSeconds = 15, int backoffIntervalSeconds = 30)
     {
-        if (IsMonitoring) return;
+        if (normalIntervalSeconds < 1)
+            throw new ArgumentOutOfRangeException(nameof(normalIntervalSeconds), "The monitoring interval must be at least one second.");
+        if (backoffIntervalSeconds < 1)
+            throw new ArgumentOutOfRangeException(nameof(backoffIntervalSeconds), "The backoff interval must be at least one second.");
 
-        _cts = new CancellationTokenSource();
-        _monitoringTask = Task.Run(() => MonitorLoopAsync(normalIntervalSeconds, backoffIntervalSeconds, _cts.Token));
+        lock (_lifecycleLock)
+        {
+            ObjectDisposedException.ThrowIf(_isDisposed, this);
+            if (_monitoringTask is { IsCompleted: false }) return;
+
+            // Dispose the previous source only after its monitor task has ended.
+            _cts?.Dispose();
+            var cts = new CancellationTokenSource();
+            _cts = cts;
+            var token = cts.Token; // Capture this run's token; never read a later _cts from the task.
+            _monitoringTask = Task.Run(() => MonitorLoopAsync(normalIntervalSeconds, backoffIntervalSeconds, token));
+        }
+
         _logger.LogInformation("Tally automatic connection monitor started (Normal Interval: {Normal}s, Backoff: {Backoff}s)", normalIntervalSeconds, backoffIntervalSeconds);
     }
 
     public void StopMonitoring()
     {
-        if (_cts != null && !_cts.IsCancellationRequested)
+        lock (_lifecycleLock)
         {
-            _cts.Cancel();
-            _logger.LogInformation("Tally automatic connection monitor stopping...");
+            if (_cts != null && !_cts.IsCancellationRequested)
+            {
+                _cts.Cancel();
+                _logger.LogInformation("Tally automatic connection monitor stopping...");
+            }
         }
     }
 
@@ -140,9 +158,21 @@ public class TallyConnectionMonitor : IDisposable
 
     public void Dispose()
     {
-        if (_isDisposed) return;
-        _isDisposed = true;
-        StopMonitoring();
-        _cts?.Dispose();
+        lock (_lifecycleLock)
+        {
+            if (_isDisposed) return;
+            _isDisposed = true;
+            if (_cts != null && !_cts.IsCancellationRequested)
+            {
+                _cts.Cancel();
+                _logger.LogInformation("Tally automatic connection monitor stopping...");
+            }
+
+            // The cancellation token is already signalled before disposal. The
+            // task owns no further source operations, and host shutdown will
+            // allow its cancellation path to complete.
+            _cts?.Dispose();
+            _cts = null;
+        }
     }
 }
