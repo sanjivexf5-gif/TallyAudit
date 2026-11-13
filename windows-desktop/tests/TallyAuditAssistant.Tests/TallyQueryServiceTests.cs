@@ -1,3 +1,4 @@
+using System.Xml;
 using System.Xml.Linq;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
