@@ -512,6 +512,63 @@ CREATE TABLE IF NOT EXISTS AuditPlans (
         ";
 
         await connection.ExecuteAsync(new CommandDefinition(schemaSql, cancellationToken: cancellationToken));
+        // CA practice management is deliberately separate from Tally Companies:
+        // one practice client may own several legal entities and synced books.
+        await connection.ExecuteAsync(new CommandDefinition(@"
+            CREATE TABLE IF NOT EXISTS PracticeClients (
+                Id TEXT PRIMARY KEY,
+                ClientCode TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                DisplayName TEXT NOT NULL,
+                ClientType TEXT NOT NULL DEFAULT 'Business',
+                PAN TEXT,
+                Email TEXT,
+                Phone TEXT,
+                Address TEXT,
+                Status TEXT NOT NULL DEFAULT 'Active',
+                Notes TEXT,
+                CreatedAt DATETIME NOT NULL,
+                UpdatedAt DATETIME NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS PracticeClientEntities (
+                Id TEXT PRIMARY KEY,
+                ClientId TEXT NOT NULL REFERENCES PracticeClients(Id) ON DELETE RESTRICT,
+                LegalName TEXT NOT NULL,
+                PAN TEXT,
+                GSTIN TEXT,
+                StateCode TEXT,
+                TallyCompanyId TEXT REFERENCES Companies(Id) ON DELETE SET NULL,
+                Status TEXT NOT NULL DEFAULT 'Active',
+                CreatedAt DATETIME NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS ClientEngagements (
+                Id TEXT PRIMARY KEY,
+                ClientId TEXT NOT NULL REFERENCES PracticeClients(Id) ON DELETE RESTRICT,
+                ClientEntityId TEXT REFERENCES PracticeClientEntities(Id) ON DELETE SET NULL,
+                ServiceCode TEXT NOT NULL,
+                ServiceName TEXT NOT NULL,
+                FinancialYear TEXT NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'Open',
+                AssignedToUserId TEXT REFERENCES AppUsers(Id) ON DELETE SET NULL,
+                ReviewerUserId TEXT REFERENCES AppUsers(Id) ON DELETE SET NULL,
+                DueDate DATE,
+                ProfessionalFee DECIMAL(18,2),
+                Notes TEXT,
+                CreatedAt DATETIME NOT NULL,
+                UpdatedAt DATETIME NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_practice_entities_client_status
+                ON PracticeClientEntities(ClientId, Status);
+            CREATE INDEX IF NOT EXISTS idx_practice_entities_gstin
+                ON PracticeClientEntities(GSTIN);
+            CREATE INDEX IF NOT EXISTS idx_engagements_client_status_due
+                ON ClientEngagements(ClientId, Status, DueDate);
+            CREATE INDEX IF NOT EXISTS idx_engagements_owner_status
+                ON ClientEngagements(AssignedToUserId, Status, DueDate);
+        ", cancellationToken: cancellationToken));
+
 
         // Keep the finding due-date field available even when the database is
         // initialized directly (e.g. fresh installs and test databases) rather
