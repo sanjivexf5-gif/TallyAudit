@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 using TallyAuditAssistant.Core.Domain.Practice;
 using TallyAuditAssistant.Data;
@@ -95,6 +96,9 @@ public sealed class PracticeRepositoryTests
         }
         finally
         {
+            // Microsoft.Data.Sqlite pools handles after Dispose by default. Clear the
+            // per-process pools before deleting the temporary database and WAL files.
+            SqliteConnection.ClearAllPools();
             if (Directory.Exists(directory))
                 Directory.Delete(directory, recursive: true);
         }
@@ -121,6 +125,9 @@ public sealed class PracticeRepositoryTests
         }
         finally
         {
+            // Microsoft.Data.Sqlite pools handles after Dispose by default. Clear the
+            // per-process pools before deleting the temporary database and WAL files.
+            SqliteConnection.ClearAllPools();
             if (Directory.Exists(directory))
                 Directory.Delete(directory, recursive: true);
         }
