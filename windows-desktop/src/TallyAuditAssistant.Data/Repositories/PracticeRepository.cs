@@ -169,7 +169,7 @@ public sealed class PracticeRepository : IPracticeRepository
         if (string.IsNullOrWhiteSpace(engagement.ClientId) || string.IsNullOrWhiteSpace(engagement.ServiceCode)
             || string.IsNullOrWhiteSpace(engagement.ServiceName) || string.IsNullOrWhiteSpace(engagement.FinancialYear))
             throw new ArgumentException("Client, service and financial year are required.", nameof(engagement));
-        if (engagement.ProfessionalFee < 0) throw new ArgumentOutOfRangeException(nameof(engagement), "Professional fee cannot be negative.");
+        if (engagement.ProfessionalFee.HasValue && engagement.ProfessionalFee.Value < 0m) throw new ArgumentOutOfRangeException(nameof(engagement), "Professional fee cannot be negative.");
         if (engagement.Status is not ("Open" or "In Progress" or "Awaiting Client" or "Under Review" or "Completed" or "On Hold" or "Cancelled"))
             throw new ArgumentException("Engagement status is not supported.", nameof(engagement));
     }
