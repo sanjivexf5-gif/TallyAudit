@@ -1,6 +1,5 @@
 using Dapper;
 using Microsoft.Data.Sqlite;
-using System.Data.Common;
 using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.Data;
@@ -8,6 +7,9 @@ namespace TallyAuditAssistant.Data;
 public class SqliteConnectionFactory : ISqliteConnectionFactory
 {
     private readonly string _connectionString;
+    private readonly SemaphoreSlim _journalModeLock = new(1, 1);
+    private volatile bool _journalModeInitialized;
+
     public string DatabasePath { get; }
 
     static SqliteConnectionFactory()
@@ -30,36 +32,103 @@ public class SqliteConnectionFactory : ISqliteConnectionFactory
 
     public async Task<SqliteConnection> CreateConnectionAsync(CancellationToken cancellationToken = default)
     {
+        if (!_journalModeInitialized)
+        {
+            await _journalModeLock.WaitAsync(cancellationToken);
+            try
+            {
+                if (!_journalModeInitialized)
+                {
+                    await using var initializer = new SqliteConnection(_connectionString);
+                    await initializer.OpenAsync(cancellationToken);
+                    await ExecutePragmaAsync(initializer, "PRAGMA journal_mode = WAL;", cancellationToken);
+                    _journalModeInitialized = true;
+                }
+            }
+            finally
+            {
+                _journalModeLock.Release();
+            }
+        }
+
         var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-
-        // Configure SQLite performance PRAGMAs for fast bulk reads and writes
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = @"
-            PRAGMA journal_mode = WAL;
-            PRAGMA synchronous = NORMAL;
-            PRAGMA foreign_keys = ON;
-            PRAGMA busy_timeout = 30000;
-        ";
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
-
-        return connection;
+        try
+        {
+            await connection.OpenAsync(cancellationToken);
+            await ConfigureConnectionAsync(connection, cancellationToken);
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
     }
 
     public SqliteConnection CreateConnection()
     {
-        var connection = new SqliteConnection(_connectionString);
-        connection.Open();
+        if (!_journalModeInitialized)
+        {
+            _journalModeLock.Wait();
+            try
+            {
+                if (!_journalModeInitialized)
+                {
+                    using var initializer = new SqliteConnection(_connectionString);
+                    initializer.Open();
+                    ExecutePragma(initializer, "PRAGMA journal_mode = WAL;");
+                    _journalModeInitialized = true;
+                }
+            }
+            finally
+            {
+                _journalModeLock.Release();
+            }
+        }
 
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = @"
-            PRAGMA journal_mode = WAL;
+        var connection = new SqliteConnection(_connectionString);
+        try
+        {
+            connection.Open();
+            ExecutePragma(connection, @"
+                PRAGMA synchronous = NORMAL;
+                PRAGMA foreign_keys = ON;
+                PRAGMA busy_timeout = 5000;
+            ");
+            return connection;
+        }
+        catch
+        {
+            connection.Dispose();
+            throw;
+        }
+    }
+
+    private static async Task ConfigureConnectionAsync(
+        SqliteConnection connection,
+        CancellationToken cancellationToken)
+    {
+        await ExecutePragmaAsync(connection, @"
             PRAGMA synchronous = NORMAL;
             PRAGMA foreign_keys = ON;
-            PRAGMA busy_timeout = 5000;
-        ";
-        cmd.ExecuteNonQuery();
+            PRAGMA busy_timeout = 30000;
+        ", cancellationToken);
+    }
 
-        return connection;
+    private static async Task ExecutePragmaAsync(
+        SqliteConnection connection,
+        string commandText,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = commandText;
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static void ExecutePragma(SqliteConnection connection, string commandText)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = commandText;
+        command.ExecuteNonQuery();
     }
 }
