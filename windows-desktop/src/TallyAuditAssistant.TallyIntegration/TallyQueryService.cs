@@ -1,3 +1,4 @@
+using System.Security;
 using System.Text;
 using System.Xml;
 using Microsoft.Extensions.Logging;
@@ -18,13 +19,15 @@ public class TallyQueryService : ITallyQueryService
 
     public string BuildExportEnvelope(string reportName, Dictionary<string, string>? staticVariables = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reportName);
+
         var sb = new StringBuilder();
         sb.AppendLine("<ENVELOPE>");
         sb.AppendLine("  <HEADER>");
         sb.AppendLine("    <VERSION>1</VERSION>");
         sb.AppendLine("    <TALLYREQUEST>Export</TALLYREQUEST>");
         sb.AppendLine("    <TYPE>Data</TYPE>");
-        sb.AppendFormat("    <ID>{0}</ID>\n", reportName);
+        sb.Append("    <ID>").Append(EscapeXmlText(reportName)).AppendLine("</ID>");
         sb.AppendLine("  </HEADER>");
         sb.AppendLine("  <BODY>");
         sb.AppendLine("    <DESC>");
@@ -34,7 +37,9 @@ public class TallyQueryService : ITallyQueryService
         {
             foreach (var kvp in staticVariables)
             {
-                sb.AppendFormat("        <{0}>{1}</{0}>\n", kvp.Key, kvp.Value);
+                ValidateElementName(kvp.Key);
+                sb.Append("        <").Append(kvp.Key).Append('>')
+                    .Append(EscapeXmlText(kvp.Value)).Append("</").Append(kvp.Key).AppendLine(">");
             }
         }
         sb.AppendLine("      </STATICVARIABLES>");
@@ -47,13 +52,15 @@ public class TallyQueryService : ITallyQueryService
 
     public string BuildCollectionEnvelope(string collectionName, List<string>? fetchFields = null, Dictionary<string, string>? filters = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+
         var sb = new StringBuilder();
         sb.AppendLine("<ENVELOPE>");
         sb.AppendLine("  <HEADER>");
         sb.AppendLine("    <VERSION>1</VERSION>");
         sb.AppendLine("    <TALLYREQUEST>Export</TALLYREQUEST>");
         sb.AppendLine("    <TYPE>Collection</TYPE>");
-        sb.AppendFormat("    <ID>{0}</ID>\n", collectionName);
+        sb.Append("    <ID>").Append(EscapeXmlText(collectionName)).AppendLine("</ID>");
         sb.AppendLine("  </HEADER>");
         sb.AppendLine("  <BODY>");
         sb.AppendLine("    <DESC>");
@@ -64,8 +71,10 @@ public class TallyQueryService : ITallyQueryService
         {
             sb.AppendLine("      <TDL>");
             sb.AppendLine("        <TDLMESSAGE>");
-            sb.AppendFormat("          <COLLECTION NAME=\"{0}\">\n", collectionName);
-            sb.AppendFormat("            <FETCH>{0}</FETCH>\n", string.Join(", ", fetchFields));
+            sb.Append("          <COLLECTION NAME=\"").Append(EscapeXmlAttribute(collectionName)).AppendLine("\">");
+            sb.Append("            <FETCH>")
+                .Append(string.Join(", ", fetchFields.Select(EscapeXmlText)))
+                .AppendLine("</FETCH>");
             sb.AppendLine("          </COLLECTION>");
             sb.AppendLine("        </TDLMESSAGE>");
             sb.AppendLine("      </TDL>");
@@ -82,4 +91,26 @@ public class TallyQueryService : ITallyQueryService
         var xml = BuildExportEnvelope(reportName, variables);
         return await _client.PostXmlAsync(endpointUrl, xml, cancellationToken);
     }
+
+    private static void ValidateElementName(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        try
+        {
+            XmlConvert.VerifyNCName(name);
+        }
+        catch (XmlException ex)
+        {
+            throw new ArgumentException($"'{name}' is not a valid XML element name.", nameof(name), ex);
+        }
+    }
+
+    private static string EscapeXmlText(string? value)
+    {
+        if (value == null) return string.Empty;
+        XmlConvert.VerifyXmlChars(value);
+        return SecurityElement.Escape(value) ?? string.Empty;
+    }
+
+    private static string EscapeXmlAttribute(string? value) => EscapeXmlText(value);
 }
