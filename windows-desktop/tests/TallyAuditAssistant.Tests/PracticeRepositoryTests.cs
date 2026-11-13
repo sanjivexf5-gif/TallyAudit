@@ -44,7 +44,8 @@ public sealed class PracticeRepositoryTests
             var otherClient = new PracticeClient
             {
                 ClientCode = "CLIENT-002",
-                DisplayName = "Unrelated Client"
+                DisplayName = "Unrelated Client",
+                Status = "Inactive"
             };
             Assert.True(await repository.CreateClientAsync(otherClient));
             var otherEntity = new PracticeClientEntity
