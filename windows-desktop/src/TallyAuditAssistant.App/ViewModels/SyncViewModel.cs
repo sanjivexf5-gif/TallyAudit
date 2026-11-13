@@ -19,6 +19,7 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
     private readonly ISettingsService _settingsService;
     private readonly IActiveCompanyContext _companyContext;
     private long _loadGeneration;
+    private long _historyGeneration;
     private const int MaxVisibleLogs = 200;
     private const int MaxPendingLogs = 200;
     private readonly ConcurrentQueue<string> _pendingLogs = new();
@@ -88,7 +89,6 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
         _syncManager.SyncLogEmitted += OnLogEmitted;
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
 
-        _ = LoadInitialDataAsync();
     }
 
     public async Task OnNavigatedToAsync()
@@ -191,10 +191,26 @@ public partial class SyncViewModel : ObservableObject, INavigationAware
 
     private async Task LoadHistoryAsync()
     {
-        if (string.IsNullOrEmpty(CompanyName)) return;
+        var companyName = CompanyName;
+        var generation = Interlocked.Increment(ref _historyGeneration);
+        if (string.IsNullOrEmpty(companyName))
+        {
+            SyncHistory.Clear();
+            return;
+        }
+
         try
         {
-            var history = await _syncManager.GetSyncHistoryAsync(CompanyName);
+            var history = await _syncManager.GetSyncHistoryAsync(companyName);
+
+            // A slower query for a previously selected company must not replace
+            // the history belonging to the company's current selection.
+            if (generation != Volatile.Read(ref _historyGeneration) ||
+                !string.Equals(companyName, CompanyName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
             SyncHistory.Clear();
             foreach (var h in history)
             {
