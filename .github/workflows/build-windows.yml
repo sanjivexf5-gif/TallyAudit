@@ -201,8 +201,35 @@ jobs:
           $status = git status --porcelain
           if ($status) {
             git commit -m "chore: bump application version to ${{ steps.versioning.outputs.VERSION }} [skip ci]"
-            git push origin HEAD:main
-            Write-Host "Successfully pushed version bump commit to main."
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create version synchronization commit." }
+
+            # A PR may merge while this release workflow is running. Rebase the
+            # version-only commit onto the latest main and retry a rejected push.
+            $pushSucceeded = $false
+            for ($attempt = 1; $attempt -le 3; $attempt++) {
+              git fetch origin main
+              if ($LASTEXITCODE -ne 0) { throw "Failed to fetch latest main before version synchronization." }
+
+              git rebase origin/main
+              if ($LASTEXITCODE -ne 0) {
+                git rebase --abort
+                throw "Could not rebase the version synchronization commit safely; no force push was attempted."
+              }
+
+              git push origin HEAD:main
+              if ($LASTEXITCODE -eq 0) {
+                $pushSucceeded = $true
+                break
+              }
+
+              Write-Warning "Version synchronization push attempt $attempt was rejected; refreshing main and retrying."
+              Start-Sleep -Seconds 2
+            }
+
+            if (-not $pushSucceeded) {
+              throw "Could not publish the version synchronization commit after three safe attempts."
+            }
+            Write-Host "Successfully pushed version bump commit to the latest main."
           } else {
             Write-Host "No files changed, skipping version bump commit."
           }
