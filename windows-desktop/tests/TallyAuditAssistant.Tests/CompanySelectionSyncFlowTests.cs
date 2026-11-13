@@ -188,7 +188,7 @@ public class CompanySelectionSyncFlowTests
             workingPapersVM,
             auditChecklistVM,
             investigationVM,
-            new AuditTrailViewModel(new Mock<IAuditTrailService>().Object, _companyContext));
+            new AuditTrailViewModel(new Mock<IAuditTrailService>().Object));
     }
 
     [Fact]

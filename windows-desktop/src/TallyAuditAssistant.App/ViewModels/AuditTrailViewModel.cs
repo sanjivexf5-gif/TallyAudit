@@ -8,7 +8,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using TallyAuditAssistant.Core.Domain.Audit;
-using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Interfaces;
 using TallyAuditAssistant.Engine.Services;
 
@@ -17,7 +16,6 @@ namespace TallyAuditAssistant.App.ViewModels;
 public partial class AuditTrailViewModel : ObservableObject, INavigationAware
 {
     private readonly IAuditTrailService _auditTrailService;
-    private readonly IActiveCompanyContext _companyContext;
 
     [ObservableProperty]
     private ObservableCollection<AuditTrailEntry> _entries = new();
@@ -99,18 +97,9 @@ public partial class AuditTrailViewModel : ObservableObject, INavigationAware
     private string _statusMessage = string.Empty;
 
     public AuditTrailViewModel(
-        IAuditTrailService auditTrailService,
-        IActiveCompanyContext companyContext)
+    IAuditTrailService auditTrailService)
     {
         _auditTrailService = auditTrailService;
-        _companyContext = companyContext;
-
-        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
-    }
-
-    private void OnActiveCompanyChanged(object? sender, Company? company)
-    {
-        _ = RefreshAsync();
     }
 
     public async Task OnNavigatedToAsync()

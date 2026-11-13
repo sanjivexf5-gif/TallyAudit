@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Dapper;
-using TallyAuditAssistant.Core.Domain.Companies;
 using TallyAuditAssistant.Core.Domain.Ledgers;
 using TallyAuditAssistant.Core.Interfaces;
 using TallyAuditAssistant.Data;
@@ -56,18 +55,11 @@ public partial class LedgersViewModel : ObservableObject, INavigationAware
         _navigationService = navigationService;
         _vendorIntelligenceService = vendorIntelligenceService;
 
-        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
-        _ = LoadLedgersAsync();
     }
 
     public async Task OnNavigatedToAsync()
     {
         await LoadLedgersAsync();
-    }
-
-    private void OnActiveCompanyChanged(object? sender, Company? comp)
-    {
-        _ = LoadLedgersAsync();
     }
 
     [RelayCommand]
