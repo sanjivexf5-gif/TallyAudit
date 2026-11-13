@@ -72,18 +72,11 @@ public partial class ReportsViewModel : ObservableObject, INavigationAware
         _navigationService = navigationService;
         _auditTrailService = auditTrailService;
 
-        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
-        _ = LoadReportsInfoAsync();
     }
 
     public async Task OnNavigatedToAsync()
     {
         await LoadReportsInfoAsync();
-    }
-
-    private void OnActiveCompanyChanged(object? sender, Company? comp)
-    {
-        _ = LoadReportsInfoAsync();
     }
 
     public async Task LoadReportsInfoAsync()

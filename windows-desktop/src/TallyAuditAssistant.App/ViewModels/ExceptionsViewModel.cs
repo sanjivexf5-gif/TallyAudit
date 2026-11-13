@@ -105,18 +105,11 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
         _investigationViewModel = investigationViewModel;
         _logger = logger ?? NullLogger<ExceptionsViewModel>.Instance;
 
-        _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
-        _ = SafeLoadExceptionsAsync();
     }
 
     public async Task OnNavigatedToAsync()
     {
         await SafeLoadExceptionsAsync();
-    }
-
-    private void OnActiveCompanyChanged(object? sender, Company? comp)
-    {
-        _ = SafeLoadExceptionsAsync();
     }
 
     private async Task SafeLoadExceptionsAsync()
@@ -396,8 +389,6 @@ public partial class ExceptionsViewModel : ObservableObject, INavigationAware, I
         if (_isDisposed) return;
         _isDisposed = true;
 
-        _companyContext.ActiveCompanyChanged -= OnActiveCompanyChanged;
-        
         lock (_ctsLock)
         {
             _loadCts?.Cancel();

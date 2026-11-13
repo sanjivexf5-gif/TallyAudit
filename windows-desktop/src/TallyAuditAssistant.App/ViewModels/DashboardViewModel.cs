@@ -227,11 +227,6 @@ public partial class DashboardViewModel : ObservableObject, INavigationAware
         _logger = logger;
         _services = services;
 
-        _companyContext.ActiveCompanyChanged += async (s, c) =>
-        {
-            await LoadDashboardDataAsync();
-        };
-
         _ = LoadDashboardDataAsync();
     }
 
