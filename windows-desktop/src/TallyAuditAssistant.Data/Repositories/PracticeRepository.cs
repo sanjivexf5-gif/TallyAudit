@@ -125,6 +125,7 @@ public sealed class PracticeRepository : IPracticeRepository
         ArgumentNullException.ThrowIfNull(engagement);
         ValidateEngagement(engagement);
         using var connection = await _connectionFactory.CreateConnectionAsync(ct);
+        await ValidateEngagementEntityAsync(connection, engagement, ct);
         const string sql = @"INSERT INTO ClientEngagements
             (Id, ClientId, ClientEntityId, ServiceCode, ServiceName, FinancialYear, Status,
              AssignedToUserId, ReviewerUserId, DueDate, ProfessionalFee, Notes, CreatedAt, UpdatedAt)
@@ -139,11 +140,31 @@ public sealed class PracticeRepository : IPracticeRepository
         ValidateEngagement(engagement);
         engagement.UpdatedAt = DateTime.UtcNow;
         using var connection = await _connectionFactory.CreateConnectionAsync(ct);
+        await ValidateEngagementEntityAsync(connection, engagement, ct);
         const string sql = @"UPDATE ClientEngagements SET ClientId=@ClientId, ClientEntityId=@ClientEntityId,
             ServiceCode=@ServiceCode, ServiceName=@ServiceName, FinancialYear=@FinancialYear, Status=@Status,
             AssignedToUserId=@AssignedToUserId, ReviewerUserId=@ReviewerUserId, DueDate=@DueDate,
             ProfessionalFee=@ProfessionalFee, Notes=@Notes, UpdatedAt=@UpdatedAt WHERE Id=@Id;";
         return await connection.ExecuteAsync(new CommandDefinition(sql, engagement, cancellationToken: ct)) == 1;
+    }
+
+    private static async Task ValidateEngagementEntityAsync(
+        System.Data.Common.DbConnection connection,
+        ClientEngagement engagement,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(engagement.ClientEntityId))
+            return;
+
+        const string sql = @"SELECT COUNT(*) FROM PracticeClientEntities
+            WHERE Id = @EntityId AND ClientId = @ClientId;";
+        var belongsToClient = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+            sql,
+            new { EntityId = engagement.ClientEntityId, engagement.ClientId },
+            cancellationToken: ct));
+
+        if (belongsToClient != 1)
+            throw new ArgumentException("The selected legal entity does not belong to the engagement client.", nameof(engagement));
     }
 
     private static void ValidateClient(PracticeClient client)
