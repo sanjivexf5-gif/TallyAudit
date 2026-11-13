@@ -503,6 +503,12 @@ CREATE TABLE IF NOT EXISTS AuditPlans (
             CREATE INDEX IF NOT EXISTS idx_audittrail_action ON AuditTrail(ActionType);
             CREATE INDEX IF NOT EXISTS idx_audittrail_module ON AuditTrail(Module);
             CREATE INDEX IF NOT EXISTS idx_audittrail_entity ON AuditTrail(EntityId);
+            -- Composite indexes keep filtered audit-trail queries ordered by newest event
+            -- without sorting the full matching set for common single-field filters.
+            CREATE INDEX IF NOT EXISTS idx_audittrail_company_timestamp ON AuditTrail(CompanyName, TimestampUtc DESC);
+            CREATE INDEX IF NOT EXISTS idx_audittrail_module_timestamp ON AuditTrail(Module, TimestampUtc DESC);
+            CREATE INDEX IF NOT EXISTS idx_audittrail_action_timestamp ON AuditTrail(ActionType, TimestampUtc DESC);
+            CREATE INDEX IF NOT EXISTS idx_audittrail_user_timestamp ON AuditTrail(UserName, TimestampUtc DESC);
         ";
 
         await connection.ExecuteAsync(new CommandDefinition(schemaSql, cancellationToken: cancellationToken));
