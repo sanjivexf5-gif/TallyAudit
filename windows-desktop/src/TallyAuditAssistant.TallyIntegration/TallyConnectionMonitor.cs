@@ -158,21 +158,40 @@ public class TallyConnectionMonitor : IDisposable
 
     public void Dispose()
     {
+        CancellationTokenSource? cts;
+        Task? monitoringTask;
+
         lock (_lifecycleLock)
         {
             if (_isDisposed) return;
             _isDisposed = true;
-            if (_cts != null && !_cts.IsCancellationRequested)
+
+            cts = _cts;
+            monitoringTask = _monitoringTask;
+            _cts = null;
+
+            if (cts != null && !cts.IsCancellationRequested)
             {
-                _cts.Cancel();
+                cts.Cancel();
                 _logger.LogInformation("Tally automatic connection monitor stopping...");
             }
-
-            // The cancellation token is already signalled before disposal. The
-            // task owns no further source operations, and host shutdown will
-            // allow its cancellation path to complete.
-            _cts?.Dispose();
-            _cts = null;
         }
+
+        if (cts == null) return;
+
+        if (monitoringTask == null || monitoringTask.IsCompleted)
+        {
+            cts.Dispose();
+            return;
+        }
+
+        // Cancellation is cooperative: the loop may still be unwinding a
+        // cancellable delay or I/O operation. Keep the source alive until the
+        // task has fully completed, then release its registrations/resources.
+        _ = monitoringTask.ContinueWith(
+            _ => cts.Dispose(),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 }
