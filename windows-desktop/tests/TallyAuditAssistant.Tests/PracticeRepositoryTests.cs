@@ -40,6 +40,29 @@ public sealed class PracticeRepositoryTests
             };
             Assert.True(await repository.CreateClientEntityAsync(entity));
 
+            var otherClient = new PracticeClient
+            {
+                ClientCode = "CLIENT-002",
+                DisplayName = "Unrelated Client"
+            };
+            Assert.True(await repository.CreateClientAsync(otherClient));
+            var otherEntity = new PracticeClientEntity
+            {
+                ClientId = otherClient.Id,
+                LegalName = "Unrelated Client Entity"
+            };
+            Assert.True(await repository.CreateClientEntityAsync(otherEntity));
+
+            var invalidCrossClientEngagement = new ClientEngagement
+            {
+                ClientId = client.Id,
+                ClientEntityId = otherEntity.Id,
+                ServiceCode = "GST-RET",
+                ServiceName = "GST return preparation",
+                FinancialYear = "2026-27"
+            };
+            await Assert.ThrowsAsync<ArgumentException>(() => repository.CreateEngagementAsync(invalidCrossClientEngagement));
+
             var engagement = new ClientEngagement
             {
                 ClientId = client.Id,
