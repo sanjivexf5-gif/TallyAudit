@@ -16,6 +16,8 @@ namespace TallyAuditAssistant.App.ViewModels;
 public partial class AuditTrailViewModel : ObservableObject, INavigationAware
 {
     private readonly IAuditTrailService _auditTrailService;
+    private readonly object _refreshLock = new();
+    private CancellationTokenSource? _refreshCts;
 
     [ObservableProperty]
     private ObservableCollection<AuditTrailEntry> _entries = new();
@@ -110,6 +112,15 @@ public partial class AuditTrailViewModel : ObservableObject, INavigationAware
     [RelayCommand]
     public async Task RefreshAsync()
     {
+        CancellationTokenSource refreshCts;
+        lock (_refreshLock)
+        {
+            // A newer filter/search request supersedes the previous database query.
+            _refreshCts?.Cancel();
+            refreshCts = new CancellationTokenSource();
+            _refreshCts = refreshCts;
+        }
+
         IsLoading = true;
         StatusMessage = "Loading audit trail records...";
         try
@@ -123,7 +134,15 @@ public partial class AuditTrailViewModel : ObservableObject, INavigationAware
                 actionType: SelectedAction,
                 userName: SelectedUser,
                 limit: 1000,
-                ct: CancellationToken.None);
+                ct: refreshCts.Token);
+
+            // A provider may complete just as cancellation is requested. Never let an
+            // older response overwrite results from the latest user request.
+            lock (_refreshLock)
+            {
+                if (!ReferenceEquals(_refreshCts, refreshCts) || refreshCts.IsCancellationRequested)
+                    return;
+            }
 
             Entries.Clear();
             foreach (var item in rawEntries)
@@ -135,13 +154,31 @@ public partial class AuditTrailViewModel : ObservableObject, INavigationAware
             UpdateFilterDropdowns(rawEntries);
             StatusMessage = $"Showing {TotalRecordsCount} audit trail record(s).";
         }
+        catch (OperationCanceledException) when (refreshCts.IsCancellationRequested)
+        {
+            // Expected when the user starts a newer refresh.
+        }
         catch (Exception ex)
         {
-            StatusMessage = $"Error loading audit trail: {ex.Message}";
+            lock (_refreshLock)
+            {
+                if (ReferenceEquals(_refreshCts, refreshCts))
+                    StatusMessage = $"Error loading audit trail: {ex.Message}";
+            }
         }
         finally
         {
-            IsLoading = false;
+            lock (_refreshLock)
+            {
+                if (ReferenceEquals(_refreshCts, refreshCts))
+                {
+                    _refreshCts = null;
+                    IsLoading = false;
+                }
+            }
+
+            // Each request owns and disposes its own source after its query has finished.
+            refreshCts.Dispose();
         }
     }
 
