@@ -36,9 +36,22 @@ public class TallyConnection : ITallyConnection
         try
         {
             var processes = Process.GetProcessesByName("tally");
-            var isRunning = processes.Length > 0;
-            _logger.LogDebug("Tally process check: {Count} instance(s) found", processes.Length);
-            return isRunning;
+            try
+            {
+                var processCount = processes.Length;
+                _logger.LogDebug("Tally process check: {Count} instance(s) found", processCount);
+                return processCount > 0;
+            }
+            finally
+            {
+                // Process.GetProcessesByName allocates native process handles.
+                // Dispose every Process instance so the periodic monitor does not
+                // accumulate handles over a long-running desktop session.
+                foreach (var process in processes)
+                {
+                    process.Dispose();
+                }
+            }
         }
         catch (Exception ex)
         {
