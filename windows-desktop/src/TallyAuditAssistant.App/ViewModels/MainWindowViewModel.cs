@@ -206,6 +206,13 @@ public partial class MainWindowViewModel : ObservableObject
             ActiveCompany = string.IsNullOrWhiteSpace(companyName)
                 ? "No Company Selected"
                 : companyName;
+
+            // Refresh only the visible screen after a company switch. Inactive
+            // singleton view models stay idle and reload when next navigated to.
+            if (CurrentViewModel is INavigationAware navAware)
+            {
+                _ = NotifyNavigationAsync(navAware, CurrentSection);
+            }
         }
 
         if (App.Current?.Dispatcher != null && !App.Current.Dispatcher.CheckAccess())
