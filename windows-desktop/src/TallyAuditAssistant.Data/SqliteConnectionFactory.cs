@@ -1,6 +1,5 @@
 using Dapper;
 using Microsoft.Data.Sqlite;
-using System.Data.Common;
 using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.Data;
@@ -9,7 +8,7 @@ public class SqliteConnectionFactory : ISqliteConnectionFactory
 {
     private readonly string _connectionString;
     private readonly SemaphoreSlim _journalModeLock = new(1, 1);
-    private bool _journalModeInitialized;
+    private volatile bool _journalModeInitialized;
 
     public string DatabasePath { get; }
 
@@ -33,67 +32,75 @@ public class SqliteConnectionFactory : ISqliteConnectionFactory
 
     public async Task<SqliteConnection> CreateConnectionAsync(CancellationToken cancellationToken = default)
     {
-        // WAL mode is database-wide and persistent. Set it once per factory rather
-        // than executing a journal-mode transition for every short-lived connection.
-        await _journalModeLock.WaitAsync(cancellationToken);
-        try
+        if (!_journalModeInitialized)
         {
-            var connection = new SqliteConnection(_connectionString);
+            await _journalModeLock.WaitAsync(cancellationToken);
             try
             {
-                await connection.OpenAsync(cancellationToken);
                 if (!_journalModeInitialized)
                 {
-                    await ExecutePragmaAsync(connection, "PRAGMA journal_mode = WAL;", cancellationToken);
+                    await using var initializer = new SqliteConnection(_connectionString);
+                    await initializer.OpenAsync(cancellationToken);
+                    await ExecutePragmaAsync(initializer, "PRAGMA journal_mode = WAL;", cancellationToken);
                     _journalModeInitialized = true;
                 }
-
-                await ConfigureConnectionAsync(connection, cancellationToken);
-                return connection;
             }
-            catch
+            finally
             {
-                await connection.DisposeAsync();
-                throw;
+                _journalModeLock.Release();
             }
         }
-        finally
+
+        var connection = new SqliteConnection(_connectionString);
+        try
         {
-            _journalModeLock.Release();
+            await connection.OpenAsync(cancellationToken);
+            await ConfigureConnectionAsync(connection, cancellationToken);
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
         }
     }
 
     public SqliteConnection CreateConnection()
     {
-        _journalModeLock.Wait();
-        try
+        if (!_journalModeInitialized)
         {
-            var connection = new SqliteConnection(_connectionString);
+            _journalModeLock.Wait();
             try
             {
-                connection.Open();
                 if (!_journalModeInitialized)
                 {
-                    ExecutePragma(connection, "PRAGMA journal_mode = WAL;");
+                    using var initializer = new SqliteConnection(_connectionString);
+                    initializer.Open();
+                    ExecutePragma(initializer, "PRAGMA journal_mode = WAL;");
                     _journalModeInitialized = true;
                 }
-
-                ExecutePragma(connection, @"
-                    PRAGMA synchronous = NORMAL;
-                    PRAGMA foreign_keys = ON;
-                    PRAGMA busy_timeout = 5000;
-                ");
-                return connection;
             }
-            catch
+            finally
             {
-                connection.Dispose();
-                throw;
+                _journalModeLock.Release();
             }
         }
-        finally
+
+        var connection = new SqliteConnection(_connectionString);
+        try
         {
-            _journalModeLock.Release();
+            connection.Open();
+            ExecutePragma(connection, @"
+                PRAGMA synchronous = NORMAL;
+                PRAGMA foreign_keys = ON;
+                PRAGMA busy_timeout = 5000;
+            ");
+            return connection;
+        }
+        catch
+        {
+            connection.Dispose();
+            throw;
         }
     }
 
