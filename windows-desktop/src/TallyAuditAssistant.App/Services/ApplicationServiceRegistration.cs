@@ -101,6 +101,7 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<AuditAutomationViewModel>();
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<CompaniesViewModel>();
+        services.AddSingleton<PracticeClientsViewModel>();
         services.AddSingleton<GstAuditViewModel>();
         services.AddSingleton<TdsAuditViewModel>();
         services.AddSingleton<VouchersViewModel>();

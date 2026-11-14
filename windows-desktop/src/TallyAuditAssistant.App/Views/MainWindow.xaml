@@ -34,6 +34,9 @@
         <DataTemplate DataType="{x:Type vm:CompaniesViewModel}">
             <views:CompaniesView />
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:PracticeClientsViewModel}">
+            <views:PracticeClientsView />
+        </DataTemplate>
         <DataTemplate DataType="{x:Type vm:GstAuditViewModel}">
             <views:GstAuditView />
         </DataTemplate>
@@ -197,6 +200,7 @@
                               PanningMode="VerticalOnly"
                               CanContentScroll="True">
                     <StackPanel Margin="8,12">
+                    <Button Content="👥  Practice Clients" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="PracticeClients" Tag="PracticeClients"/>
                     <Button Content="📊  Dashboard" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Dashboard" Tag="Dashboard"/>
                     <Button Content="⚡  Smart Automation" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Automation" Tag="Automation"/>
                     <Button Content="⚖️  GST Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="GST" Tag="GST"/>

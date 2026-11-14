@@ -47,6 +47,7 @@ public partial class MainWindowViewModel : ObservableObject
     public AuditAutomationViewModel AuditAutomationVM => _services.GetRequiredService<AuditAutomationViewModel>();
     public SettingsViewModel SettingsVM => _services.GetRequiredService<SettingsViewModel>();
     public CompaniesViewModel CompaniesVM => _services.GetRequiredService<CompaniesViewModel>();
+    public PracticeClientsViewModel PracticeClientsVM => _services.GetRequiredService<PracticeClientsViewModel>();
     public GstAuditViewModel GstVM => _services.GetRequiredService<GstAuditViewModel>();
     public TdsAuditViewModel TdsVM => _services.GetRequiredService<TdsAuditViewModel>();
     public VouchersViewModel VouchersVM => _services.GetRequiredService<VouchersViewModel>();
@@ -278,6 +279,7 @@ public partial class MainWindowViewModel : ObservableObject
             "Dashboard" => DashboardVM,
             "TallyConnection" => ConnectionVM,
             "Companies" => CompaniesVM,
+            "PracticeClients" => PracticeClientsVM,
             "Sync" => SyncVM,
             "Automation" => AuditAutomationVM,
             "GST" => GstVM,
