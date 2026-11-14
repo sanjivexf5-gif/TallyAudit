@@ -197,7 +197,7 @@
                               PanningMode="VerticalOnly"
                               CanContentScroll="True">
                     <StackPanel Margin="8,12">
-                    <Button Content="📊  Dashboard" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Dashboard" Tag="Dashboard"/>
+                    <Button Content="👥  Practice Clients" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="PracticeClients" Tag="PracticeClients"/>\n                    <Button Content="📊  Dashboard" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Dashboard" Tag="Dashboard"/>
                     <Button Content="⚡  Smart Automation" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="Automation" Tag="Automation"/>
                     <Button Content="⚖️  GST Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="GST" Tag="GST"/>
                     <Button Content="📑  TDS Audit" Style="{StaticResource SidebarButtonStyle}" Command="{Binding NavigateCommand}" CommandParameter="TDS" Tag="TDS"/>
