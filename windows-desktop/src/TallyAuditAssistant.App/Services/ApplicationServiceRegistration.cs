@@ -43,6 +43,7 @@ public static class ApplicationServiceRegistration
             actualDbPath));
 
         services.AddSingleton<IPracticeRepository, PracticeRepository>();
+        services.AddSingleton<IUserRepository, UserRepository>();
         services.AddSingleton<IAuditRepository, AuditRepository>();
         services.AddSingleton<ITdsRepository, TdsRepository>();
         services.AddSingleton<ISyncRepository, SyncRepository>();
@@ -102,6 +103,7 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<CompaniesViewModel>();
         services.AddSingleton<PracticeClientsViewModel>();
+        services.AddSingleton<PracticeEngagementsViewModel>();
         services.AddSingleton<GstAuditViewModel>();
         services.AddSingleton<TdsAuditViewModel>();
         services.AddSingleton<VouchersViewModel>();
