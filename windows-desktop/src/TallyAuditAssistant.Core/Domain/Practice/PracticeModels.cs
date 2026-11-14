@@ -55,3 +55,23 @@ public sealed class ClientEngagement
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
+
+
+/// <summary>Client-scoped schedule for recurring compliance work; not evidence of filing.</summary>
+public sealed class RecurringComplianceTaskTemplate
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string ClientId { get; set; } = string.Empty;
+    public string? ClientEntityId { get; set; }
+    public string ServiceCode { get; set; } = string.Empty;
+    public string TaskName { get; set; } = string.Empty;
+    public string Frequency { get; set; } = "Monthly";
+    public int IntervalMonths { get; set; } = 1;
+    public DateTime NextDueDate { get; set; } = DateTime.Today;
+    public int ReminderLeadDays { get; set; } = 7;
+    public string? AssignedToUserId { get; set; }
+    public string? ReviewerUserId { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}

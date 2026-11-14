@@ -105,6 +105,70 @@ public sealed class PracticeRepositoryTests
         }
     }
 
+
+    [Fact]
+    public async Task RecurringTemplates_AreClientScopedAndCanBeDeactivated()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "TallyAuditPracticeTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var databasePath = Path.Combine(directory, "practice.db");
+        try
+        {
+            var factory = new SqliteConnectionFactory(databasePath);
+            await new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance, databasePath).ApplyMigrationsAsync();
+            var repository = new PracticeRepository(factory, NullLogger<PracticeRepository>.Instance);
+            var client = new PracticeClient { ClientCode = "RECUR-001", DisplayName = "Recurring Client" };
+            var other = new PracticeClient { ClientCode = "RECUR-002", DisplayName = "Other Client" };
+            Assert.True(await repository.CreateClientAsync(client));
+            Assert.True(await repository.CreateClientAsync(other));
+            var entity = new PracticeClientEntity { ClientId = client.Id, LegalName = "Recurring Entity" };
+            var otherEntity = new PracticeClientEntity { ClientId = other.Id, LegalName = "Other Entity" };
+            Assert.True(await repository.CreateClientEntityAsync(entity));
+            Assert.True(await repository.CreateClientEntityAsync(otherEntity));
+            var invalid = new RecurringComplianceTaskTemplate { ClientId = client.Id, ClientEntityId = otherEntity.Id,
+                ServiceCode = "GST-3B", TaskName = "Monthly GSTR-3B", Frequency = "Monthly", IntervalMonths = 1,
+                NextDueDate = new DateTime(2026, 12, 20) };
+            await Assert.ThrowsAsync<ArgumentException>(() => repository.CreateRecurringTaskTemplateAsync(invalid));
+            var template = new RecurringComplianceTaskTemplate { ClientId = client.Id, ClientEntityId = entity.Id,
+                ServiceCode = "GST-3B", TaskName = "Monthly GSTR-3B", Frequency = "Monthly", IntervalMonths = 1,
+                NextDueDate = new DateTime(2026, 12, 20), ReminderLeadDays = 5 };
+            Assert.True(await repository.CreateRecurringTaskTemplateAsync(template));
+            Assert.Single(await repository.GetRecurringTaskTemplatesAsync(client.Id));
+            Assert.Empty(await repository.GetRecurringTaskTemplatesAsync(other.Id));
+            template.IsActive = false;
+            Assert.True(await repository.UpdateRecurringTaskTemplateAsync(template));
+            Assert.Empty(await repository.GetRecurringTaskTemplatesAsync(client.Id));
+            var inactive = await repository.GetRecurringTaskTemplatesAsync(client.Id, includeInactive: true);
+            Assert.Single(inactive);
+            Assert.False(inactive[0].IsActive);
+            Assert.Equal(5, inactive[0].ReminderLeadDays);
+        }
+        finally { SqliteConnection.ClearAllPools(); if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Fact]
+    public async Task RecurringTemplate_RejectsMismatchedFrequencyIntervalAndReminderWindow()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "TallyAuditPracticeTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var databasePath = Path.Combine(directory, "practice.db");
+        try
+        {
+            var factory = new SqliteConnectionFactory(databasePath);
+            await new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance, databasePath).ApplyMigrationsAsync();
+            var repository = new PracticeRepository(factory, NullLogger<PracticeRepository>.Instance);
+            var client = new PracticeClient { ClientCode = "RECUR-003", DisplayName = "Validation Client" };
+            Assert.True(await repository.CreateClientAsync(client));
+            var template = new RecurringComplianceTaskTemplate { ClientId = client.Id, ServiceCode = "TDS-26Q",
+                TaskName = "Quarterly TDS", Frequency = "Quarterly", IntervalMonths = 2,
+                NextDueDate = new DateTime(2026, 12, 20) };
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => repository.CreateRecurringTaskTemplateAsync(template));
+            template.IntervalMonths = 3; template.ReminderLeadDays = 120;
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => repository.CreateRecurringTaskTemplateAsync(template));
+        }
+        finally { SqliteConnection.ClearAllPools(); if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
     [Fact]
     public async Task CreateClient_RejectsMissingRequiredIdentityFields()
     {

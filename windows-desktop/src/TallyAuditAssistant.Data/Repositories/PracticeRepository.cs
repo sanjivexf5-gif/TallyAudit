@@ -148,6 +148,74 @@ public sealed class PracticeRepository : IPracticeRepository
         return await connection.ExecuteAsync(new CommandDefinition(sql, engagement, cancellationToken: ct)) == 1;
     }
 
+    public async Task<IReadOnlyList<RecurringComplianceTaskTemplate>> GetRecurringTaskTemplatesAsync(string? clientId = null, bool includeInactive = false, CancellationToken ct = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(ct);
+        const string sql = @"SELECT * FROM RecurringComplianceTaskTemplates
+            WHERE (@ClientId IS NULL OR ClientId=@ClientId) AND (@IncludeInactive=1 OR IsActive=1)
+            ORDER BY NextDueDate, TaskName COLLATE NOCASE;";
+        var rows = await connection.QueryAsync<RecurringComplianceTaskTemplate>(new CommandDefinition(sql,
+            new { ClientId = NullIfWhiteSpace(clientId), IncludeInactive = includeInactive }, cancellationToken: ct));
+        return rows.AsList();
+    }
+
+    public async Task<bool> CreateRecurringTaskTemplateAsync(RecurringComplianceTaskTemplate template, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        ValidateRecurringTemplate(template);
+        template.Id = string.IsNullOrWhiteSpace(template.Id) ? Guid.NewGuid().ToString() : template.Id;
+        template.CreatedAt = template.CreatedAt == default ? DateTime.UtcNow : template.CreatedAt;
+        template.UpdatedAt = DateTime.UtcNow;
+        using var connection = await _connectionFactory.CreateConnectionAsync(ct);
+        await ValidateTemplateEntityAsync(connection, template, ct);
+        const string sql = @"INSERT INTO RecurringComplianceTaskTemplates
+            (Id, ClientId, ClientEntityId, ServiceCode, TaskName, Frequency, IntervalMonths, NextDueDate,
+             ReminderLeadDays, AssignedToUserId, ReviewerUserId, IsActive, CreatedAt, UpdatedAt)
+            VALUES (@Id, @ClientId, @ClientEntityId, @ServiceCode, @TaskName, @Frequency, @IntervalMonths, @NextDueDate,
+             @ReminderLeadDays, @AssignedToUserId, @ReviewerUserId, @IsActive, @CreatedAt, @UpdatedAt);";
+        return await connection.ExecuteAsync(new CommandDefinition(sql, template, cancellationToken: ct)) == 1;
+    }
+
+    public async Task<bool> UpdateRecurringTaskTemplateAsync(RecurringComplianceTaskTemplate template, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        ValidateRecurringTemplate(template);
+        template.UpdatedAt = DateTime.UtcNow;
+        using var connection = await _connectionFactory.CreateConnectionAsync(ct);
+        await ValidateTemplateEntityAsync(connection, template, ct);
+        const string sql = @"UPDATE RecurringComplianceTaskTemplates SET ClientId=@ClientId, ClientEntityId=@ClientEntityId,
+            ServiceCode=@ServiceCode, TaskName=@TaskName, Frequency=@Frequency, IntervalMonths=@IntervalMonths,
+            NextDueDate=@NextDueDate, ReminderLeadDays=@ReminderLeadDays, AssignedToUserId=@AssignedToUserId,
+            ReviewerUserId=@ReviewerUserId, IsActive=@IsActive, UpdatedAt=@UpdatedAt WHERE Id=@Id;";
+        return await connection.ExecuteAsync(new CommandDefinition(sql, template, cancellationToken: ct)) == 1;
+    }
+
+    private static async Task ValidateTemplateEntityAsync(System.Data.Common.DbConnection connection,
+        RecurringComplianceTaskTemplate template, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(template.ClientEntityId)) return;
+        const string sql = "SELECT COUNT(*) FROM PracticeClientEntities WHERE Id=@EntityId AND ClientId=@ClientId;";
+        var count = await connection.ExecuteScalarAsync<int>(new CommandDefinition(sql,
+            new { EntityId = template.ClientEntityId, template.ClientId }, cancellationToken: ct));
+        if (count != 1) throw new ArgumentException("The selected legal entity does not belong to the recurring task client.", nameof(template));
+    }
+
+    private static void ValidateRecurringTemplate(RecurringComplianceTaskTemplate template)
+    {
+        if (string.IsNullOrWhiteSpace(template.ClientId) || string.IsNullOrWhiteSpace(template.ServiceCode) || string.IsNullOrWhiteSpace(template.TaskName))
+            throw new ArgumentException("Client, service code and task name are required.", nameof(template));
+        if (template.ServiceCode.Length > 40 || template.TaskName.Length > 200)
+            throw new ArgumentException("Service code or task name exceeds the allowed length.", nameof(template));
+        if (template.Frequency is not ("Monthly" or "Quarterly" or "Annual" or "CustomMonths"))
+            throw new ArgumentException("Unsupported recurrence frequency.", nameof(template));
+        var months = template.Frequency switch { "Monthly" => 1, "Quarterly" => 3, "Annual" => 12, _ => template.IntervalMonths };
+        if (template.IntervalMonths is < 1 or > 12 || template.IntervalMonths != months)
+            throw new ArgumentOutOfRangeException(nameof(template), "Interval must be 1–12 months and match the selected frequency.");
+        if (template.ReminderLeadDays is < 0 or > 90)
+            throw new ArgumentOutOfRangeException(nameof(template), "Reminder lead days must be between 0 and 90.");
+        if (template.NextDueDate == default) throw new ArgumentException("Next due date is required.", nameof(template));
+    }
+
     private static async Task ValidateEngagementEntityAsync(
         System.Data.Common.DbConnection connection,
         ClientEngagement engagement,
