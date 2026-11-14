@@ -567,6 +567,27 @@ CREATE TABLE IF NOT EXISTS AuditPlans (
                 ON ClientEngagements(ClientId, Status, DueDate);
             CREATE INDEX IF NOT EXISTS idx_engagements_owner_status
                 ON ClientEngagements(AssignedToUserId, Status, DueDate);
+
+            CREATE TABLE IF NOT EXISTS RecurringComplianceTaskTemplates (
+                Id TEXT PRIMARY KEY,
+                ClientId TEXT NOT NULL REFERENCES PracticeClients(Id) ON DELETE RESTRICT,
+                ClientEntityId TEXT REFERENCES PracticeClientEntities(Id) ON DELETE SET NULL,
+                ServiceCode TEXT NOT NULL,
+                TaskName TEXT NOT NULL,
+                Frequency TEXT NOT NULL,
+                IntervalMonths INTEGER NOT NULL,
+                NextDueDate DATE NOT NULL,
+                ReminderLeadDays INTEGER NOT NULL DEFAULT 7,
+                AssignedToUserId TEXT,
+                ReviewerUserId TEXT,
+                IsActive INTEGER NOT NULL DEFAULT 1,
+                CreatedAt DATETIME NOT NULL,
+                UpdatedAt DATETIME NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_recurring_templates_client_active_due
+                ON RecurringComplianceTaskTemplates(ClientId, IsActive, NextDueDate);
+            CREATE INDEX IF NOT EXISTS idx_recurring_templates_due_active
+                ON RecurringComplianceTaskTemplates(IsActive, NextDueDate);
         ", cancellationToken: cancellationToken));
 
 
