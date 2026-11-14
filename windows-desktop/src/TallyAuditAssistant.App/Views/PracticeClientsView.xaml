@@ -41,7 +41,7 @@
                         </UniformGrid>
                         <Button Content="Save client" Command="{Binding SaveClientCommand}" HorizontalAlignment="Right" Padding="18,6" Margin="0,4,0,0"/>
                         <Separator Margin="0,12"/>
-                        <TextBlock Text="{Binding SelectedClient.DisplayName, StringFormat=Legal entities for {0}, TargetNullValue='Select a client'}" Foreground="White" FontWeight="Bold" Margin="0,0,0,6"/>
+                        <TextBlock Text="Legal entities for selected client" Foreground="White" FontWeight="Bold" Margin="0,0,0,6"/>
                         <DataGrid ItemsSource="{Binding Entities}" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Height="105" HeadersVisibility="Column" GridLinesVisibility="None">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Legal name" Binding="{Binding LegalName}" Width="*"/>
