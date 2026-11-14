@@ -17,5 +17,8 @@ public interface IPracticeRepository
     Task<IReadOnlyList<ClientEngagement>> GetEngagementsAsync(string? clientId = null, string? status = null, CancellationToken ct = default);
     Task<ClientEngagement?> GetEngagementByIdAsync(string id, CancellationToken ct = default);
     Task<bool> CreateEngagementAsync(ClientEngagement engagement, CancellationToken ct = default);
-    Task<bool> UpdateEngagementAsync(ClientEngagement engagement, CancellationToken ct = default);\n    Task<IReadOnlyList<RecurringComplianceTaskTemplate>> GetRecurringTaskTemplatesAsync(string? clientId = null, bool includeInactive = false, CancellationToken ct = default);\n    Task<bool> CreateRecurringTaskTemplateAsync(RecurringComplianceTaskTemplate template, CancellationToken ct = default);\n    Task<bool> UpdateRecurringTaskTemplateAsync(RecurringComplianceTaskTemplate template, CancellationToken ct = default);
+    Task<bool> UpdateEngagementAsync(ClientEngagement engagement, CancellationToken ct = default);
+    Task<IReadOnlyList<RecurringComplianceTaskTemplate>> GetRecurringTaskTemplatesAsync(string? clientId = null, bool includeInactive = false, CancellationToken ct = default);
+    Task<bool> CreateRecurringTaskTemplateAsync(RecurringComplianceTaskTemplate template, CancellationToken ct = default);
+    Task<bool> UpdateRecurringTaskTemplateAsync(RecurringComplianceTaskTemplate template, CancellationToken ct = default);
 }
