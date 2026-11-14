@@ -3,6 +3,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TallyAuditAssistant.Core.Domain.Practice;
+using TallyAuditAssistant.Core.Domain.Security;
 using TallyAuditAssistant.Core.Interfaces;
 
 namespace TallyAuditAssistant.App.ViewModels;
