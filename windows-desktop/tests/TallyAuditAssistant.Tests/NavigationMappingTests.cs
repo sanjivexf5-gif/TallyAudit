@@ -38,6 +38,7 @@ public class NavigationMappingTests
             ["AuditQualityControl"] = ("AuditQualityControlViewModel", "AuditQualityControlView"),
             ["AuditMateriality"] = ("AuditMaterialityViewModel", "AuditMaterialityView"),
             ["PracticeClients"] = ("PracticeClientsViewModel", "PracticeClientsView"),
+            ["PracticeEngagements"] = ("PracticeEngagementsViewModel", "PracticeEngagementsView"),
         };
 
     [Fact]
