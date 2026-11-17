@@ -22,4 +22,7 @@ public interface IPracticeRepository
     Task<bool> CreateRecurringTaskTemplateAsync(RecurringComplianceTaskTemplate template, CancellationToken ct = default);
     Task<bool> UpdateRecurringTaskTemplateAsync(RecurringComplianceTaskTemplate template, CancellationToken ct = default);
     Task<int> GenerateRecurringEngagementsAsync(DateTime throughDate, CancellationToken ct = default);
+    Task<int> GenerateDueEngagementRemindersAsync(DateTime asOfDate, CancellationToken ct = default);
+    Task<IReadOnlyList<PracticeNotification>> GetPracticeNotificationsAsync(string? clientId = null, bool includeRead = false, CancellationToken ct = default);
+    Task<bool> MarkPracticeNotificationReadAsync(string notificationId, CancellationToken ct = default);
 }
