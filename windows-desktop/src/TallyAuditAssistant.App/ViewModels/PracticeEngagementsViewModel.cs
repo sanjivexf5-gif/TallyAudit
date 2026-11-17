@@ -32,6 +32,7 @@ public partial class PracticeEngagementsViewModel : ObservableObject, INavigatio
     public ObservableCollection<PracticeClient> Clients { get; } = new();
     public ObservableCollection<PracticeClientEntity> Entities { get; } = new();
     public ObservableCollection<ClientEngagement> Engagements { get; } = new();
+    public ObservableCollection<PracticeNotification> Notifications { get; } = new();
     public ObservableCollection<AppUser> ActiveUsers { get; } = new();
     public IReadOnlyList<string> StatusOptions { get; } = new[] { "Open", "In Progress", "Awaiting Client", "Under Review", "Completed", "On Hold", "Cancelled" };
     public bool HasSelectedClient => SelectedClient != null;
@@ -67,7 +68,8 @@ public partial class PracticeEngagementsViewModel : ObservableObject, INavigatio
             foreach (var user in usersTask.Result.Where(u => u.IsActive).OrderBy(u => u.DisplayName)) ActiveUsers.Add(user);
             SelectedClient = Clients.FirstOrDefault(c => c.Id == previousId) ?? Clients.FirstOrDefault();
             await LoadEngagementsAsync();
-            StatusMessage = $"{Engagements.Count} engagement(s) loaded";
+            await LoadNotificationsAsync();
+            StatusMessage = $"{Engagements.Count} engagement(s), {Notifications.Count} unread reminder(s) loaded";
         }
         catch (Exception ex) { StatusMessage = $"Could not load engagements: {ex.Message}"; }
         finally { IsLoading = false; }
@@ -101,6 +103,23 @@ public partial class PracticeEngagementsViewModel : ObservableObject, INavigatio
     }
 
     [RelayCommand]
+    private async Task LoadNotificationsAsync()
+    {
+        Notifications.Clear();
+        if (SelectedClient == null) return;
+        try { foreach (var item in await _practice.GetPracticeNotificationsAsync(SelectedClient.Id)) Notifications.Add(item); }
+        catch (Exception ex) { StatusMessage = $"Could not load reminders: {ex.Message}"; }
+    }
+
+    [RelayCommand]
+    private async Task MarkNotificationReadAsync(PracticeNotification? notification)
+    {
+        if (notification == null) return;
+        try { await _practice.MarkPracticeNotificationReadAsync(notification.Id); Notifications.Remove(notification); }
+        catch (Exception ex) { StatusMessage = $"Could not update reminder: {ex.Message}"; }
+    }
+
+    [RelayCommand]
     private async Task SaveEngagementAsync()
     {
         if (SelectedClient == null) { StatusMessage = "Select a practice client first."; return; }
@@ -128,6 +147,7 @@ public partial class PracticeEngagementsViewModel : ObservableObject, INavigatio
                 AssignedToUserId = AssignedUser?.Id,
                 ReviewerUserId = ReviewerUser?.Id,
                 DueDate = string.IsNullOrWhiteSpace(DueDateText) ? null : dueDate,
+                ReminderLeadDays = 7,
                 ProfessionalFee = fee,
                 Notes = string.IsNullOrWhiteSpace(Notes) ? null : Notes.Trim()
             };
@@ -137,6 +157,7 @@ public partial class PracticeEngagementsViewModel : ObservableObject, INavigatio
             DueDateText = ProfessionalFeeText = Notes = string.Empty;
             AssignedUser = ReviewerUser = null;
             await LoadEngagementsAsync();
+            await LoadNotificationsAsync();
             StatusMessage = "Engagement created. This records work status only; it does not file a statutory return.";
         }
         catch (Exception ex) { StatusMessage = $"Engagement was not saved: {ex.Message}"; }
