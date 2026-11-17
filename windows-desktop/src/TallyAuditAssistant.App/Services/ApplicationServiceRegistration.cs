@@ -43,6 +43,7 @@ public static class ApplicationServiceRegistration
             actualDbPath));
 
         services.AddSingleton<IPracticeRepository, PracticeRepository>();
+        services.AddSingleton<RecurringComplianceScheduler>();
         services.AddSingleton<IUserRepository, UserRepository>();
         services.AddSingleton<IAuditRepository, AuditRepository>();
         services.AddSingleton<ITdsRepository, TdsRepository>();

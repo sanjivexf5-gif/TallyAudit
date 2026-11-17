@@ -91,6 +91,9 @@ public partial class App : Application
             var companyContext = _host.Services.GetRequiredService<IActiveCompanyContext>();
             await companyContext.EnsureAndInitializeActiveCompanyAsync();
 
+            // Start practice recurrence only after the database schema is ready.
+            await _host.Services.GetRequiredService<RecurringComplianceScheduler>().StartAsync();
+
             var monitor = _host.Services.GetRequiredService<TallyConnectionMonitor>();
             monitor.StartMonitoring(normalIntervalSeconds: 15, backoffIntervalSeconds: 30);
 
@@ -296,6 +299,15 @@ public partial class App : Application
     {
         if (_host != null)
         {
+            try
+            {
+                await _host.Services.GetRequiredService<RecurringComplianceScheduler>().StopAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Could not stop recurring compliance scheduler cleanly.");
+            }
+
             await _host.StopAsync();
             _host.Dispose();
         }
