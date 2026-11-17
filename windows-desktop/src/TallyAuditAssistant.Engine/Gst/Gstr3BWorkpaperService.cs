@@ -21,7 +21,9 @@ public sealed class Gstr3BWorkpaperService
         var itcRows = itcLines.ToList();
         var reversalRows = reversals.ToList();
         var issues = new List<Gstr3BValidationIssue>();
-        var liabilityIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);\n        var itcIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);\n        var reversalIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var liabilityIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var itcIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var reversalIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         bool Validate(string sourceId, DateTime date, decimal taxable, Gstr3BTaxHeadSummary tax, string sourceType, HashSet<string> seenIds)
         {
@@ -29,7 +31,7 @@ public sealed class Gstr3BWorkpaperService
             if (string.IsNullOrWhiteSpace(sourceId))
             { Issue("MISSING_SOURCE_ID", $"{sourceType} source ID is required."); return false; }
             if (!seenIds.Add(sourceId.Trim()))
-            { Issue("DUPLICATE_SOURCE_ID", "Source ID is duplicated across the GSTR-3B workpaper inputs."); return false; }
+            { Issue("DUPLICATE_SOURCE_ID", "Source ID is duplicated within this workpaper section."); return false; }
             if (date.Date < fromDate.Date || date.Date > toDate.Date)
             { Issue("OUTSIDE_PERIOD", "Source document date is outside the selected return period."); return false; }
             if (taxable < 0 || tax.Igst < 0 || tax.Cgst < 0 || tax.Sgst < 0 || tax.Cess < 0)
