@@ -190,6 +190,91 @@ public sealed class PracticeRepository : IPracticeRepository
         return await connection.ExecuteAsync(new CommandDefinition(sql, template, cancellationToken: ct)) == 1;
     }
 
+    /// <summary>
+    /// Materializes every active template occurrence due on or before the supplied date.
+    /// Deterministic engagement IDs make retries safe; template advancement and task
+    /// creation share one transaction so a crash cannot silently skip an occurrence.
+    /// </summary>
+    public async Task<int> GenerateRecurringEngagementsAsync(DateTime throughDate, CancellationToken ct = default)
+    {
+        throughDate = throughDate.Date;
+        using var connection = await _connectionFactory.CreateConnectionAsync(ct);
+        using var transaction = await connection.BeginTransactionAsync(ct);
+        const string selectSql = @"SELECT * FROM RecurringComplianceTaskTemplates
+            WHERE IsActive = 1 AND NextDueDate <= @ThroughDate
+            ORDER BY NextDueDate, Id;";
+        var templates = (await connection.QueryAsync<RecurringComplianceTaskTemplate>(
+            new CommandDefinition(selectSql, new { ThroughDate = throughDate }, transaction, cancellationToken: ct))).AsList();
+        var created = 0;
+        var now = DateTime.UtcNow;
+
+        const string insertSql = @"INSERT OR IGNORE INTO ClientEngagements
+            (Id, ClientId, ClientEntityId, ServiceCode, ServiceName, FinancialYear, Status,
+             AssignedToUserId, ReviewerUserId, DueDate, ProfessionalFee, Notes, CreatedAt, UpdatedAt)
+            VALUES (@Id, @ClientId, @ClientEntityId, @ServiceCode, @ServiceName, @FinancialYear, 'Open',
+             @AssignedToUserId, @ReviewerUserId, @DueDate, NULL, @Notes, @CreatedAt, @UpdatedAt);";
+        const string updateSql = @"UPDATE RecurringComplianceTaskTemplates
+            SET NextDueDate=@NextDueDate, UpdatedAt=@UpdatedAt WHERE Id=@Id AND IsActive=1;";
+
+        foreach (var template in templates)
+        {
+            var dueDate = template.NextDueDate.Date;
+            var occurrences = 0;
+            while (dueDate <= throughDate)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (++occurrences > 120)
+                    throw new InvalidOperationException("Recurring template exceeds the safe generation limit; review its next due date.");
+                var engagement = new ClientEngagement
+                {
+                    Id = CreateRecurringEngagementId(template.Id, dueDate),
+                    ClientId = template.ClientId,
+                    ClientEntityId = template.ClientEntityId,
+                    ServiceCode = template.ServiceCode,
+                    ServiceName = template.TaskName,
+                    FinancialYear = GetFinancialYear(dueDate),
+                    Status = "Open",
+                    AssignedToUserId = template.AssignedToUserId,
+                    ReviewerUserId = template.ReviewerUserId,
+                    DueDate = dueDate,
+                    Notes = $"Generated from recurring template {template.Id}. Reminder lead: {template.ReminderLeadDays} day(s).",
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                created += await connection.ExecuteAsync(new CommandDefinition(insertSql, engagement, transaction, cancellationToken: ct));
+                dueDate = AddRecurrenceMonths(dueDate, template.IntervalMonths);
+            }
+
+            await connection.ExecuteAsync(new CommandDefinition(updateSql,
+                new { NextDueDate = dueDate, UpdatedAt = now, template.Id }, transaction, cancellationToken: ct));
+        }
+
+        await transaction.CommitAsync(ct);
+        return created;
+    }
+
+    private static string CreateRecurringEngagementId(string templateId, DateTime dueDate)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes($"{templateId}|{dueDate:yyyy-MM-dd}"));
+        return new Guid(bytes.AsSpan(0, 16)).ToString();
+    }
+
+    private static DateTime AddRecurrenceMonths(DateTime dueDate, int months)
+    {
+        var isMonthEnd = dueDate.Day == DateTime.DaysInMonth(dueDate.Year, dueDate.Month);
+        var targetMonth = dueDate.AddMonths(months);
+        return isMonthEnd
+            ? new DateTime(targetMonth.Year, targetMonth.Month, DateTime.DaysInMonth(targetMonth.Year, targetMonth.Month))
+            : targetMonth;
+    }
+
+    private static string GetFinancialYear(DateTime date)
+    {
+        var startYear = date.Month >= 4 ? date.Year : date.Year - 1;
+        return $"{startYear}-{(startYear + 1) % 100:00}";
+    }
+
     private static async Task ValidateTemplateEntityAsync(System.Data.Common.DbConnection connection,
         RecurringComplianceTaskTemplate template, CancellationToken ct)
     {

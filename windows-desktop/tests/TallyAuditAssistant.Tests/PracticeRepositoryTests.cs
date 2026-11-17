@@ -170,6 +170,48 @@ public sealed class PracticeRepositoryTests
     }
 
     [Fact]
+    public async Task RecurringGeneration_IsIdempotentAdvancesTemplateAndPreservesMonthEnd()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "TallyAuditPracticeTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var databasePath = Path.Combine(directory, "practice.db");
+        try
+        {
+            var factory = new SqliteConnectionFactory(databasePath);
+            await new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance, databasePath).ApplyMigrationsAsync();
+            var repository = new PracticeRepository(factory, NullLogger<PracticeRepository>.Instance);
+            var client = new PracticeClient { ClientCode = "GEN-001", DisplayName = "Generation Client" };
+            Assert.True(await repository.CreateClientAsync(client));
+            var entity = new PracticeClientEntity { ClientId = client.Id, LegalName = "Generation Entity" };
+            Assert.True(await repository.CreateClientEntityAsync(entity));
+            var template = new RecurringComplianceTaskTemplate
+            {
+                ClientId = client.Id, ClientEntityId = entity.Id, ServiceCode = "GST-3B",
+                TaskName = "Monthly GSTR-3B", Frequency = "Monthly", IntervalMonths = 1,
+                NextDueDate = new DateTime(2026, 1, 31), ReminderLeadDays = 5
+            };
+            Assert.True(await repository.CreateRecurringTaskTemplateAsync(template));
+
+            Assert.Equal(3, await repository.GenerateRecurringEngagementsAsync(new DateTime(2026, 3, 31)));
+            Assert.Equal(0, await repository.GenerateRecurringEngagementsAsync(new DateTime(2026, 3, 31)));
+            var engagements = await repository.GetEngagementsAsync(client.Id);
+            Assert.Equal(3, engagements.Count);
+            Assert.Equal(new[] { new DateTime(2026, 1, 31), new DateTime(2026, 2, 28), new DateTime(2026, 3, 31) },
+                engagements.OrderBy(e => e.DueDate).Select(e => e.DueDate!.Value).ToArray());
+            Assert.All(engagements, e =>
+            {
+                Assert.Equal("2025-26", e.FinancialYear);
+                Assert.Equal("Open", e.Status);
+                Assert.Equal(entity.Id, e.ClientEntityId);
+                Assert.Contains(template.Id, e.Notes);
+            });
+            var advanced = Assert.Single(await repository.GetRecurringTaskTemplatesAsync(client.Id));
+            Assert.Equal(new DateTime(2026, 4, 30), advanced.NextDueDate);
+        }
+        finally { SqliteConnection.ClearAllPools(); if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Fact]
     public async Task CreateClient_RejectsMissingRequiredIdentityFields()
     {
         var directory = Path.Combine(Path.GetTempPath(), "TallyAuditPracticeTests", Guid.NewGuid().ToString("N"));
