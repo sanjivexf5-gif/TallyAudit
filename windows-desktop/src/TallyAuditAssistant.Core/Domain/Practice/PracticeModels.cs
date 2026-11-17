@@ -50,6 +50,7 @@ public sealed class ClientEngagement
     public string? AssignedToUserId { get; set; }
     public string? ReviewerUserId { get; set; }
     public DateTime? DueDate { get; set; }
+    public int ReminderLeadDays { get; set; } = 7;
     /// <summary>Live due-date classification; completion and cancellation always take precedence.</summary>
     public string DueStatus
     {
@@ -90,4 +91,19 @@ public sealed class RecurringComplianceTaskTemplate
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>A durable in-app reminder for a CA practice engagement.</summary>
+public sealed class PracticeNotification
+{
+    public string Id { get; set; } = string.Empty;
+    public string EngagementId { get; set; } = string.Empty;
+    public string ClientId { get; set; } = string.Empty;
+    public string NotificationType { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public DateTime DueDate { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? ReadAt { get; set; }
+    public bool IsRead => ReadAt.HasValue;
 }
