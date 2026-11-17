@@ -82,6 +82,7 @@ public static class ApplicationServiceRegistration
 
         services.AddAuditEngine();
         services.AddSingleton<Gstr2BReconciliationService>();
+        services.AddSingleton<Gstr1WorkpaperService>();
         services.AddSingleton<ItcRiskScreeningService>();
         services.AddSingleton<VendorGstinPanIntelligenceService>();
         services.AddSingleton<ComplianceDeadlineService>();
