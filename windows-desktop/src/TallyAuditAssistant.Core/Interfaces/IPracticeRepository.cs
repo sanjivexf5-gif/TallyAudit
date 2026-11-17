@@ -21,4 +21,5 @@ public interface IPracticeRepository
     Task<IReadOnlyList<RecurringComplianceTaskTemplate>> GetRecurringTaskTemplatesAsync(string? clientId = null, bool includeInactive = false, CancellationToken ct = default);
     Task<bool> CreateRecurringTaskTemplateAsync(RecurringComplianceTaskTemplate template, CancellationToken ct = default);
     Task<bool> UpdateRecurringTaskTemplateAsync(RecurringComplianceTaskTemplate template, CancellationToken ct = default);
+    Task<int> GenerateRecurringEngagementsAsync(DateTime throughDate, CancellationToken ct = default);
 }
