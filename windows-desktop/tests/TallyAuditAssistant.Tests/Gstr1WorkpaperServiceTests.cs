@@ -25,7 +25,7 @@ public class Gstr1WorkpaperServiceTests
         var b2b = Assert.Single(result.Summaries.Where(x => x.Category == Gstr1SupplyCategory.B2B));
         Assert.Equal(2, b2b.DocumentCount); Assert.Equal(15000m, b2b.TaxableValue);
         Assert.Equal(1350m, b2b.Cgst); Assert.Equal(1350m, b2b.Sgst);
-        Assert.Equal(400m, result.TotalTax); // 2,700 B2B + 100 B2CS
+        Assert.Equal(2800m, result.TotalTax); // 2,700 B2B + 100 B2CS
         Assert.Equal(17000m, result.TaxableValue);
     }
 
