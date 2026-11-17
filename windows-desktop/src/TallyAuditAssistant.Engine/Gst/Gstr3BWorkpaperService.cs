@@ -21,14 +21,14 @@ public sealed class Gstr3BWorkpaperService
         var itcRows = itcLines.ToList();
         var reversalRows = reversals.ToList();
         var issues = new List<Gstr3BValidationIssue>();
-        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var liabilityIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);\n        var itcIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);\n        var reversalIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        bool Validate(string sourceId, DateTime date, decimal taxable, Gstr3BTaxHeadSummary tax, string sourceType)
+        bool Validate(string sourceId, DateTime date, decimal taxable, Gstr3BTaxHeadSummary tax, string sourceType, HashSet<string> seenIds)
         {
             void Issue(string code, string message) => issues.Add(new(sourceId ?? string.Empty, code, message));
             if (string.IsNullOrWhiteSpace(sourceId))
             { Issue("MISSING_SOURCE_ID", $"{sourceType} source ID is required."); return false; }
-            if (!ids.Add(sourceId.Trim()))
+            if (!seenIds.Add(sourceId.Trim()))
             { Issue("DUPLICATE_SOURCE_ID", "Source ID is duplicated across the GSTR-3B workpaper inputs."); return false; }
             if (date.Date < fromDate.Date || date.Date > toDate.Date)
             { Issue("OUTSIDE_PERIOD", "Source document date is outside the selected return period."); return false; }
@@ -43,7 +43,7 @@ public sealed class Gstr3BWorkpaperService
             var tax = new Gstr3BTaxHeadSummary(row.Igst, row.Cgst, row.Sgst, row.Cess);
             if (!Enum.IsDefined(row.Section))
             { issues.Add(new(row.SourceId ?? string.Empty, "INVALID_LIABILITY_SECTION", "Liability section is not recognised.")); continue; }
-            if (Validate(row.SourceId, row.DocumentDate, row.TaxableValue, tax, "Liability"))
+            if (Validate(row.SourceId, row.DocumentDate, row.TaxableValue, tax, "Liability", liabilityIds))
                 acceptedLiabilities.Add(row);
         }
 
@@ -53,7 +53,7 @@ public sealed class Gstr3BWorkpaperService
             var tax = new Gstr3BTaxHeadSummary(row.Igst, row.Cgst, row.Sgst, row.Cess);
             if (!Enum.IsDefined(row.Category))
             { issues.Add(new(row.SourceId ?? string.Empty, "INVALID_ITC_CATEGORY", "ITC category is not recognised.")); continue; }
-            if (Validate(row.SourceId, row.DocumentDate, 0, tax, "ITC"))
+            if (Validate(row.SourceId, row.DocumentDate, 0, tax, "ITC", itcIds))
                 acceptedItc.Add(row);
         }
 
@@ -63,7 +63,7 @@ public sealed class Gstr3BWorkpaperService
             var tax = new Gstr3BTaxHeadSummary(row.Igst, row.Cgst, row.Sgst, row.Cess);
             if (!Enum.IsDefined(row.Category))
             { issues.Add(new(row.SourceId ?? string.Empty, "INVALID_REVERSAL_CATEGORY", "ITC reversal category is not recognised.")); continue; }
-            if (Validate(row.SourceId, row.DocumentDate, 0, tax, "ITC reversal"))
+            if (Validate(row.SourceId, row.DocumentDate, 0, tax, "ITC reversal", reversalIds))
                 acceptedReversals.Add(row);
         }
 
