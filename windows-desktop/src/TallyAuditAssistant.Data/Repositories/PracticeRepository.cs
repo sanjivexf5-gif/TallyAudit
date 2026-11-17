@@ -128,9 +128,9 @@ public sealed class PracticeRepository : IPracticeRepository
         await ValidateEngagementEntityAsync(connection, engagement, ct);
         const string sql = @"INSERT INTO ClientEngagements
             (Id, ClientId, ClientEntityId, ServiceCode, ServiceName, FinancialYear, Status,
-             AssignedToUserId, ReviewerUserId, DueDate, ProfessionalFee, Notes, CreatedAt, UpdatedAt)
+             AssignedToUserId, ReviewerUserId, DueDate, ReminderLeadDays, ProfessionalFee, Notes, CreatedAt, UpdatedAt)
             VALUES (@Id, @ClientId, @ClientEntityId, @ServiceCode, @ServiceName, @FinancialYear, @Status,
-             @AssignedToUserId, @ReviewerUserId, @DueDate, @ProfessionalFee, @Notes, @CreatedAt, @UpdatedAt);";
+             @AssignedToUserId, @ReviewerUserId, @DueDate, @ReminderLeadDays, @ProfessionalFee, @Notes, @CreatedAt, @UpdatedAt);";
         return await connection.ExecuteAsync(new CommandDefinition(sql, engagement, cancellationToken: ct)) == 1;
     }
 
@@ -144,7 +144,7 @@ public sealed class PracticeRepository : IPracticeRepository
         const string sql = @"UPDATE ClientEngagements SET ClientId=@ClientId, ClientEntityId=@ClientEntityId,
             ServiceCode=@ServiceCode, ServiceName=@ServiceName, FinancialYear=@FinancialYear, Status=@Status,
             AssignedToUserId=@AssignedToUserId, ReviewerUserId=@ReviewerUserId, DueDate=@DueDate,
-            ProfessionalFee=@ProfessionalFee, Notes=@Notes, UpdatedAt=@UpdatedAt WHERE Id=@Id;";
+            ReminderLeadDays=@ReminderLeadDays, ProfessionalFee=@ProfessionalFee, Notes=@Notes, UpdatedAt=@UpdatedAt WHERE Id=@Id;";
         return await connection.ExecuteAsync(new CommandDefinition(sql, engagement, cancellationToken: ct)) == 1;
     }
 
@@ -210,9 +210,9 @@ public sealed class PracticeRepository : IPracticeRepository
 
         const string insertSql = @"INSERT OR IGNORE INTO ClientEngagements
             (Id, ClientId, ClientEntityId, ServiceCode, ServiceName, FinancialYear, Status,
-             AssignedToUserId, ReviewerUserId, DueDate, ProfessionalFee, Notes, CreatedAt, UpdatedAt)
+             AssignedToUserId, ReviewerUserId, DueDate, ReminderLeadDays, ProfessionalFee, Notes, CreatedAt, UpdatedAt)
             VALUES (@Id, @ClientId, @ClientEntityId, @ServiceCode, @ServiceName, @FinancialYear, 'Open',
-             @AssignedToUserId, @ReviewerUserId, @DueDate, NULL, @Notes, @CreatedAt, @UpdatedAt);";
+             @AssignedToUserId, @ReviewerUserId, @DueDate, @ReminderLeadDays, NULL, @Notes, @CreatedAt, @UpdatedAt);";
         const string updateSql = @"UPDATE RecurringComplianceTaskTemplates
             SET NextDueDate=@NextDueDate, UpdatedAt=@UpdatedAt WHERE Id=@Id AND IsActive=1;";
 
@@ -237,7 +237,8 @@ public sealed class PracticeRepository : IPracticeRepository
                     AssignedToUserId = template.AssignedToUserId,
                     ReviewerUserId = template.ReviewerUserId,
                     DueDate = dueDate,
-                    Notes = $"Generated from recurring template {template.Id}. Reminder lead: {template.ReminderLeadDays} day(s).",
+                    ReminderLeadDays = template.ReminderLeadDays,
+                    Notes = $"Generated from recurring template {template.Id}.",
                     CreatedAt = now,
                     UpdatedAt = now
                 };
@@ -251,6 +252,55 @@ public sealed class PracticeRepository : IPracticeRepository
 
         await transaction.CommitAsync(ct);
         return created;
+    }
+
+    public async Task<int> GenerateDueEngagementRemindersAsync(DateTime asOfDate, CancellationToken ct = default)
+    {
+        asOfDate = asOfDate.Date;
+        using var connection = await _connectionFactory.CreateConnectionAsync(ct);
+        using var transaction = await connection.BeginTransactionAsync(ct);
+        const string selectSql = @"SELECT Id, ClientId, ServiceName, DueDate, ReminderLeadDays FROM ClientEngagements
+            WHERE DueDate IS NOT NULL AND Status NOT IN ('Completed','Cancelled') AND date(DueDate) <= date(@LatestDueDate)
+            ORDER BY DueDate, Id;";
+        var candidates = (await connection.QueryAsync<ClientEngagement>(new CommandDefinition(selectSql,
+            new { LatestDueDate = asOfDate.AddDays(90) }, transaction, cancellationToken: ct))).AsList();
+        const string insertSql = @"INSERT OR IGNORE INTO PracticeNotifications
+            (Id, EngagementId, ClientId, NotificationType, Title, Message, DueDate, CreatedAt)
+            VALUES (@Id, @EngagementId, @ClientId, @NotificationType, @Title, @Message, @DueDate, @CreatedAt);";
+        var created = 0; var now = DateTime.UtcNow;
+        foreach (var item in candidates)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!item.DueDate.HasValue) continue;
+            var due = item.DueDate.Value.Date; var days = (due - asOfDate).Days;
+            var type = days < 0 ? "Overdue" : days == 0 ? "DueToday" : days <= Math.Clamp(item.ReminderLeadDays, 0, 90) ? "DueSoon" : null;
+            if (type is null) continue;
+            var title = type switch { "Overdue" => "Compliance engagement overdue", "DueToday" => "Compliance engagement due today", _ => "Upcoming compliance engagement" };
+            var detail = days < 0 ? $"overdue by {-days} day(s)" : days == 0 ? "due today" : $"due in {days} day(s)";
+            created += await connection.ExecuteAsync(new CommandDefinition(insertSql, new {
+                Id = Guid.NewGuid().ToString("N"), EngagementId = item.Id, item.ClientId, NotificationType = type,
+                Title = title, Message = $"{item.ServiceName} is {detail}. Due date: {due:dd-MMM-yyyy}.", DueDate = due, CreatedAt = now
+            }, transaction, cancellationToken: ct));
+        }
+        await transaction.CommitAsync(ct); return created;
+    }
+
+    public async Task<IReadOnlyList<PracticeNotification>> GetPracticeNotificationsAsync(string? clientId = null, bool includeRead = false, CancellationToken ct = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(ct);
+        const string sql = @"SELECT n.* FROM PracticeNotifications n INNER JOIN ClientEngagements e ON e.Id=n.EngagementId
+            WHERE (@ClientId IS NULL OR n.ClientId=@ClientId) AND (@IncludeRead=1 OR n.ReadAt IS NULL)
+              AND e.Status NOT IN ('Completed','Cancelled') ORDER BY n.CreatedAt DESC LIMIT 200;";
+        var rows = await connection.QueryAsync<PracticeNotification>(new CommandDefinition(sql,
+            new { ClientId = NullIfWhiteSpace(clientId), IncludeRead = includeRead }, cancellationToken: ct));
+        return rows.AsList();
+    }
+
+    public async Task<bool> MarkPracticeNotificationReadAsync(string notificationId, CancellationToken ct = default)
+    {
+        using var connection = await _connectionFactory.CreateConnectionAsync(ct);
+        return await connection.ExecuteAsync(new CommandDefinition("UPDATE PracticeNotifications SET ReadAt=@ReadAt WHERE Id=@Id AND ReadAt IS NULL;",
+            new { Id = notificationId, ReadAt = DateTime.UtcNow }, cancellationToken: ct)) == 1;
     }
 
     private static string CreateRecurringEngagementId(string templateId, DateTime dueDate)
