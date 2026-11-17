@@ -553,6 +553,7 @@ CREATE TABLE IF NOT EXISTS AuditPlans (
                 AssignedToUserId TEXT,
                 ReviewerUserId TEXT,
                 DueDate DATE,
+                ReminderLeadDays INTEGER NOT NULL DEFAULT 7,
                 ProfessionalFee DECIMAL(18,2),
                 Notes TEXT,
                 CreatedAt DATETIME NOT NULL,
@@ -567,6 +568,16 @@ CREATE TABLE IF NOT EXISTS AuditPlans (
                 ON ClientEngagements(ClientId, Status, DueDate);
             CREATE INDEX IF NOT EXISTS idx_engagements_owner_status
                 ON ClientEngagements(AssignedToUserId, Status, DueDate);
+            CREATE TABLE IF NOT EXISTS PracticeNotifications (
+                Id TEXT PRIMARY KEY,
+                EngagementId TEXT NOT NULL REFERENCES ClientEngagements(Id) ON DELETE CASCADE,
+                ClientId TEXT NOT NULL REFERENCES PracticeClients(Id) ON DELETE CASCADE,
+                NotificationType TEXT NOT NULL CHECK (NotificationType IN ('DueSoon','DueToday','Overdue')),
+                Title TEXT NOT NULL, Message TEXT NOT NULL, DueDate DATE NOT NULL, CreatedAt DATETIME NOT NULL,
+                ReadAt DATETIME, UNIQUE (EngagementId, NotificationType)
+            );
+            CREATE INDEX IF NOT EXISTS idx_practice_notifications_client_read
+                ON PracticeNotifications(ClientId, ReadAt, CreatedAt DESC);
 
             CREATE TABLE IF NOT EXISTS RecurringComplianceTaskTemplates (
                 Id TEXT PRIMARY KEY,
@@ -590,6 +601,10 @@ CREATE TABLE IF NOT EXISTS AuditPlans (
                 ON RecurringComplianceTaskTemplates(IsActive, NextDueDate);
         ", cancellationToken: cancellationToken));
 
+
+        var engagementColumns = await connection.QueryAsync<string>(new CommandDefinition("SELECT name FROM pragma_table_info('ClientEngagements');", cancellationToken: cancellationToken));
+        if (!engagementColumns.Contains("ReminderLeadDays", StringComparer.OrdinalIgnoreCase))
+            await connection.ExecuteAsync(new CommandDefinition("ALTER TABLE ClientEngagements ADD COLUMN ReminderLeadDays INTEGER NOT NULL DEFAULT 7;", cancellationToken: cancellationToken));
 
         // Keep the finding due-date field available even when the database is
         // initialized directly (e.g. fresh installs and test databases) rather
