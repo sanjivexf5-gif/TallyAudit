@@ -78,8 +78,9 @@ public sealed class RecurringComplianceScheduler : IAsyncDisposable
 
                 if (created > 0)
                     _logger.LogInformation("Generated {EngagementCount} recurring compliance engagement(s).", created);
-                else
-                    _logger.LogDebug("Recurring compliance scheduler found no due engagements.");
+                var reminders = await _practiceRepository.GenerateDueEngagementRemindersAsync(DateTime.Today, cancellationToken).ConfigureAwait(false);
+                if (reminders > 0)
+                    _logger.LogInformation("Created {ReminderCount} practice compliance reminder(s).", reminders);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
