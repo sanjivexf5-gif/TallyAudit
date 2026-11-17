@@ -50,6 +50,22 @@ public sealed class ClientEngagement
     public string? AssignedToUserId { get; set; }
     public string? ReviewerUserId { get; set; }
     public DateTime? DueDate { get; set; }
+    /// <summary>Live due-date classification; completion and cancellation always take precedence.</summary>
+    public string DueStatus
+    {
+        get
+        {
+            if (Status is "Completed" or "Cancelled") return Status;
+            if (!DueDate.HasValue) return "No due date";
+            var days = (DueDate.Value.Date - DateTime.Today).Days;
+            return days < 0 ? $"Overdue by {-days} day(s)"
+                : days == 0 ? "Due today"
+                : days <= 7 ? $"Due in {days} day(s)"
+                : "Upcoming";
+        }
+    }
+    public bool IsOverdue => Status is not ("Completed" or "Cancelled") && DueDate.HasValue && DueDate.Value.Date < DateTime.Today;
+    public int? DaysUntilDue => DueDate.HasValue ? (DueDate.Value.Date - DateTime.Today).Days : null;
     public decimal? ProfessionalFee { get; set; }
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
