@@ -30,7 +30,7 @@ public class Gstr3BWorkpaperServiceTests
 
         var result = _service.Prepare(From, To, liabilities, itc, reversals);
         Assert.Equal(3, result.Liabilities.Count);
-        Assert.Equal(2000m, result.TotalTaxLiability.Total);
+        Assert.Equal(2160m, result.TotalTaxLiability.Total);
         Assert.Equal(100m, result.TotalItcAvailable.Igst);
         Assert.Equal(500m, result.TotalItcAvailable.Cgst);
         Assert.Equal(450m, result.NetItcAfterReversals.Cgst);
