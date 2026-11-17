@@ -239,4 +239,31 @@ public sealed class PracticeRepositoryTests
                 Directory.Delete(directory, recursive: true);
         }
     }
+
+
+    [Fact]
+    public void EngagementDueStatus_IdentifiesOverdueDueTodayUpcomingAndClosedItems()
+    {
+        var today = DateTime.Today;
+        var overdue = new ClientEngagement { Status = "Open", DueDate = today.AddDays(-3) };
+        var dueToday = new ClientEngagement { Status = "In Progress", DueDate = today };
+        var upcoming = new ClientEngagement { Status = "Open", DueDate = today.AddDays(5) };
+        var later = new ClientEngagement { Status = "Open", DueDate = today.AddDays(20) };
+        var completed = new ClientEngagement { Status = "Completed", DueDate = today.AddDays(-10) };
+        var cancelled = new ClientEngagement { Status = "Cancelled", DueDate = today.AddDays(-1) };
+        var noDate = new ClientEngagement { Status = "Open" };
+
+        Assert.Equal("Overdue by 3 day(s)", overdue.DueStatus);
+        Assert.True(overdue.IsOverdue);
+        Assert.Equal("Due today", dueToday.DueStatus);
+        Assert.False(dueToday.IsOverdue);
+        Assert.Equal("Due in 5 day(s)", upcoming.DueStatus);
+        Assert.Equal("Upcoming", later.DueStatus);
+        Assert.Equal("Completed", completed.DueStatus);
+        Assert.False(completed.IsOverdue);
+        Assert.Equal("Cancelled", cancelled.DueStatus);
+        Assert.False(cancelled.IsOverdue);
+        Assert.Equal("No due date", noDate.DueStatus);
+        Assert.Null(noDate.DaysUntilDue);
+    }
 }
