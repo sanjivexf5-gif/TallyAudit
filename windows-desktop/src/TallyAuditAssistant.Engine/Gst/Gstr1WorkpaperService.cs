@@ -53,7 +53,7 @@ public sealed class Gstr1WorkpaperService
             { Issue("CREDIT_NOTE_REVIEW", "Credit notes are not netted into this invoice summary; process through the dedicated note table after review."); continue; }
             accepted.Add(row);
         }
-        var summaries = accepted.GroupBy(x => new { x.Category, Pos = x.PlaceOfSupplyCode.Trim(), x.TaxRate })
+        var summaries = accepted.GroupBy(x => new { x.Category, Pos = (x.PlaceOfSupplyCode ?? string.Empty).Trim(), x.TaxRate })
             .OrderBy(x => x.Key.Category).ThenBy(x => x.Key.Pos).ThenBy(x => x.Key.TaxRate)
             .Select(g => new Gstr1TaxSummary(g.Key.Category, g.Key.Pos, g.Key.TaxRate, g.Count(),
                 decimal.Round(g.Sum(x => x.TaxableValue), 2), decimal.Round(g.Sum(x => x.Igst), 2),
