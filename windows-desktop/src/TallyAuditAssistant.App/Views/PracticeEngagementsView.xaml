@@ -7,6 +7,7 @@
             <TextBlock Text="CA Practice — Engagement Management" FontSize="22" FontWeight="Bold" Foreground="White"/>
             <TextBlock Text="Assign statutory and advisory work by client, legal entity and financial year. Track ownership, review, fees and due dates." Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,4,0,8"/>
             <DockPanel><TextBlock Text="{Binding StatusMessage}" Foreground="#38BDF8" VerticalAlignment="Center"/><Button Content="Refresh" Command="{Binding LoadCommand}" DockPanel.Dock="Right" Padding="14,5"/></DockPanel>
+            <TextBlock Text="{Binding DeadlineSummary}" Foreground="#FBBF24" Margin="0,7,0,0" FontWeight="SemiBold"/>
         </StackPanel>
         <Grid Grid.Row="1">
             <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
@@ -46,6 +47,7 @@
                             <DataGridTextColumn Header="FY" Binding="{Binding FinancialYear}" Width="75"/>
                             <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="115"/>
                             <DataGridTextColumn Header="Due date" Binding="{Binding DueDate, StringFormat=dd-MMM-yyyy}" Width="105"/>
+                            <DataGridTextColumn Header="Deadline" Binding="{Binding DeadlineStatus}" Width="110"/>
                             <DataGridTextColumn Header="Fee (₹)" Binding="{Binding ProfessionalFee, StringFormat=N2}" Width="100"/>
                             <DataGridTextColumn Header="Assigned user ID" Binding="{Binding AssignedToUserId}" Width="*"/>
                         </DataGrid.Columns>

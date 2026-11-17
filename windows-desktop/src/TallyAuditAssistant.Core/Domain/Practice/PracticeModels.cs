@@ -54,6 +54,22 @@ public sealed class ClientEngagement
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>Computed workflow indicator; never represents statutory filing status.</summary>
+    public string DeadlineStatus
+    {
+        get
+        {
+            if (string.Equals(Status, "Completed", StringComparison.OrdinalIgnoreCase)) return "Completed";
+            if (string.Equals(Status, "Cancelled", StringComparison.OrdinalIgnoreCase)) return "Cancelled";
+            if (DueDate is null) return "No due date";
+            var days = (DueDate.Value.Date - DateTime.Today).Days;
+            return days < 0 ? "Overdue"
+                : days == 0 ? "Due today"
+                : days <= 7 ? $"Due in {days} day(s)"
+                : "On track";
+        }
+    }
 }
 
 

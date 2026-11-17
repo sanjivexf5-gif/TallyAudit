@@ -28,6 +28,7 @@ public partial class PracticeEngagementsViewModel : ObservableObject, INavigatio
     [ObservableProperty] private AppUser? _reviewerUser;
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private bool _isLoading;
+    [ObservableProperty] private string _deadlineSummary = "No deadline information loaded.";
 
     public ObservableCollection<PracticeClient> Clients { get; } = new();
     public ObservableCollection<PracticeClientEntity> Entities { get; } = new();
@@ -96,8 +97,23 @@ public partial class PracticeEngagementsViewModel : ObservableObject, INavigatio
         {
             foreach (var item in await _practice.GetEngagementsAsync(SelectedClient.Id))
                 Engagements.Add(item);
+            UpdateDeadlineSummary();
         }
         catch (Exception ex) { StatusMessage = $"Could not load engagements: {ex.Message}"; }
+    }
+
+    private void UpdateDeadlineSummary()
+    {
+        var active = Engagements.Where(item =>
+            !string.Equals(item.Status, "Completed", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(item.Status, "Cancelled", StringComparison.OrdinalIgnoreCase)
+            && item.DueDate.HasValue).ToArray();
+        var today = DateTime.Today;
+        var overdue = active.Count(item => item.DueDate!.Value.Date < today);
+        var dueToday = active.Count(item => item.DueDate!.Value.Date == today);
+        var upcoming = active.Count(item => item.DueDate!.Value.Date > today
+            && item.DueDate!.Value.Date <= today.AddDays(7));
+        DeadlineSummary = $"Deadline reminders (next 7 days): {overdue} overdue · {dueToday} due today · {upcoming} upcoming";
     }
 
     [RelayCommand]
