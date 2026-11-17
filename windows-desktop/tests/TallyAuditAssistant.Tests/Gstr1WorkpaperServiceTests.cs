@@ -36,7 +36,7 @@ public class Gstr1WorkpaperServiceTests
         {
             new Gstr1OutwardSupply("V1", "DUP-1", new(2026,4,2), null, "27", Gstr1SupplyCategory.B2CS, 18, 1000, 180, 0, 0, 0),
             new Gstr1OutwardSupply("V2", "DUP-1", new(2026,4,2), null, "27", Gstr1SupplyCategory.B2CS, 18, 1000, 180, 0, 0, 0),
-            new Gstr1OutwardSupply("V3", "BAD-TAX", new(2026,4,3), null, "27", Gstr1SupplyCategory.B2CS, 18, 1000, 0, 90, 90, 0),
+            new Gstr1OutwardSupply("V3", "BAD-TAX", new(2026,4,3), null, "27", Gstr1SupplyCategory.B2CS, 18, 1000, 0, 45, 45, 0),
             new Gstr1OutwardSupply("V4", "OUTSIDE", new(2026,5,1), null, "27", Gstr1SupplyCategory.B2CS, 18, 1000, 180, 0, 0, 0),
             new Gstr1OutwardSupply("V5", "NOTE-1", new(2026,4,5), null, "27", Gstr1SupplyCategory.B2CS, 18, 1000, 180, 0, 0, 0, true)
         };
