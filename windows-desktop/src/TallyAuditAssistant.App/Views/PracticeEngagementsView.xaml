@@ -46,6 +46,7 @@
                             <DataGridTextColumn Header="FY" Binding="{Binding FinancialYear}" Width="75"/>
                             <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="115"/>
                             <DataGridTextColumn Header="Due date" Binding="{Binding DueDate, StringFormat=dd-MMM-yyyy}" Width="105"/>
+                            <DataGridTextColumn Header="Due status" Binding="{Binding DueStatus}" Width="125"/>
                             <DataGridTextColumn Header="Fee (₹)" Binding="{Binding ProfessionalFee, StringFormat=N2}" Width="100"/>
                             <DataGridTextColumn Header="Assigned user ID" Binding="{Binding AssignedToUserId}" Width="*"/>
                         </DataGrid.Columns>
