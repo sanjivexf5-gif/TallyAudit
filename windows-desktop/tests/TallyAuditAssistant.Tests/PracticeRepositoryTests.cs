@@ -242,6 +242,36 @@ public sealed class PracticeRepositoryTests
 
 
     [Fact]
+    public async Task DueEngagementReminders_AreDurableIdempotentAndExcludeClosedItems()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "TallyAuditPracticeTests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);
+        var databasePath = Path.Combine(directory, "practice.db");
+        try
+        {
+            var factory = new SqliteConnectionFactory(databasePath);
+            await new DatabaseInitializer(factory, NullLogger<DatabaseInitializer>.Instance, databasePath).ApplyMigrationsAsync();
+            var repository = new PracticeRepository(factory, NullLogger<PracticeRepository>.Instance);
+            var client = new PracticeClient { ClientCode = "REM-001", DisplayName = "Reminder Client" }; Assert.True(await repository.CreateClientAsync(client));
+            var soon = new ClientEngagement { ClientId=client.Id, ServiceCode="GST-3B", ServiceName="GSTR-3B", FinancialYear="2026-27", DueDate=new DateTime(2026,12,10), ReminderLeadDays=5 };
+            var today = new ClientEngagement { ClientId=client.Id, ServiceCode="TDS-26Q", ServiceName="TDS Return", FinancialYear="2026-27", DueDate=new DateTime(2026,12,5) };
+            var overdue = new ClientEngagement { ClientId=client.Id, ServiceCode="ITR", ServiceName="Income Tax Return", FinancialYear="2026-27", DueDate=new DateTime(2026,12,1) };
+            var completed = new ClientEngagement { ClientId=client.Id, ServiceCode="GST-9", ServiceName="Completed GST", FinancialYear="2026-27", DueDate=new DateTime(2026,12,1), Status="Completed" };
+            var cancelled = new ClientEngagement { ClientId=client.Id, ServiceCode="GST-9C", ServiceName="Cancelled GST", FinancialYear="2026-27", DueDate=new DateTime(2026,12,1), Status="Cancelled" };
+            foreach(var item in new[]{soon,today,overdue,completed,cancelled}) Assert.True(await repository.CreateEngagementAsync(item));
+            var asOf=new DateTime(2026,12,5);
+            Assert.Equal(3,await repository.GenerateDueEngagementRemindersAsync(asOf)); Assert.Equal(0,await repository.GenerateDueEngagementRemindersAsync(asOf));
+            var notifications=await repository.GetPracticeNotificationsAsync(client.Id); Assert.Equal(3,notifications.Count);
+            Assert.Contains(notifications,n=>n.EngagementId==soon.Id&&n.NotificationType=="DueSoon");
+            Assert.Contains(notifications,n=>n.EngagementId==today.Id&&n.NotificationType=="DueToday");
+            Assert.Contains(notifications,n=>n.EngagementId==overdue.Id&&n.NotificationType=="Overdue");
+            Assert.DoesNotContain(notifications,n=>n.EngagementId==completed.Id||n.EngagementId==cancelled.Id);
+            var selected=notifications[0]; Assert.True(await repository.MarkPracticeNotificationReadAsync(selected.Id)); Assert.False(await repository.MarkPracticeNotificationReadAsync(selected.Id));
+            Assert.Equal(2,(await repository.GetPracticeNotificationsAsync(client.Id)).Count); Assert.Equal(3,(await repository.GetPracticeNotificationsAsync(client.Id,includeRead:true)).Count);
+        }
+        finally { SqliteConnection.ClearAllPools(); if(Directory.Exists(directory)) Directory.Delete(directory,true); }
+    }
+
+    [Fact]
     public void EngagementDueStatus_IdentifiesOverdueDueTodayUpcomingAndClosedItems()
     {
         var today = DateTime.Today;
