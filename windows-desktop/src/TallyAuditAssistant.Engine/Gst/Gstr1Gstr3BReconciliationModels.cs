@@ -11,8 +11,8 @@ public sealed record Gstr1Gstr3BVariance(
 public sealed class Gstr1Gstr3BReconciliation
 {
     public decimal Tolerance { get; init; }
+    public bool SourceWorkpapersReady { get; init; }
     public IReadOnlyList<Gstr1Gstr3BVariance> Variances { get; init; } = Array.Empty<Gstr1Gstr3BVariance>();
     public bool HasDifferences => Variances.Any(x => x.ExceedsTolerance);
-    public bool IsReadyForReview => !HasDifferences;
+    public bool IsReadyForReview => SourceWorkpapersReady && !HasDifferences;
 }
-
