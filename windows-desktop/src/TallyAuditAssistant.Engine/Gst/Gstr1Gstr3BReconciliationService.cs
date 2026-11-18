@@ -8,6 +8,8 @@ public sealed class Gstr1Gstr3BReconciliationService
         ArgumentNullException.ThrowIfNull(gstr1);
         ArgumentNullException.ThrowIfNull(gstr3B);
         if (tolerance < 0) throw new ArgumentOutOfRangeException(nameof(tolerance), "Tolerance cannot be negative.");
+        if (gstr1.FromDate.Date != gstr3B.FromDate.Date || gstr1.ToDate.Date != gstr3B.ToDate.Date)
+            throw new ArgumentException("GSTR-1 and GSTR-3B workpapers must cover the same return period.");
 
         var relevant = gstr3B.Liabilities.Where(x =>
             x.Section is Gstr3BLiabilitySection.OutwardTaxable or Gstr3BLiabilitySection.ZeroRated).ToArray();
@@ -25,6 +27,7 @@ public sealed class Gstr1Gstr3BReconciliationService
         return new Gstr1Gstr3BReconciliation
         {
             Tolerance = tolerance,
+            SourceWorkpapersReady = gstr1.IsReadyForReview && gstr3B.IsReadyForReview,
             Variances = values.Select(x => new Gstr1Gstr3BVariance(
                 x.Item1, x.Item2, x.Item3, decimal.Round(x.Item2 - x.Item3, 2),
                 Math.Abs(x.Item2 - x.Item3) > tolerance)).ToArray()
