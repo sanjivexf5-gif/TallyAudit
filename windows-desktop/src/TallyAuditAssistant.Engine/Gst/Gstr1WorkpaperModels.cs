@@ -57,6 +57,8 @@ public sealed class Gstr1Workpaper
     public int IncludedNoteCount { get; init; }
     public IReadOnlyList<Gstr1TaxSummary> Summaries { get; init; } = Array.Empty<Gstr1TaxSummary>();
     public IReadOnlyList<Gstr1NoteSummary> NoteSummaries { get; init; } = Array.Empty<Gstr1NoteSummary>();
+    /// <summary>Accepted source notes with original-invoice references, retained for audit drill-down.</summary>
+    public IReadOnlyList<Gstr1AdjustmentNote> AdjustmentNotes { get; init; } = Array.Empty<Gstr1AdjustmentNote>();
     public IReadOnlyList<Gstr1ValidationIssue> Issues { get; init; } = Array.Empty<Gstr1ValidationIssue>();
     public decimal TaxableValue => Summaries.Sum(x => x.TaxableValue) + NoteSummaries.Sum(x => x.SignedTaxableValue);
     public decimal TotalIgst => Summaries.Sum(x => x.Igst) + NoteSummaries.Sum(x => x.SignedIgst);

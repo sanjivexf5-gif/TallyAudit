@@ -81,7 +81,8 @@ public sealed class Gstr1WorkpaperService
         {
             FromDate = fromDate.Date, ToDate = toDate.Date, SourceRowCount = rows.Count,
             IncludedRowCount = accepted.Count, NoteSourceCount = notes.Count, IncludedNoteCount = acceptedNotes.Count,
-            Summaries = summaries, NoteSummaries = noteSummaries, Issues = issues
+            Summaries = summaries, NoteSummaries = noteSummaries,
+            AdjustmentNotes = acceptedNotes.ToArray(), Issues = issues
         };
     }
 
