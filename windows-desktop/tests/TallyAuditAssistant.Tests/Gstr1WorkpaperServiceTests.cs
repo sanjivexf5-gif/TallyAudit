@@ -60,6 +60,32 @@ public class Gstr1WorkpaperServiceTests
     }
 
     [Fact]
+    public void Prepare_ValidatesB2clInterStateAndPeriodSpecificInvoiceThreshold()
+    {
+        var validCurrent = new Gstr1OutwardSupply("V1", "B2CL-1", new(2026, 4, 2), null, "29",
+            Gstr1SupplyCategory.B2CL, 18, 100000, 18000, 0, 0, 0, false, 118000, "27");
+        var belowCurrent = validCurrent with { VoucherId = "V2", InvoiceNumber = "B2CL-2", InvoiceValue = 100000 };
+        var sameState = validCurrent with { VoucherId = "V3", InvoiceNumber = "B2CL-3", SupplierStateCode = "29" };
+        var missingValue = validCurrent with { VoucherId = "V4", InvoiceNumber = "B2CL-4", InvoiceValue = null };
+        var result = _service.Prepare(From, To, new[] { validCurrent, belowCurrent, sameState, missingValue });
+
+        Assert.Equal(1, result.IncludedRowCount);
+        Assert.Contains(result.Issues, x => x.Code == "B2CL_BELOW_THRESHOLD");
+        Assert.Contains(result.Issues, x => x.Code == "B2CL_NOT_INTERSTATE");
+        Assert.Contains(result.Issues, x => x.Code == "B2CL_CLASSIFICATION_DATA_MISSING");
+    }
+
+    [Fact]
+    public void Prepare_UsesEarlierB2clThresholdBeforeAugust2024()
+    {
+        var row = new Gstr1OutwardSupply("V1", "OLD-B2CL", new(2024, 7, 31), null, "29",
+            Gstr1SupplyCategory.B2CL, 18, 200000, 36000, 0, 0, 0, false, 250000, "27");
+        var result = _service.Prepare(new(2024, 7, 1), new(2024, 7, 31), new[] { row });
+        Assert.Empty(result.Summaries);
+        Assert.Contains(result.Issues, x => x.Code == "B2CL_BELOW_THRESHOLD" && x.Message.Contains("250,000"));
+    }
+
+    [Fact]
     public void Prepare_RejectsInvalidPeriod()
     {
         Assert.Throws<ArgumentException>(() => _service.Prepare(To, From, Array.Empty<Gstr1OutwardSupply>()));

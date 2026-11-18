@@ -33,6 +33,8 @@ public sealed class Gstr1WorkpaperService
             if (!seen.Add(duplicateKey)) { Issue("DUPLICATE_DOCUMENT", "Duplicate invoice number and date within the supply category."); continue; }
             if (!ValidateCategory(row.Category, row.RecipientGstin, row.PlaceOfSupplyCode, out var categoryError))
             { Issue(categoryError.Code, categoryError.Message); continue; }
+            if (row.Category == Gstr1SupplyCategory.B2CL && !ValidateB2cl(row.InvoiceDate, row.InvoiceValue, row.SupplierStateCode, row.PlaceOfSupplyCode, out var b2clError))
+            { Issue(b2clError.Code, b2clError.Message); continue; }
             if (!ValidateAmounts(row.TaxRate, row.TaxableValue, row.Igst, row.Cgst, row.Sgst, row.Cess, out var amountError))
             { Issue(amountError.Code, amountError.Message); continue; }
             if (row.IsCreditNote)
@@ -99,6 +101,25 @@ public sealed class Gstr1WorkpaperService
         { error = ("INVALID_RECIPIENT_GSTIN", "B2B supply requires a structurally valid recipient GSTIN."); return false; }
         if (!string.IsNullOrWhiteSpace(gstin) && !GstinPattern.IsMatch(gstin.Trim()))
         { error = ("INVALID_RECIPIENT_GSTIN", "Recipient GSTIN format is invalid."); return false; }
+        error = default;
+        return true;
+    }
+
+    private static bool ValidateB2cl(DateTime invoiceDate, decimal? invoiceValue, string? supplierStateCode,
+        string? placeOfSupplyCode, out (string Code, string Message) error)
+    {
+        if (!invoiceValue.HasValue || string.IsNullOrWhiteSpace(supplierStateCode))
+        { error = ("B2CL_CLASSIFICATION_DATA_MISSING", "B2CL review requires the full invoice value and supplier state code."); return false; }
+        if (invoiceValue.Value < 0)
+        { error = ("INVALID_INVOICE_VALUE", "Invoice value cannot be negative."); return false; }
+        if (supplierStateCode.Length != 2 || !supplierStateCode.All(char.IsDigit) ||
+            string.IsNullOrWhiteSpace(placeOfSupplyCode) || placeOfSupplyCode.Length != 2 || !placeOfSupplyCode.All(char.IsDigit))
+        { error = ("INVALID_B2CL_STATE_CODE", "B2CL supplier and place-of-supply codes must be two-digit state codes."); return false; }
+        if (string.Equals(supplierStateCode, placeOfSupplyCode, StringComparison.Ordinal))
+        { error = ("B2CL_NOT_INTERSTATE", "B2CL classification requires an inter-State supply; supplier state and place of supply must differ."); return false; }
+        var threshold = invoiceDate.Date >= new DateTime(2024, 8, 1) ? 100000m : 250000m;
+        if (invoiceValue.Value <= threshold)
+        { error = ("B2CL_BELOW_THRESHOLD", $"B2CL invoice value must exceed ₹{threshold:N0} for this invoice date."); return false; }
         error = default;
         return true;
     }

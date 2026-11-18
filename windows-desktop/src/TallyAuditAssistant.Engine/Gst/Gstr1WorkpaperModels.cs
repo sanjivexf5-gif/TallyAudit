@@ -8,7 +8,7 @@ public sealed record Gstr1OutwardSupply(
     string VoucherId, string InvoiceNumber, DateTime InvoiceDate, string? RecipientGstin,
     string? PlaceOfSupplyCode, Gstr1SupplyCategory Category, decimal TaxRate,
     decimal TaxableValue, decimal Igst, decimal Cgst, decimal Sgst, decimal Cess,
-    bool IsCreditNote = false);
+    bool IsCreditNote = false, decimal? InvoiceValue = null, string? SupplierStateCode = null);
 
 /// <summary>
 /// A separately identified debit/credit note. Amounts are entered as positive magnitudes;
