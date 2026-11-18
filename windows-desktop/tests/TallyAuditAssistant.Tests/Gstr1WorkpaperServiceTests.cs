@@ -85,6 +85,12 @@ public class Gstr1WorkpaperServiceTests
         Assert.Equal(855m, result.TotalSgst);
         Assert.Equal(1710m, result.TotalTax);
         Assert.Equal(2, result.NoteSummaries.Sum(x => x.DocumentCount));
+        Assert.Equal(2, result.AdjustmentNotes.Count);
+        var retainedCreditNote = Assert.Single(result.AdjustmentNotes, x => x.NoteType == Gstr1AdjustmentNoteType.CreditNote);
+        Assert.Equal("V2", retainedCreditNote.VoucherId);
+        Assert.Equal("CN-1", retainedCreditNote.NoteNumber);
+        Assert.Equal("INV-1", retainedCreditNote.OriginalInvoiceNumber);
+        Assert.Equal(new DateTime(2026, 4, 2), retainedCreditNote.OriginalInvoiceDate);
         Assert.Contains(result.NoteSummaries, x => x.NoteType == Gstr1AdjustmentNoteType.CreditNote && x.SignedTaxableValue == -1000m);
         Assert.Contains(result.NoteSummaries, x => x.NoteType == Gstr1AdjustmentNoteType.DebitNote && x.SignedTaxableValue == 500m);
     }
