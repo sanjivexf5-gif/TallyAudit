@@ -17,6 +17,7 @@ public class Gstr1Gstr3BReconciliationServiceTests
         };
         var gstr3B = new Gstr3BWorkpaper
         {
+            FromDate = new(2026, 4, 1), ToDate = new(2026, 4, 30),
             Liabilities = new[]
             {
                 new Gstr3BLiabilitySummary(Gstr3BLiabilitySection.OutwardTaxable, 1, 9000, new(0,810,810,0)),
