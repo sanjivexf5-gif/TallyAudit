@@ -25,7 +25,7 @@ public class Gstr1WorkpaperServiceTests
         var b2b = Assert.Single(result.Summaries.Where(x => x.Category == Gstr1SupplyCategory.B2B));
         Assert.Equal(2, b2b.DocumentCount); Assert.Equal(15000m, b2b.TaxableValue);
         Assert.Equal(1350m, b2b.Cgst); Assert.Equal(1350m, b2b.Sgst);
-        Assert.Equal(2800m, result.TotalTax); // 2,700 B2B + 100 B2CS
+        Assert.Equal(2800m, result.TotalTax);
         Assert.Equal(17000m, result.TaxableValue);
     }
 
@@ -46,7 +46,7 @@ public class Gstr1WorkpaperServiceTests
         Assert.Contains(result.Issues, x => x.Code == "DUPLICATE_DOCUMENT");
         Assert.Contains(result.Issues, x => x.Code == "TAX_AMOUNT_MISMATCH");
         Assert.Contains(result.Issues, x => x.Code == "OUTSIDE_PERIOD");
-        Assert.Contains(result.Issues, x => x.Code == "CREDIT_NOTE_REVIEW");
+        Assert.Contains(result.Issues, x => x.Code == "LEGACY_CREDIT_NOTE_REVIEW");
         Assert.False(result.IsReadyForReview);
     }
 
@@ -63,5 +63,45 @@ public class Gstr1WorkpaperServiceTests
     public void Prepare_RejectsInvalidPeriod()
     {
         Assert.Throws<ArgumentException>(() => _service.Prepare(To, From, Array.Empty<Gstr1OutwardSupply>()));
+    }
+
+    [Fact]
+    public void Prepare_NetsCreditAndDebitNotesSeparatelyAndKeepsOriginalInvoiceTrace()
+    {
+        var invoice = new Gstr1OutwardSupply("V1", "INV-1", new(2026,4,2), "27AAACB2222D1Z9", "27",
+            Gstr1SupplyCategory.B2B, 18, 10000, 0, 900, 900, 0);
+        var notes = new[]
+        {
+            new Gstr1AdjustmentNote("V2", "CN-1", new(2026,4,10), Gstr1AdjustmentNoteType.CreditNote,
+                "INV-1", new(2026,4,2), "27AAACB2222D1Z9", "27", Gstr1SupplyCategory.B2B, 18, 1000, 0, 90, 90, 0),
+            new Gstr1AdjustmentNote("V3", "DN-1", new(2026,4,12), Gstr1AdjustmentNoteType.DebitNote,
+                "INV-1", new(2026,4,2), "27AAACB2222D1Z9", "27", Gstr1SupplyCategory.B2B, 18, 500, 0, 45, 45, 0)
+        };
+        var result = _service.Prepare(From, To, new[] { invoice }, notes);
+        Assert.True(result.IsReadyForReview);
+        Assert.Empty(result.Issues);
+        Assert.Equal(9500m, result.TaxableValue);
+        Assert.Equal(855m, result.TotalCgst);
+        Assert.Equal(855m, result.TotalSgst);
+        Assert.Equal(1710m, result.TotalTax);
+        Assert.Equal(2, result.NoteSummaries.Sum(x => x.DocumentCount));
+        Assert.Contains(result.NoteSummaries, x => x.NoteType == Gstr1AdjustmentNoteType.CreditNote && x.SignedTaxableValue == -1000m);
+        Assert.Contains(result.NoteSummaries, x => x.NoteType == Gstr1AdjustmentNoteType.DebitNote && x.SignedTaxableValue == 500m);
+    }
+
+    [Fact]
+    public void Prepare_RejectsDuplicateNotesAndInvalidOriginalInvoiceDates()
+    {
+        var notes = new[]
+        {
+            new Gstr1AdjustmentNote("V1", "CN-1", new(2026,4,10), Gstr1AdjustmentNoteType.CreditNote,
+                "INV-1", new(2026,4,11), null, "27", Gstr1SupplyCategory.B2CS, 18, 1000, 180, 0, 0, 0),
+            new Gstr1AdjustmentNote("V2", "CN-1", new(2026,4,10), Gstr1AdjustmentNoteType.CreditNote,
+                "INV-1", new(2026,4,2), null, "27", Gstr1SupplyCategory.B2CS, 18, 1000, 180, 0, 0, 0)
+        };
+        var result = _service.Prepare(From, To, Array.Empty<Gstr1OutwardSupply>(), notes);
+        Assert.Contains(result.Issues, x => x.Code == "INVALID_ORIGINAL_INVOICE_DATE");
+        Assert.Contains(result.Issues, x => x.Code == "DUPLICATE_ADJUSTMENT_NOTE");
+        Assert.False(result.IsReadyForReview);
     }
 }
