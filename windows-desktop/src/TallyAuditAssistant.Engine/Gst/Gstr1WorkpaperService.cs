@@ -52,11 +52,11 @@ public sealed class Gstr1WorkpaperService
             { Issue("INVALID_NOTE_TYPE", "Adjustment note type is not recognised."); continue; }
             if (note.NoteDate.Date < fromDate.Date || note.NoteDate.Date > toDate.Date)
             { Issue("NOTE_OUTSIDE_PERIOD", "Note date is outside the selected return period."); continue; }
-            if (note.OriginalInvoiceDate.Date > note.NoteDate.Date)
-            { Issue("INVALID_ORIGINAL_INVOICE_DATE", "Original invoice date cannot be later than the adjustment note date."); continue; }
             var key = $"{note.NoteType}|{note.NoteNumber.Trim()}|{note.NoteDate:yyyyMMdd}";
             if (!seenNotes.Add(key))
             { Issue("DUPLICATE_ADJUSTMENT_NOTE", "Duplicate adjustment note number, date and type."); continue; }
+            if (note.OriginalInvoiceDate.Date > note.NoteDate.Date)
+            { Issue("INVALID_ORIGINAL_INVOICE_DATE", "Original invoice date cannot be later than the adjustment note date."); continue; }
             if (!ValidateCategory(note.Category, note.RecipientGstin, note.PlaceOfSupplyCode, out var categoryError))
             { Issue(categoryError.Code, categoryError.Message); continue; }
             if (!ValidateAmounts(note.TaxRate, note.TaxableValue, note.Igst, note.Cgst, note.Sgst, note.Cess, out var amountError))
