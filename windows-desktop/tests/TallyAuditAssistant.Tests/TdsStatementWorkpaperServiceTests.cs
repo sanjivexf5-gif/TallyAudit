@@ -36,6 +36,15 @@ public sealed class TdsStatementWorkpaperServiceTests
     }
 
     [Fact]
+    public void ResolveForm_UsesQuarterSpecificSalaryUtilityVersion()
+    {
+        var q1 = _service.ResolveForm(TdsStatementKind.Salary, new(2026, 4, 1), new(2026, 6, 30), 1);
+        var q4 = _service.ResolveForm(TdsStatementKind.Salary, new(2027, 1, 1), new(2027, 3, 31), 4);
+        Assert.Equal("1.2 (Q1-Q3)", q1.DataStructureVersion);
+        Assert.Equal("1.0 (Q4; verify current release)", q4.DataStructureVersion);
+    }
+
+    [Fact]
     public void ResolveForm_RejectsPeriodCrossingLegislativeTransition()
     {
         Assert.Throws<ArgumentException>(() => _service.ResolveForm(TdsStatementKind.NonSalaryResident,
