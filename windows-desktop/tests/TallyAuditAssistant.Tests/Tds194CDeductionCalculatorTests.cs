@@ -18,8 +18,9 @@ public sealed class Tds194CDeductionCalculatorTests
         decimal? certificateRate = null,
         string? certificateRef = null,
         DateOnly? validFrom = null,
-        DateOnly? validTo = null) =>
-        new(credit, payment, amount, prior, entity, pan, applicability,
+        DateOnly? validTo = null,
+        bool omitDates = false) =>
+        new(omitDates ? credit : credit ?? new DateOnly(2026, 4, 1), payment, amount, prior, entity, pan, applicability,
             certificateRate, certificateRef, validFrom, validTo);
 
     [Fact]
@@ -90,7 +91,7 @@ public sealed class Tds194CDeductionCalculatorTests
     [Fact]
     public void Calculate_RejectsMissingDatesAndNegativeAmounts()
     {
-        Assert.Throws<ArgumentException>(() => _calculator.Calculate(Request()));
+        Assert.Throws<ArgumentException>(() => _calculator.Calculate(Request(omitDates: true)));
         Assert.Throws<ArgumentOutOfRangeException>(() => _calculator.Calculate(Request(new(2026, 4, 1), amount: -1m)));
     }
 }
