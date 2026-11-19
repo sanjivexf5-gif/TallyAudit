@@ -8,7 +8,7 @@ public sealed class TdsStatementWorkpaperServiceTests
     private readonly TdsStatementWorkpaperService _service = new();
 
     private static TdsStatementLine Line(DateOnly? date = null) =>
-        new("ABCDE1234F", "194C", date ?? new DateOnly(2026, 4, 15), 100000m, 10000m, 10000m, "CIN-001", "V-1");
+        new("ABCDE1234F", "194C", date ?? new DateOnly(2026, 4, 15), 100000m, 10000m, 9000m, "CIN-001", "V-1");
 
     [Theory]
     [InlineData(TdsStatementKind.Salary, "24Q")]
@@ -29,7 +29,7 @@ public sealed class TdsStatementWorkpaperServiceTests
     [InlineData(TdsStatementKind.TaxCollectedAtSource, "143")]
     public void ResolveForm_UsesNewActFormsFromApril2026(TdsStatementKind kind, string expected)
     {
-        var result = _service.ResolveForm(kind, new(2026, 4, 1), new(2026, 6, 30));
+        var result = _service.ResolveForm(kind, new(2026, 4, 1), new(2026, 6, 30), quarter: 1);
         Assert.Equal(TdsLegislativeRegime.IncomeTaxAct2025, result.Regime);
         Assert.Equal(expected, result.FormNumber);
         Assert.Equal("1.2", result.DataStructureVersion is null ? null : result.DataStructureVersion[..3]);
