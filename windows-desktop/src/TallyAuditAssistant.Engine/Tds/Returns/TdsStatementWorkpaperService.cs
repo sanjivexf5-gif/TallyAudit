@@ -12,7 +12,7 @@ public sealed class TdsStatementWorkpaperService
     private static readonly DateOnly TransitionDate = new(2026, 4, 1);
     private static readonly Regex PanPattern = new("^[A-Z]{5}[0-9]{4}[A-Z]$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    public TdsStatementFormMapping ResolveForm(TdsStatementKind kind, DateOnly periodStart, DateOnly periodEnd)
+    public TdsStatementFormMapping ResolveForm(TdsStatementKind kind, DateOnly periodStart, DateOnly periodEnd, int? quarter = null)
     {
         if (periodStart > periodEnd) throw new ArgumentException("Statement period start must not exceed its end.");
         if (periodStart < TransitionDate && periodEnd >= TransitionDate)
@@ -30,7 +30,7 @@ public sealed class TdsStatementWorkpaperService
         };
         var version = oldAct ? null : kind switch
         {
-            TdsStatementKind.Salary => periodStart >= new DateOnly(2026, 4, 1) ? "1.2 (Q1-Q3)" : null,
+            TdsStatementKind.Salary => quarter is >= 1 and <= 3 ? "1.2 (Q1-Q3)" : quarter == 4 ? "1.0 (Q4; verify current release)" : null,
             TdsStatementKind.NonSalaryResident => "1.2",
             TdsStatementKind.NonSalaryNonResident => "1.2",
             TdsStatementKind.TaxCollectedAtSource => "1.2",
@@ -55,7 +55,7 @@ public sealed class TdsStatementWorkpaperService
         if (string.IsNullOrWhiteSpace(yearLabel)) throw new ArgumentException("Financial year / tax year label is required.", nameof(yearLabel));
         if (periodStart > periodEnd) throw new ArgumentException("Statement period start must not exceed its end.");
 
-        var mapping = ResolveForm(kind, periodStart, periodEnd);
+        var mapping = ResolveForm(kind, periodStart, periodEnd, quarter);
         ValidateQuarter(periodStart, periodEnd, quarter);
         var lines = sourceLines.ToArray();
         var challans = (sourceChallans ?? Array.Empty<TdsStatementChallan>()).ToArray();
