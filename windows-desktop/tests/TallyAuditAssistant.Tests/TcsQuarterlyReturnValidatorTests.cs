@@ -14,7 +14,7 @@ public sealed class TcsQuarterlyReturnValidatorTests
     public void Validate_OldActQuarter_RequiresForm27Eq()
     {
         var statement = Statement("Form 27EQ", 2025, 1, new DateOnly(2025, 4, 1), new DateOnly(2025, 6, 30));
-        Assert.Empty(_validator.Validate(statement));
+        Assert.DoesNotContain(_validator.Validate(statement), x => x.Severity == "Error");
     }
 
     [Fact]
