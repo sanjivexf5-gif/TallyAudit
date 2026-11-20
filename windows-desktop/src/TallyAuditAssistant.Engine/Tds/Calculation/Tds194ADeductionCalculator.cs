@@ -63,7 +63,9 @@ public sealed class Tds194ADeductionCalculator
 
         var bankOrPostOffice = request.PayerCategory == Tds194APayerCategory.EligibleBankingOrPostOfficeDeposit;
         var threshold = bankOrPostOffice
-            ? request.PayeeIsSeniorCitizen ? 100000m : 50000m
+            ? triggerDate >= FinanceAct2025Start
+                ? request.PayeeIsSeniorCitizen ? 100000m : 50000m
+                : request.PayeeIsSeniorCitizen ? 50000m : 40000m
             : triggerDate >= FinanceAct2025Start ? 10000m : 5000m;
 
         if (bankOrPostOffice && !request.DepositQualifiesForBankingThreshold)
@@ -89,9 +91,13 @@ public sealed class Tds194ADeductionCalculator
 
         var tax = decimal.Round(request.InterestAmount * rate / 100m, 2, MidpointRounding.AwayFromZero);
         var ageNote = bankOrPostOffice
-            ? request.PayeeIsSeniorCitizen
-                ? "The senior-citizen threshold of ₹1,00,000 applies."
-                : "The non-senior threshold of ₹50,000 applies."
+            ? triggerDate >= FinanceAct2025Start
+                ? request.PayeeIsSeniorCitizen
+                    ? "The senior-citizen threshold of ₹1,00,000 applies."
+                    : "The non-senior threshold of ₹50,000 applies."
+                : request.PayeeIsSeniorCitizen
+                    ? "The pre-1 April 2025 senior-citizen threshold of ₹50,000 applies."
+                    : "The pre-1 April 2025 non-senior threshold of ₹40,000 applies."
             : $"The applicable non-bank threshold is ₹{threshold:N0}.";
         var creditNote = request.InterestCreditedToSuspenseOrInterestPayableAccount
             ? "Credit to the interest payable/suspense account is treated as credit to the payee; use that credit date."
