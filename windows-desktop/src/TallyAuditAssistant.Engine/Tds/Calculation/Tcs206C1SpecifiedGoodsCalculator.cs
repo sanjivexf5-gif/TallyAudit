@@ -98,7 +98,7 @@ public sealed class Tcs206C1SpecifiedGoodsCalculator
         if (!request.PanProvided)
             return Review("Buyer PAN is missing or unverified. Under section 206CC / section 397, the higher-rate rule may apply (higher of twice the normal rate or 5%, subject to the statutory 20% cap). Verify PAN/Aadhaar status and applicable exceptions before posting; this calculator does not silently assume PAN compliance.");
 
-        var statutoryRate = GetRate(request.GoodsCategory, newAct);
+        var statutoryRate = GetRate(request.GoodsCategory, newAct, triggerDate);
         var rate = statutoryRate;
         if (request.LowerRateCertificatePresented)
         {
@@ -125,7 +125,7 @@ public sealed class Tcs206C1SpecifiedGoodsCalculator
             source);
     }
 
-    private static decimal GetRate(Tcs206C1GoodsCategory category, bool newAct)
+    private static decimal GetRate(Tcs206C1GoodsCategory category, bool newAct, DateOnly triggerDate)
     {
         if (newAct)
         {
@@ -144,6 +144,12 @@ public sealed class Tcs206C1SpecifiedGoodsCalculator
                 _ => throw new ArgumentOutOfRangeException(nameof(category))
             };
         }
+
+        if (triggerDate < ForestProduceRestrictionDate &&
+            category is Tcs206C1GoodsCategory.TimberUnderForestLease or
+                Tcs206C1GoodsCategory.TimberOtherThanForestLease or
+                Tcs206C1GoodsCategory.OtherForestProduceUnderForestLease)
+            return 2.5m;
 
         return category switch
         {

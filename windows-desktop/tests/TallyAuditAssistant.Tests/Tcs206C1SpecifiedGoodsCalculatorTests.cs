@@ -43,6 +43,20 @@ public sealed class Tcs206C1SpecifiedGoodsCalculatorTests
         Assert.Equal(newRate * 1000m, newResult.TcsAmount);
     }
 
+
+    [Theory]
+    [InlineData(Tcs206C1GoodsCategory.TimberUnderForestLease)]
+    [InlineData(Tcs206C1GoodsCategory.TimberOtherThanForestLease)]
+    [InlineData(Tcs206C1GoodsCategory.OtherForestProduceUnderForestLease)]
+    public void Calculate_UsesPreApril2025ForestRate(
+        Tcs206C1GoodsCategory category)
+    {
+        var result = _calculator.Calculate(Request(category,
+            receipt: new DateOnly(2025, 3, 31), forestLease: false));
+        Assert.Equal(2.5m, result.AppliedRatePercent);
+        Assert.Equal(2500m, result.TcsAmount);
+    }
+
     [Fact]
     public void Calculate_UsesEarlierDebitOrReceiptForActTransition()
     {
