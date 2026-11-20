@@ -52,6 +52,9 @@ public sealed class TcsInterestDefaultCalculator
         var rate = request.DefaultType switch
         {
             TcsInterestDefaultType.FailureToCollect => 1.0m,
+            TcsInterestDefaultType.FailureToDeposit
+                when request.GoverningAct == TcsInterestGoverningAct.IncomeTaxAct1961
+                     && request.InterestStartDate < new DateOnly(2025, 4, 1) => 1.0m,
             TcsInterestDefaultType.FailureToDeposit => 1.5m,
             _ => throw new ArgumentOutOfRangeException(nameof(request), "Unsupported TCS default type.")
         };
@@ -67,7 +70,7 @@ public sealed class TcsInterestDefaultCalculator
 
         var defaultDescription = request.DefaultType == TcsInterestDefaultType.FailureToCollect
             ? "Failure to collect TCS: 1% for every month or part of a month from the date TCS was collectible until it was collected."
-            : "Failure to deposit collected TCS: 1.5% for every month or part of a month from the collection date until actual payment.";
+            : $"Failure to deposit collected TCS: {rate:0.##}% for every month or part of a month from the collection date until actual payment. For the 1961 Act, the 1.5% rate applies to collections on or after 1 April 2025; earlier collections retain the 1% rate.";
 
         return new TcsInterestDefaultResult(
             request.DefaultType,

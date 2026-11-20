@@ -57,6 +57,31 @@ public sealed class TcsInterestDefaultCalculatorTests
     }
 
     [Fact]
+    public void Calculate_OldActDepositBeforeApril2025UsesOnePercent()
+    {
+        var result = _calculator.Calculate(new TcsInterestDefaultRequest(
+            TcsInterestDefaultType.FailureToDeposit,
+            TcsInterestGoverningAct.IncomeTaxAct1961,
+            10000m,
+            new DateOnly(2025, 3, 31),
+            new DateOnly(2025, 4, 1)));
+        Assert.Equal(1.0m, result.MonthlyRatePercent);
+        Assert.Equal(100m, result.InterestAmount);
+    }
+
+    [Fact]
+    public void Calculate_OldActDepositFromApril2025UsesOneAndHalfPercent()
+    {
+        var result = _calculator.Calculate(new TcsInterestDefaultRequest(
+            TcsInterestDefaultType.FailureToDeposit,
+            TcsInterestGoverningAct.IncomeTaxAct1961,
+            10000m,
+            new DateOnly(2025, 4, 1),
+            new DateOnly(2025, 4, 30)));
+        Assert.Equal(1.5m, result.MonthlyRatePercent);
+        Assert.Equal(150m, result.InterestAmount);
+    }
+    [Fact]
     public void Calculate_RoundsToTwoDecimalsAwayFromZero()
     {
         var result = _calculator.Calculate(new TcsInterestDefaultRequest(
