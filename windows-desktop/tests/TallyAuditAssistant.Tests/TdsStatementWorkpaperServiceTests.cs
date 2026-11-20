@@ -132,6 +132,39 @@ public sealed class TdsStatementWorkpaperServiceTests
     }
 
     [Fact]
+    public void Prepare_FlagsMissingChallanReferenceOnDepositedTax()
+    {
+        var line = new TdsStatementLine("ABCDE1234F", "194C", new(2026, 4, 15),
+            100000m, 10000m, 9000m, null, "V-1");
+        var result = _service.Prepare(TdsStatementKind.NonSalaryResident,
+            new(2026, 4, 1), new(2026, 6, 30), "TY 2026-27", 1, "ABCD12345E",
+            new[] { line }, new[] { new TdsStatementChallan("CIN-1", new(2026, 5, 7), 9000m) });
+
+        Assert.Contains(result.Issues, x => x.Code == "MISSING_LINE_CHALLAN_REFERENCE");
+        Assert.Contains(result.Issues, x => x.Code == "UNALLOCATED_CHALLAN_TAX");
+        Assert.False(result.IsReadyForReview);
+    }
+
+    [Fact]
+    public void Prepare_FlagsUnknownChallanReferenceAndPerChallanAmountMismatch()
+    {
+        var lines = new[]
+        {
+            new TdsStatementLine("ABCDE1234F", "194C", new(2026, 4, 15),
+                100000m, 10000m, 8500m, "CIN-1", "V-1"),
+            new TdsStatementLine("FGHIJ5678K", "194C", new(2026, 4, 16),
+                50000m, 5000m, 500m, "CIN-MISSING", "V-2")
+        };
+        var result = _service.Prepare(TdsStatementKind.NonSalaryResident,
+            new(2026, 4, 1), new(2026, 6, 30), "TY 2026-27", 1, "ABCD12345E",
+            lines, new[] { new TdsStatementChallan("CIN-1", new(2026, 5, 7), 9000m) });
+
+        Assert.Contains(result.Issues, x => x.Code == "UNMATCHED_LINE_CHALLAN_REFERENCE");
+        Assert.Contains(result.Issues, x => x.Code == "CHALLAN_ALLOCATION_MISMATCH");
+        Assert.False(result.IsReadyForReview);
+    }
+
+    [Fact]
     public void Prepare_ValidatesOldActQuarterFourPeriod()
     {
         var result = _service.Prepare(TdsStatementKind.Salary, new(2026, 1, 1), new(2026, 3, 31),
