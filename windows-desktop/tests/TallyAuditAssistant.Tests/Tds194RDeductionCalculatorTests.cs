@@ -103,16 +103,16 @@ public sealed class Tds194RDeductionCalculatorTests
     public void Calculate_RequiresTaxPaymentWhenCashIsInsufficient()
     {
         Assert.Equal(TdsCalculationStatus.ReviewRequired,
-            _calculator.Calculate(Request(cash: 100m)));
+            _calculator.Calculate(Request(cash: 100m)).Status);
         Assert.Equal(TdsCalculationStatus.Calculated,
-            _calculator.Calculate(Request(cash: 2500m)));
+            _calculator.Calculate(Request(cash: 2500m)).Status);
     }
 
     [Fact]
     public void Calculate_RequiresReviewForMissingPanAndValidatesCertificate()
     {
         Assert.Equal(TdsCalculationStatus.ReviewRequired,
-            _calculator.Calculate(Request(pan: false, cash: 2500m)));
+            _calculator.Calculate(Request(pan: false, cash: 2500m)).Status);
         var valid = _calculator.Calculate(Request(cash: 2500m, certificateRate: 5m,
             certificateRef: "CERT-194R", validFrom: new(2026, 4, 1), validTo: new(2027, 3, 31)));
         Assert.Equal(5m, valid.AppliedRatePercent);
