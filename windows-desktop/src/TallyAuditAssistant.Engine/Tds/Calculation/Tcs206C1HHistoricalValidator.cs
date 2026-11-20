@@ -39,7 +39,7 @@ public sealed class Tcs206C1HHistoricalValidator
         if (date >= WithdrawnFrom)
             return NotApplicable("Section 206C(1H) is not applicable to receipts on or after 1 April 2025. Do not calculate or collect TCS under this subsection for this receipt. For current sale-of-goods transactions, assess the applicable provisions such as section 194Q and other relevant TCS sections separately.");
         if (date < EffectiveFrom)
-            return NotApplicable("Section 206C(1H) became effective from 1 October 2020. This receipt predates its commencement.");
+            return NotApplicable("Section 206C(1H) is not applicable because it became effective only from 1 October 2020; this receipt predates its commencement.");
 
         if (!request.SellerEligibilityConfirmed || !request.SellerPrecedingYearTurnoverExceedsTenCrore)
             return Review("Confirm the seller's total sales, gross receipts or turnover from business exceeded ₹10 crore in the immediately preceding financial year, and retain the financial statements/turnover evidence. Do not infer eligibility from the current-year turnover.");
