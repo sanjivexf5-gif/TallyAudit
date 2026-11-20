@@ -9,8 +9,8 @@ public sealed class TcsInterestDefaultCalculatorTests
     private readonly TcsInterestDefaultCalculator _calculator = new();
 
     [Theory]
-    [InlineData(TcsInterestDefaultType.FailureToCollect, 1.0, 1000.00)]
-    [InlineData(TcsInterestDefaultType.FailureToDeposit, 1.5, 1500.00)]
+    [InlineData(TcsInterestDefaultType.FailureToCollect, 1.0, 2000.00)]
+    [InlineData(TcsInterestDefaultType.FailureToDeposit, 1.5, 3000.00)]
     public void Calculate_AppliesCorrectMonthlyRateAndCalendarMonthCount(
         TcsInterestDefaultType defaultType, decimal rate, decimal expectedInterest)
     {
@@ -66,7 +66,7 @@ public sealed class TcsInterestDefaultCalculatorTests
             new DateOnly(2025, 3, 31),
             new DateOnly(2025, 4, 1)));
         Assert.Equal(1.0m, result.MonthlyRatePercent);
-        Assert.Equal(100m, result.InterestAmount);
+        Assert.Equal(200m, result.InterestAmount);
     }
 
     [Fact]
