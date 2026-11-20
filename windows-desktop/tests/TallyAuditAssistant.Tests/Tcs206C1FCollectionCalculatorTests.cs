@@ -52,7 +52,7 @@ public sealed class Tcs206C1FCollectionCalculatorTests
     public void Calculate_CollectsOnEntireCurrentConsiderationNotOnlyExcess()
     {
         var result = _calculator.Calculate(Request(itemValue: 2500000m, current: 2500000m));
-        Assert.Equal(25000m, result.TaxableAmount);
+        Assert.Equal(2500000m, result.TaxableAmount);
         Assert.Equal(25000m, result.TcsAmount);
     }
 
