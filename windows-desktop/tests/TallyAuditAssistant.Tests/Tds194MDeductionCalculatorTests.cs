@@ -75,7 +75,8 @@ public sealed class Tds194MDeductionCalculatorTests
     public void Calculate_RequiresPanAndValidatesCertificate()
     {
         Assert.Equal(TdsCalculationStatus.ReviewRequired, _calculator.Calculate(Request(pan: false)).Status);
-        var valid = _calculator.Calculate(Request(certificateRate: 1m, certificateRef: "CERT-194M",
+        var valid = _calculator.Calculate(Request(amount: 100000m, prior: 4950000m,
+            certificateRate: 1m, certificateRef: "CERT-194M",
             validFrom: new(2024, 10, 1), validTo: new(2025, 3, 31)));
         Assert.Equal(TdsCalculationStatus.Calculated, valid.Status);
         Assert.Equal(1m, valid.AppliedRatePercent);
