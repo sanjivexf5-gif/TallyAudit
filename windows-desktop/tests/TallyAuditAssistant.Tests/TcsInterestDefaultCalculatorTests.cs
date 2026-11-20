@@ -66,7 +66,7 @@ public sealed class TcsInterestDefaultCalculatorTests
             new DateOnly(2025, 3, 31),
             new DateOnly(2025, 4, 1)));
         Assert.Equal(1.0m, result.MonthlyRatePercent);
-        Assert.Equal(200m, result.InterestAmount);
+        Assert.Equal(250m, result.InterestAmount);
     }
 
     [Fact]

@@ -49,18 +49,22 @@ public sealed class TcsInterestDefaultCalculator
         if (request.ResolutionDate < request.InterestStartDate)
             throw new ArgumentException("Resolution date cannot be earlier than the interest start date.", nameof(request));
 
-        var rate = request.DefaultType switch
-        {
-            TcsInterestDefaultType.FailureToCollect => 1.0m,
-            TcsInterestDefaultType.FailureToDeposit
-                when request.GoverningAct == TcsInterestGoverningAct.IncomeTaxAct1961
-                     && request.InterestStartDate < new DateOnly(2025, 4, 1) => 1.0m,
-            TcsInterestDefaultType.FailureToDeposit => 1.5m,
-            _ => throw new ArgumentOutOfRangeException(nameof(request), "Unsupported TCS default type.")
-        };
-
         var months = CountCalendarMonthsOrParts(request.InterestStartDate, request.ResolutionDate);
-        var interest = decimal.Round(request.TaxAmount * rate * months / 100m, 2, MidpointRounding.AwayFromZero);
+        decimal rateTotal = 0m;
+        decimal interestTotal = 0m;
+        var month = new DateOnly(request.InterestStartDate.Year, request.InterestStartDate.Month, 1);
+        var finalMonth = new DateOnly(request.ResolutionDate.Year, request.ResolutionDate.Month, 1);
+
+        while (month <= finalMonth)
+        {
+            var monthlyRate = GetMonthlyRate(request, month);
+            rateTotal += monthlyRate;
+            interestTotal += request.TaxAmount * monthlyRate / 100m;
+            month = month.AddMonths(1);
+        }
+
+        var averageMonthlyRate = rateTotal / months;
+        var interest = decimal.Round(interestTotal, 2, MidpointRounding.AwayFromZero);
         var section = request.GoverningAct switch
         {
             TcsInterestGoverningAct.IncomeTaxAct1961 => "Section 206C(7), Income-tax Act, 1961",
@@ -70,13 +74,13 @@ public sealed class TcsInterestDefaultCalculator
 
         var defaultDescription = request.DefaultType == TcsInterestDefaultType.FailureToCollect
             ? "Failure to collect TCS: 1% for every month or part of a month from the date TCS was collectible until it was collected."
-            : $"Failure to deposit collected TCS: {rate:0.##}% for every month or part of a month from the collection date until actual payment. For the 1961 Act, the 1.5% rate applies to collections on or after 1 April 2025; earlier collections retain the 1% rate.";
+            : "Failure to deposit collected TCS: 1% per month or part before 1 April 2025 and 1.5% per month or part from 1 April 2025 under the 1961 Act; the 2025 Act uses the 1.5% deposit rate.";
 
         return new TcsInterestDefaultResult(
             request.DefaultType,
             request.GoverningAct,
             request.TaxAmount,
-            rate,
+            averageMonthlyRate,
             months,
             interest,
             request.InterestStartDate,
@@ -86,6 +90,17 @@ public sealed class TcsInterestDefaultCalculator
             request.GoverningAct == TcsInterestGoverningAct.IncomeTaxAct2025
                 ? "Income-tax Act, 2025, Section 398(3)(a)(i)-(ii)"
                 : "Income-tax Act, 1961, Section 206C(7)");
+    }
+
+    private static decimal GetMonthlyRate(TcsInterestDefaultRequest request, DateOnly month)
+    {
+        if (request.DefaultType == TcsInterestDefaultType.FailureToCollect)
+            return 1.0m;
+
+        if (request.GoverningAct == TcsInterestGoverningAct.IncomeTaxAct1961 && month < new DateOnly(2025, 4, 1))
+            return 1.0m;
+
+        return 1.5m;
     }
 
     private static int CountCalendarMonthsOrParts(DateOnly start, DateOnly end)
