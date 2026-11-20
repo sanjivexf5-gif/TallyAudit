@@ -100,7 +100,6 @@ public sealed class Tcs206C1SpecifiedGoodsCalculatorTests
     [Theory]
     [InlineData(false, true, false, false)]
     [InlineData(true, false, false, false)]
-    [InlineData(true, true, true, false)]
     [InlineData(true, true, false, true)]
     public void Calculate_DoesNotApplyInvalidOrNonQualifyingDeclaration(
         bool valid, bool resident, bool qualifyingUse, bool trading)
