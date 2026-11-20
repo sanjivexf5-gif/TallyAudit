@@ -44,7 +44,7 @@ public sealed class Tcs206C1HHistoricalValidatorTests
     [Fact]
     public void Validate_AppliesFromFirstOctober2020()
     {
-        var result = _validator.Validate(Request(date: new DateOnly(2020, 10, 1)));
+        var result = _validator.Validate(Request(date: new DateOnly(2020, 10, 1), prior: 5000000m));
         Assert.Equal(TdsCalculationStatus.Calculated, result.Status);
         Assert.Equal(0.1m, result.AppliedRatePercent);
     }
@@ -110,8 +110,8 @@ public sealed class Tcs206C1HHistoricalValidatorTests
     public void Validate_UsesOnlyVerifiedLowerRateCertificate()
     {
         Assert.Equal(TdsCalculationStatus.ReviewRequired,
-            _validator.Validate(Request(certificate: true, certificateValid: false, certificateRate: 0.05m)).Status);
-        var result = _validator.Validate(Request(certificate: true, certificateValid: true, certificateRate: 0.05m));
+            _validator.Validate(Request(prior: 5000000m, certificate: true, certificateValid: false, certificateRate: 0.05m)).Status);
+        var result = _validator.Validate(Request(prior: 5000000m, certificate: true, certificateValid: true, certificateRate: 0.05m));
         Assert.Equal(TdsCalculationStatus.Calculated, result.Status);
         Assert.Equal(0.05m, result.AppliedRatePercent);
         Assert.Equal(50m, result.TcsAmount);
