@@ -50,6 +50,8 @@ public sealed class Tds194SDeductionCalculator
             return Review("The resident-payee calculator cannot determine tax for a non-resident transferor. Refer the transaction for section 195 / applicable non-resident analysis.");
         if (!request.ApplicabilityConfirmed)
             return Review("Confirm that the supplied consideration is payable by this payer to this transferor for transfer of the VDA and that no statutory exclusion or different responsible-person arrangement applies.");
+        if (request.TaxAlreadyDeductedOnTransaction)
+            return NotApplicable("TDS has already been deducted by the responsible payer on this transaction. Do not deduct again; retain the payer's undertaking and deduction evidence.");
         if (request.ExchangeHasUndertakenDeduction)
             return Review("The exchange has been identified as having undertaken the alternative deduction/deposit mechanism. Reconcile the exchange's deduction and reporting evidence; do not deduct again from the same transaction.");
         if (request.CurrentConsiderationAmount == 0m)
@@ -82,7 +84,10 @@ public sealed class Tds194SDeductionCalculator
             rate = certificateRate;
         }
 
-        var tax = decimal.Round(aggregate * rate / 100m, 0, MidpointRounding.AwayFromZero);
+        // The annual aggregate only tests the threshold. Once crossed, deduct on
+        // the consideration for the current credit/payment event, not prior events.
+        var taxBase = request.CurrentConsiderationAmount;
+        var tax = decimal.Round(taxBase * rate / 100m, 0, MidpointRounding.AwayFromZero);
         var inKind = request.ConsiderationWhollyOrPartlyInKind;
         if (inKind && request.CashAvailableForDeduction < tax && !request.TaxPaidBeforeReleaseConfirmed)
             return Review("Consideration is wholly/partly in kind and available cash is insufficient to meet TDS on the full consideration. Confirm tax payment before releasing the VDA/consideration and retain evidence, as required by the applicable in-kind rule.");
@@ -94,7 +99,7 @@ public sealed class Tds194SDeductionCalculator
                 : "For an eligible specified person, verify the PAN-based Form 26QE process; other deductors use the applicable TAN-based reporting route.";
 
         return new(TdsCalculationStatus.Calculated, act, section, rate, aggregate, tax,
-            $"{rate}% applies to the full payer-payee aggregate consideration of ₹{aggregate:N2} once it exceeds the applicable ₹{threshold:N2} annual threshold; it is not limited to the excess. Include cash, in-kind and VDA-exchange consideration at a supportable value, and use the earlier credit/payment event. {form} The caller must aggregate all transfers for this payer-payee pair in the tax year and retain valuation, classification, PAN and deduction evidence. This calculator does not prepare or file a statement.",
+            $"{rate}% applies to the current consideration of ₹{taxBase:N2} because the payer-payee annual aggregate of ₹{aggregate:N2} exceeds the applicable ₹{threshold:N2} threshold. The prior-year-to-date consideration is used to test the threshold but is not taxed again. Include cash, in-kind and VDA-exchange consideration at a supportable value, exclude GST/charges levied by the deductor where the CBDT guidance applies, and use the earlier credit/payment event. {form} The caller must aggregate all transfers for this payer-payee pair in the tax year and retain valuation, classification, PAN and deduction evidence. This calculator does not prepare or file a statement.",
             source);
     }
 }
@@ -114,6 +119,7 @@ public sealed record Tds194SDeductionRequest(
     decimal CashAvailableForDeduction,
     bool TaxPaidBeforeReleaseConfirmed,
     bool ExchangeHasUndertakenDeduction = false,
+    bool TaxAlreadyDeductedOnTransaction = false,
     decimal? LowerDeductionCertificateRatePercent = null,
     string? LowerDeductionCertificateReference = null,
     DateOnly? CertificateValidFrom = null,
