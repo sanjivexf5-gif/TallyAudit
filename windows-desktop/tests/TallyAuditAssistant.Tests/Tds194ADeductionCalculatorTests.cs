@@ -81,6 +81,19 @@ public sealed class Tds194ADeductionCalculatorTests
             Assert.Equal("Section 393(1), Table Sl. No. 5(ii)", result.SectionReference);
     }
 
+    [Theory]
+    [InlineData(false, 40000, TdsCalculationStatus.BelowThreshold)]
+    [InlineData(false, 40001, TdsCalculationStatus.Calculated)]
+    [InlineData(true, 50000, TdsCalculationStatus.BelowThreshold)]
+    [InlineData(true, 50001, TdsCalculationStatus.Calculated)]
+    public void Calculate_AppliesPreApril2025BankThresholds(bool senior, decimal amount, TdsCalculationStatus expected)
+    {
+        var result = _calculator.Calculate(Request(
+            credit: new DateOnly(2025, 3, 31), payer: Tds194APayerCategory.EligibleBankingOrPostOfficeDeposit,
+            senior: senior, amount: amount));
+        Assert.Equal(expected, result.Status);
+    }
+
     [Fact]
     public void Calculate_UsesEntireCurrentPaymentOnceThresholdIsCrossed()
     {

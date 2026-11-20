@@ -127,7 +127,7 @@ public sealed record Tds194ADeductionRequest(
     bool ApplicabilityConfirmed,
     bool IsInterestOnSecurities = false,
     bool IsSpecificallyExemptPayment = false,
-    bool DepositQualifiesForBankingThreshold = true,
+    bool DepositQualifiesForBankingThreshold = false,
     bool PayerTurnoverTestConfirmed = true,
     bool IndividualHufPayerIsTaxAuditLiable = true,
     bool InterestCreditedToSuspenseOrInterestPayableAccount = false,
