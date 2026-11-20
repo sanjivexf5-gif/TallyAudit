@@ -117,6 +117,44 @@ public sealed class TdsStatementWorkpaperService
         foreach (var duplicate in duplicateChallans)
             issues.Add(new("DUPLICATE_CHALLAN_REFERENCE", "The same challan reference appears more than once.", Reference: duplicate.Key));
 
+        // Match deductee allocations to the challan pool. TRACES treats excess
+        // consumption as an overbooked challan; missing or unmatched references
+        // must be reviewed before a statement is considered ready.
+        var challanGroups = acceptedChallans
+            .GroupBy(x => x.ChallanReference.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.OrdinalIgnoreCase);
+        var allocations = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in accepted.Where(x => x.TaxDeposited > 0))
+        {
+            if (string.IsNullOrWhiteSpace(line.ChallanReference))
+            {
+                issues.Add(new("MISSING_LINE_CHALLAN_REFERENCE",
+                    "Tax deposited is allocated to a deductee line without a challan reference.",
+                    Reference: line.DeducteeReference));
+                continue;
+            }
+
+            var reference = line.ChallanReference.Trim();
+            if (!challanGroups.TryGetValue(reference, out var matchingChallans) || matchingChallans.Length != 1)
+            {
+                issues.Add(new("UNMATCHED_LINE_CHALLAN_REFERENCE",
+                    "The deductee line refers to a challan that is missing or ambiguous in the supplied challan records.",
+                    Reference: reference));
+                continue;
+            }
+
+            allocations[reference] = allocations.GetValueOrDefault(reference) + line.TaxDeposited;
+        }
+
+        foreach (var allocation in allocations)
+        {
+            var challan = challanGroups[allocation.Key][0];
+            if (allocation.Value > challan.Tax)
+                issues.Add(new("OVERBOOKED_CHALLAN_ALLOCATION",
+                    $"Deductee allocations ({allocation.Value.ToString(CultureInfo.InvariantCulture)}) exceed challan tax ({challan.Tax.ToString(CultureInfo.InvariantCulture)}).",
+                    Reference: allocation.Key));
+        }
+
         var period = new TdsStatementPeriod(periodStart, periodEnd, quarter, yearLabel.Trim());
         return new TdsStatementWorkpaper
         {

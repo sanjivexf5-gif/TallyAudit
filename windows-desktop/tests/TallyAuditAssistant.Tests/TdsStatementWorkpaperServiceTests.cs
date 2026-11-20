@@ -132,6 +132,27 @@ public sealed class TdsStatementWorkpaperServiceTests
     }
 
     [Fact]
+    public void Prepare_ValidatesDeducteeChallanAllocationsAndOverbooking()
+    {
+        var lines = new[]
+        {
+            new TdsStatementLine("ABCDE1234F", "194C", new(2026, 4, 15), 100000m, 10000m, 7000m, "CIN-1", "V-1"),
+            new TdsStatementLine("ABCDE1234F", "194C", new(2026, 4, 16), 100000m, 10000m, 4000m, "CIN-1", "V-2"),
+            new TdsStatementLine("ABCDE1234F", "194C", new(2026, 4, 17), 100000m, 10000m, 1000m, "UNKNOWN", "V-3"),
+            new TdsStatementLine("ABCDE1234F", "194C", new(2026, 4, 18), 100000m, 10000m, 500m, null, "V-4")
+        };
+        var challans = new[] { new TdsStatementChallan("CIN-1", new(2026, 5, 7), 10000m) };
+
+        var result = _service.Prepare(TdsStatementKind.NonSalaryResident,
+            new(2026, 4, 1), new(2026, 6, 30), "TY 2026-27", 1, "ABCD12345E", lines, challans);
+
+        Assert.Contains(result.Issues, x => x.Code == "OVERBOOKED_CHALLAN_ALLOCATION");
+        Assert.Contains(result.Issues, x => x.Code == "UNMATCHED_LINE_CHALLAN_REFERENCE" && x.Reference == "UNKNOWN");
+        Assert.Contains(result.Issues, x => x.Code == "MISSING_LINE_CHALLAN_REFERENCE");
+        Assert.False(result.IsReadyForReview);
+    }
+
+    [Fact]
     public void Prepare_ValidatesOldActQuarterFourPeriod()
     {
         var result = _service.Prepare(TdsStatementKind.Salary, new(2026, 1, 1), new(2026, 3, 31),
