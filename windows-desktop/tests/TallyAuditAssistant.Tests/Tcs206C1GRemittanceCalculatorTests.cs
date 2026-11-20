@@ -23,7 +23,7 @@ public sealed class Tcs206C1GRemittanceCalculatorTests
     [Fact]
     public void Lrs_EducationMedicalUsesTwoPercentUnderNewAct()
     {
-        var result = _calculator.Calculate(Request(purpose: Tcs206C1GLrsPurpose.EducationOrMedicalTreatment,
+        var result = _calculator.Calculate(Request(purpose: Tcs206C1GLrsPurpose.Education,
             prior: 900000m, current: 300000m));
         Assert.Equal(TdsCalculationStatus.Calculated, result.Status);
         Assert.Equal(2m, result.AppliedRatePercent);
@@ -61,7 +61,7 @@ public sealed class Tcs206C1GRemittanceCalculatorTests
     public void Lrs_EducationLoanFromQualifyingFinancialInstitutionIsExcluded()
     {
         var result = _calculator.Calculate(Request(
-            purpose: Tcs206C1GLrsPurpose.EducationOrMedicalTreatment, educationLoan: true));
+            purpose: Tcs206C1GLrsPurpose.Education, educationLoan: true));
         Assert.Equal(TdsCalculationStatus.BelowThreshold, result.Status);
     }
 
@@ -77,7 +77,7 @@ public sealed class Tcs206C1GRemittanceCalculatorTests
     {
         var result = _calculator.Calculate(Request(receipt: new DateOnly(2026, 3, 31),
             prior: 1000000m, current: 100000m,
-            purpose: Tcs206C1GLrsPurpose.EducationOrMedicalTreatment));
+            purpose: Tcs206C1GLrsPurpose.Education));
         Assert.Equal("Income-tax Act, 1961", result.GoverningAct);
         Assert.Equal(5m, result.AppliedRatePercent);
         Assert.Equal(5000m, result.TcsAmount);

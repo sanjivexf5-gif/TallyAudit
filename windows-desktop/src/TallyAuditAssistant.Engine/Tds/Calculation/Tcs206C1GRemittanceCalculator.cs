@@ -8,7 +8,8 @@ public enum Tcs206C1GTransactionType
 
 public enum Tcs206C1GLrsPurpose
 {
-    EducationOrMedicalTreatment,
+    Education,
+    MedicalTreatment,
     Other
 }
 
@@ -78,10 +79,10 @@ public sealed class Tcs206C1GRemittanceCalculator
             return Review("PAN/Aadhaar status is missing or unverified. Apply the applicable higher-rate provision only after validating the governing Act, PAN/Aadhaar status and current rules; this calculator deliberately does not assume the default rate.");
         if (request.TransactionType == Tcs206C1GTransactionType.LrsRemittance)
         {
-            if (request.LrsPurpose == Tcs206C1GLrsPurpose.EducationOrMedicalTreatment &&
+            if (request.LrsPurpose == Tcs206C1GLrsPurpose.Education &&
                 request.IsEducationLoanFromQualifyingFinancialInstitution)
                 return NotApplicable("No TCS is collectible on the qualifying education-loan amount under section 206C(1G)(a) / section 394(4)(b). Retain lender and loan-purpose evidence.");
-            if (request.LrsPurpose == Tcs206C1GLrsPurpose.EducationOrMedicalTreatment &&
+            if (request.LrsPurpose == Tcs206C1GLrsPurpose.Education &&
                 request.IsEducationLoanFromQualifyingFinancialInstitution is false &&
                 !request.LrsPurposeConfirmed)
                 return Review("Confirm the remittance purpose and whether the education-loan exemption applies.");
@@ -99,7 +100,7 @@ public sealed class Tcs206C1GRemittanceCalculator
             taxableAmount = IncrementalAmountAboveThreshold(request.PriorAggregateInTaxYear, request.CurrentAmountReceivedOrDebited);
             if (taxableAmount == 0m)
                 return NotApplicable($"The aggregate LRS remittances before this event were ₹{request.PriorAggregateInTaxYear:N2}; after this event they do not exceed ₹{AggregateThreshold:N0}. The ₹10 lakh threshold is shared across LRS remittances in the tax year, not separately reset for each remittance or purpose.");
-            rate = request.LrsPurpose == Tcs206C1GLrsPurpose.EducationOrMedicalTreatment
+            rate = request.LrsPurpose is Tcs206C1GLrsPurpose.Education or Tcs206C1GLrsPurpose.MedicalTreatment
                 ? (newAct ? 2m : 5m)
                 : 20m;
             tax = decimal.Round(taxableAmount * rate / 100m, 2, MidpointRounding.AwayFromZero);
