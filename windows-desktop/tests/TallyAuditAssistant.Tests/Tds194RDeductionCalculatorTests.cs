@@ -9,6 +9,7 @@ public sealed class Tds194RDeductionCalculatorTests
 
     private static Tds194RDeductionRequest Request(
         DateOnly? date = null,
+        bool omitDate = false,
         decimal amount = 25000m,
         decimal prior = 0m,
         bool resident = true,
@@ -27,7 +28,7 @@ public sealed class Tds194RDeductionCalculatorTests
         string? certificateRef = null,
         DateOnly? validFrom = null,
         DateOnly? validTo = null) =>
-        new(date ?? new DateOnly(2026, 4, 1), amount, prior, resident, business,
+        new(omitDate ? null : date ?? new DateOnly(2026, 4, 1), amount, prior, resident, business,
             confirmed, pan, excludesGst, inKind, cash, taxPaid, excluded,
             individualProvider, turnoverConfirmed, withinThreshold,
             certificateRate, certificateRef, validFrom, validTo);
@@ -124,7 +125,7 @@ public sealed class Tds194RDeductionCalculatorTests
     [Fact]
     public void Calculate_RejectsInvalidValuesAndMissingDate()
     {
-        Assert.Throws<ArgumentException>(() => _calculator.Calculate(Request(date: null)));
+        Assert.Throws<ArgumentException>(() => _calculator.Calculate(Request(omitDate: true)));
         Assert.Throws<ArgumentOutOfRangeException>(() => _calculator.Calculate(Request(amount: -1m)));
         Assert.Throws<ArgumentOutOfRangeException>(() => _calculator.Calculate(Request(prior: -1m)));
         Assert.Throws<ArgumentOutOfRangeException>(() => _calculator.Calculate(Request(cash: -1m)));
