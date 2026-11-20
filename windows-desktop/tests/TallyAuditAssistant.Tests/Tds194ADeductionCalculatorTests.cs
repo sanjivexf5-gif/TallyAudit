@@ -10,7 +10,7 @@ public sealed class Tds194ADeductionCalculatorTests
     private static Tds194ADeductionRequest Request(
         DateOnly? credit = null,
         DateOnly? payment = null,
-        decimal amount = 10000m,
+        decimal amount = 12000m,
         decimal prior = 0m,
         Tds194APayerCategory payer = Tds194APayerCategory.OtherSpecifiedPayer,
         bool resident = true,
@@ -49,7 +49,7 @@ public sealed class Tds194ADeductionCalculatorTests
         Assert.Equal("Income-tax Act, 2025", result.GoverningAct);
         Assert.Equal("Section 393(1), Table Sl. No. 5(iii)", result.SectionReference);
         Assert.Equal(10m, result.AppliedRatePercent);
-        Assert.Equal(1000m, result.TdsAmount);
+        Assert.Equal(1200m, result.TdsAmount);
     }
 
     [Theory]
@@ -145,7 +145,7 @@ public sealed class Tds194ADeductionCalculatorTests
             certificateRef: "CERT-194A", validFrom: new(2026, 4, 1),
             validTo: new(2027, 3, 31)));
         Assert.Equal(5m, result.AppliedRatePercent);
-        Assert.Equal(500m, result.TdsAmount);
+        Assert.Equal(600m, result.TdsAmount);
 
         var invalid = _calculator.Calculate(Request(certificateRate: 12m,
             certificateRef: "CERT-194A", validFrom: new(2026, 4, 1),
