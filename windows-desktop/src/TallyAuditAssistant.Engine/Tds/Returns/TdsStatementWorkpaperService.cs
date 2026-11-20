@@ -117,6 +117,55 @@ public sealed class TdsStatementWorkpaperService
         foreach (var duplicate in duplicateChallans)
             issues.Add(new("DUPLICATE_CHALLAN_REFERENCE", "The same challan reference appears more than once.", Reference: duplicate.Key));
 
+        // Every deposited tax allocation must point to an imported challan, and the
+        // per-challan tax allocations must reconcile to the challan's tax component.
+        var challanByReference = acceptedChallans
+            .GroupBy(x => x.ChallanReference.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.OrdinalIgnoreCase);
+        var allocationsByReference = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < accepted.Count; index++)
+        {
+            var line = accepted[index];
+            if (line.TaxDeposited <= 0) continue;
+            if (string.IsNullOrWhiteSpace(line.ChallanReference))
+            {
+                issues.Add(new("MISSING_LINE_CHALLAN_REFERENCE",
+                    "A line with tax deposited must be linked to its challan reference.", index + 1, line.DeducteeReference));
+                continue;
+            }
+
+            var reference = line.ChallanReference.Trim();
+            if (!challanByReference.ContainsKey(reference))
+            {
+                issues.Add(new("UNMATCHED_LINE_CHALLAN_REFERENCE",
+                    "The line references a challan that was not included in the imported challan data.",
+                    index + 1, reference));
+                continue;
+            }
+
+            allocationsByReference[reference] = allocationsByReference.GetValueOrDefault(reference) + line.TaxDeposited;
+        }
+
+        foreach (var challan in acceptedChallans
+                     .GroupBy(x => x.ChallanReference.Trim(), StringComparer.OrdinalIgnoreCase)
+                     .Where(g => g.Count() == 1)
+                     .Select(g => g.Single()))
+        {
+            var reference = challan.ChallanReference.Trim();
+            var allocated = allocationsByReference.GetValueOrDefault(reference);
+            if (allocated <= 0 && challan.Tax > 0)
+            {
+                issues.Add(new("UNALLOCATED_CHALLAN_TAX",
+                    "Challan contains tax but no accepted statement line allocates tax to it.", Reference: reference));
+            }
+            else if (Math.Abs(challan.Tax - allocated) > 0.01m)
+            {
+                issues.Add(new("CHALLAN_ALLOCATION_MISMATCH",
+                    $"Challan tax {challan.Tax:N2} differs from linked statement allocations {allocated:N2}.",
+                    Reference: reference));
+            }
+        }
+
         var period = new TdsStatementPeriod(periodStart, periodEnd, quarter, yearLabel.Trim());
         return new TdsStatementWorkpaper
         {
