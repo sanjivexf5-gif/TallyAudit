@@ -25,7 +25,10 @@ public sealed class Tds194IADeductionCalculator
         if (request.CreditDate is null && request.PaymentDate is null)
             throw new ArgumentException("At least one of credit date or payment date is required.", nameof(request));
         if (request.TotalPropertyConsideration < 0m || request.StampDutyValue < 0m ||
-            request.CurrentEventConsiderationAmount < 0m)
+            request.CurrentEventConsiderationAmount < 0m ||
+            request.ProportionateStampDutyValue < 0m ||
+            request.PreviousInstallmentsPaidOrCredited < 0m ||
+            request.TotalPaidCreditedIncludingCurrentInstallment < 0m)
             throw new ArgumentOutOfRangeException(nameof(request), "Property and payment values cannot be negative.");
 
         var date = request.CreditDate is null ? request.PaymentDate!.Value
@@ -85,14 +88,26 @@ public sealed class Tds194IADeductionCalculator
             return Review("The seller's PAN is unavailable. Verify the applicable higher-rate provision under section 206AA or section 397 and any statutory exception before deduction; this calculator deliberately does not guess the rate.");
 
         var taxBase = request.CurrentEventConsiderationAmount;
-        if (newAct && request.StampDutyValue > request.TotalPropertyConsideration)
+        if (newAct)
         {
-            // Apportion the property-level stamp-duty value to this event's
-            // consideration share so installments/pairs are not taxed on the
-            // full property value repeatedly.
-            taxBase = decimal.Round(
-                request.StampDutyValue * request.CurrentEventConsiderationAmount / request.TotalPropertyConsideration,
-                2, MidpointRounding.AwayFromZero);
+            if (request.IsLastInstallmentOrLumpSum is null)
+                return Review("Select whether this is a first/subsequent instalment or the last instalment/lump-sum transaction, as required by Form 141 Schedule B.");
+
+            if (request.IsLastInstallmentOrLumpSum.Value)
+            {
+                if (request.ProportionateStampDutyValue is null ||
+                    request.PreviousInstallmentsPaidOrCredited is null ||
+                    request.TotalPaidCreditedIncludingCurrentInstallment is null ||
+                    request.TotalPaidCreditedIncludingCurrentInstallment < request.PreviousInstallmentsPaidOrCredited)
+                    return Review("For a last instalment or lump-sum transaction, provide the buyer/seller-share-adjusted stamp-duty value, previous instalments and total consideration paid/credited including the current instalment.");
+
+                var currentEventBase = request.TotalPaidCreditedIncludingCurrentInstallment.Value -
+                    request.PreviousInstallmentsPaidOrCredited.Value;
+                taxBase = Math.Max(request.ProportionateStampDutyValue.Value, currentEventBase);
+            }
+            // Form 141 Schedule B uses the present transaction amount for
+            // first/subsequent instalments; the proportionate stamp-duty
+            // value is used only for last-instalment or lump-sum entries.
         }
 
         var rate = RatePercent;
@@ -111,7 +126,7 @@ public sealed class Tds194IADeductionCalculator
             ? "Before 1 October 2024, the ₹50 lakh test is applied to the consideration for the property and stamp-duty value; both must be below the limit for non-deduction."
             : "From 1 October 2024, apply the ₹50 lakh test to the aggregate consideration paid/payable by all transferees to all transferors for the property.";
         var baseNote = newAct
-            ? "Under the new Act, the rate applies to the higher of consideration or stamp-duty value. For an installment/pair-level event, this calculator apportions the property-level stamp-duty value by the event's share of total consideration to avoid applying the full stamp value repeatedly."
+            ? "Under Form 141 Schedule B, first/subsequent instalments use the present transaction amount. For a last instalment or lump-sum transaction, the tax base is the higher of the buyer/seller-share-adjusted stamp-duty value and the current event amount derived from cumulative paid/credited consideration less previous instalments."
             : "Under section 194-IA, the 1% rate is applied to the consideration for the current credit/payment event; stamp-duty value is used for the threshold test.";
         var reporting = newAct
             ? "For eligible PAN-based deductors, the challan-cum-statement route is Form 141 Schedule B."
@@ -139,4 +154,8 @@ public sealed record Tds194IADeductionRequest(
     decimal? LowerDeductionCertificateRatePercent = null,
     string? LowerDeductionCertificateReference = null,
     DateOnly? CertificateValidFrom = null,
-    DateOnly? CertificateValidTo = null);
+    DateOnly? CertificateValidTo = null,
+    bool? IsLastInstallmentOrLumpSum = null,
+    decimal? ProportionateStampDutyValue = null,
+    decimal? PreviousInstallmentsPaidOrCredited = null,
+    decimal? TotalPaidCreditedIncludingCurrentInstallment = null);
