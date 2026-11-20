@@ -137,7 +137,7 @@ public sealed class Tcs206C1SpecifiedGoodsCalculatorTests
         var result = _calculator.Calculate(Request(current: 1m));
         Assert.Equal(TdsCalculationStatus.Calculated, result.Status);
         Assert.Equal(1m, result.TaxableAmount);
-        Assert.Equal(0.02m, result.TcsAmount);
+        Assert.Equal(0.01m, result.TcsAmount);
     }
 
     [Fact]
