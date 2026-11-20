@@ -87,13 +87,24 @@ public sealed class Tds194QDeductionCalculator
         if (taxableAmount <= 0m)
             return NotApplicable("The seller-specific financial-year purchase aggregate has not exceeded ₹50 lakh.");
 
-        var tax = decimal.Round(taxableAmount * RatePercent / 100m, 2, MidpointRounding.AwayFromZero);
+        var appliedRate = RatePercent;
+        if (request.LowerDeductionCertificateRatePercent is decimal certificateRate)
+        {
+            if (string.IsNullOrWhiteSpace(request.LowerDeductionCertificateReference) ||
+                request.CertificateValidFrom is null || request.CertificateValidTo is null ||
+                triggerDate < request.CertificateValidFrom || triggerDate > request.CertificateValidTo ||
+                certificateRate < 0m || certificateRate > appliedRate)
+                return Review("Lower/nil deduction certificate details are incomplete, invalid, outside their validity period, or exceed the ordinary section rate.");
+            appliedRate = certificateRate;
+        }
+
+        var tax = decimal.Round(taxableAmount * appliedRate / 100m, 2, MidpointRounding.AwayFromZero);
         var gstExplanation = paymentWasEarlier
             ? "Payment occurred before credit; the full payment amount is used because the future GST component cannot then be identified."
             : request.SeparatelyStatedGstAmount > 0m
                 ? "Credit occurred before payment and GST was separately stated; separately stated GST is excluded from the amount used for threshold and deduction."
                 : "No separately stated GST adjustment was supplied.";
-        return new(TdsCalculationStatus.Calculated, act, section, RatePercent, taxableAmount, tax,
+        return new(TdsCalculationStatus.Calculated, act, section, appliedRate, taxableAmount, tax,
             $"0.1% applied only to the incremental amount exceeding the ₹50 lakh seller-specific financial-year threshold. {gstExplanation} Advances are covered because the earlier-of-credit-or-payment test is used.",
             source);
     }
@@ -115,4 +126,8 @@ public sealed record Tds194QDeductionRequest(
     bool OtherTdsProvisionApplies = false,
     bool EcommerceOperatorHasDeductedTds = false,
     bool OtherTcsProvisionApplies = false,
-    bool Section206C1HTcsAlreadyCollected = false);
+    bool Section206C1HTcsAlreadyCollected = false,
+    decimal? LowerDeductionCertificateRatePercent = null,
+    string? LowerDeductionCertificateReference = null,
+    DateOnly? CertificateValidFrom = null,
+    DateOnly? CertificateValidTo = null);
