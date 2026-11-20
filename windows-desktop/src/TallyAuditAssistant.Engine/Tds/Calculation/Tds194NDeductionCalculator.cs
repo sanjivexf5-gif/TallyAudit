@@ -65,9 +65,7 @@ public sealed class Tds194NDeductionCalculator
         {
             // The cooperative-society substitution of ₹3 crore applies to the
             // ordinary ₹1 crore limit in the non-filer proviso as well.
-            var nonFilerThreshold = recipientIsCooperative
-                ? CooperativeRecipientThreshold
-                : NonFilerThreshold;
+            var nonFilerThreshold = NonFilerThreshold;
             if (aggregate <= nonFilerThreshold)
                 return NotApplicable($"The recipient is treated as a return non-filer under the old section 194N test. Aggregate withdrawals of ₹{aggregate:N2} do not exceed the applicable ₹{nonFilerThreshold:N0} threshold.");
             if (!request.PanProvided)

@@ -77,11 +77,14 @@ public sealed class Tds194NDeductionCalculatorTests
     }
 
     [Fact]
-    public void Calculate_OldActCooperativeNonFilerUsesThreeCroreThreshold()
+    public void Calculate_OldActCooperativeNonFilerUsesTwentyLakhEntryAndThreeCroreFivePercentTier()
     {
-        var result = _calculator.Calculate(Request(date: new(2025, 4, 1),
+        var twoPercent = _calculator.Calculate(Request(date: new(2025, 4, 1),
             amount: 25000000m, cooperativeRecipient: true, returnsFiled: false));
-        Assert.Equal(TdsCalculationStatus.BelowThreshold, result.Status);
+        var fivePercent = _calculator.Calculate(Request(date: new(2025, 4, 1),
+            amount: 31000000m, cooperativeRecipient: true, returnsFiled: false));
+        Assert.Equal(2m, twoPercent.AppliedRatePercent);
+        Assert.Equal(5m, fivePercent.AppliedRatePercent);
     }
 
     [Fact]
