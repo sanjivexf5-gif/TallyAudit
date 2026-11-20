@@ -98,7 +98,7 @@ public sealed class Tds194SDeductionCalculator
                 ? "For a payer other than an Individual/HUF, use the applicable TAN-based reporting route; Form 141 Schedule D is not the reporting route for this payer category."
                 : "For an eligible specified person, verify the PAN-based Form 26QE process; other deductors use the applicable TAN-based reporting route.";
 
-        return new(TdsCalculationStatus.Calculated, act, section, rate, aggregate, tax,
+        return new(TdsCalculationStatus.Calculated, act, section, rate, taxBase, tax,
             $"{rate}% applies to the current consideration of ₹{taxBase:N2} because the payer-payee annual aggregate of ₹{aggregate:N2} exceeds the applicable ₹{threshold:N2} threshold. The prior-year-to-date consideration is used to test the threshold but is not taxed again. Include cash, in-kind and VDA-exchange consideration at a supportable value, exclude GST/charges levied by the deductor where the CBDT guidance applies, and use the earlier credit/payment event. {form} The caller must aggregate all transfers for this payer-payee pair in the tax year and retain valuation, classification, PAN and deduction evidence. This calculator does not prepare or file a statement.",
             source);
     }
