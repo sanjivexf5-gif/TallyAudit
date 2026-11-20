@@ -105,7 +105,7 @@ public sealed class Tds194QDeductionCalculator
                 ? "Credit occurred before payment and GST was separately stated; separately stated GST is excluded from the amount used for threshold and deduction."
                 : "No separately stated GST adjustment was supplied.";
         return new(TdsCalculationStatus.Calculated, act, section, appliedRate, taxableAmount, tax,
-            $"0.1% applied only to the incremental amount exceeding the ₹50 lakh seller-specific financial-year threshold. {gstExplanation} Advances are covered because the earlier-of-credit-or-payment test is used.",
+            $"{appliedRate}% applied only to the incremental amount exceeding the ₹50 lakh seller-specific financial-year threshold. {gstExplanation} Advances are covered because the earlier-of-credit-or-payment test is used.",
             source);
     }
 }
