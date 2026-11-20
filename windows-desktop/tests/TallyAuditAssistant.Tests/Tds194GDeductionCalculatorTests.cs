@@ -50,7 +50,7 @@ public sealed class Tds194GDeductionCalculatorTests
     [InlineData(2025, 4, 1, 2, 20000, 20001, 400.02)]
     public void Calculate_AppliesEffectiveDatedRateAndThreshold(
         int year, int month, int day, decimal expectedRate, decimal threshold,
-        decimal aggregate, decimal expectedTax)
+        decimal aggregate, double expectedTax)
     {
         var date = new DateOnly(year, month, day);
         var result = _calculator.Calculate(Request(
@@ -58,7 +58,7 @@ public sealed class Tds194GDeductionCalculatorTests
 
         Assert.Equal(TdsCalculationStatus.Calculated, result.Status);
         Assert.Equal(expectedRate, result.AppliedRatePercent);
-        Assert.Equal(expectedTax, result.TdsAmount);
+        Assert.Equal((decimal)expectedTax, result.TdsAmount);
     }
 
     [Theory]
