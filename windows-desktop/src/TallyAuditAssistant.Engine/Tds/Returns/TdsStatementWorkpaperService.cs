@@ -40,6 +40,17 @@ public sealed class TdsStatementWorkpaperService
             oldAct ? "Financial Year 2025-26 and earlier" : "Tax Year 2026-27 onward", version);
     }
 
+    /// <summary>Returns the statutory quarterly statement due date for a quarter-end date.
+    /// Any later CBDT extension must be applied separately and retained as evidence.</summary>
+    public DateOnly GetFilingDueDate(DateOnly periodEnd) => periodEnd switch
+    {
+        { Month: 6, Day: 30 } => new DateOnly(periodEnd.Year, 7, 31),
+        { Month: 9, Day: 30 } => new DateOnly(periodEnd.Year, 10, 31),
+        { Month: 12, Day: 31 } => new DateOnly(periodEnd.Year + 1, 1, 31),
+        { Month: 3, Day: 31 } => new DateOnly(periodEnd.Year, 5, 31),
+        _ => throw new ArgumentException("Filing due date can only be calculated for a statutory quarter-end (30 June, 30 September, 31 December or 31 March).", nameof(periodEnd))
+    };
+
     public TdsStatementWorkpaper Prepare(
         TdsStatementKind kind,
         DateOnly periodStart,
@@ -113,6 +124,7 @@ public sealed class TdsStatementWorkpaperService
             Regime = mapping.Regime,
             FormNumber = mapping.FormNumber,
             PeriodLabel = $"{yearLabel.Trim()} Q{quarter}",
+            FilingDueDate = GetFilingDueDate(periodEnd),
             Period = period,
             SourceLineCount = lines.Length,
             AcceptedLineCount = accepted.Count,

@@ -51,6 +51,23 @@ public sealed class TdsStatementWorkpaperServiceTests
             new(2026, 1, 1), new(2026, 6, 30)));
     }
 
+    [Theory]
+    [InlineData(2026, 6, 30, 2026, 7, 31)]
+    [InlineData(2026, 9, 30, 2026, 10, 31)]
+    [InlineData(2026, 12, 31, 2027, 1, 31)]
+    [InlineData(2027, 3, 31, 2027, 5, 31)]
+    public void GetFilingDueDate_ReturnsQuarterlyStatutoryDeadline(int y, int m, int d, int dueY, int dueM, int dueD)
+    {
+        var result = _service.GetFilingDueDate(new DateOnly(y, m, d));
+        Assert.Equal(new DateOnly(dueY, dueM, dueD), result);
+    }
+
+    [Fact]
+    public void GetFilingDueDate_RejectsNonQuarterEndDate()
+    {
+        Assert.Throws<ArgumentException>(() => _service.GetFilingDueDate(new DateOnly(2026, 6, 29)));
+    }
+
     [Fact]
     public void Prepare_BuildsQuarterlyWorkpaperAndControlTotals()
     {
@@ -64,6 +81,7 @@ public sealed class TdsStatementWorkpaperServiceTests
             new(2026, 4, 1), new(2026, 6, 30), "TY 2026-27", 1, "ABCD12345E", lines, challans);
 
         Assert.Equal("140", result.FormNumber);
+        Assert.Equal(new DateOnly(2026, 7, 31), result.FilingDueDate);
         Assert.Equal(TdsLegislativeRegime.IncomeTaxAct2025, result.Regime);
         Assert.Equal(200000m, result.TotalAmountPaidOrCredited);
         Assert.Equal(20000m, result.TotalTaxDeducted);
