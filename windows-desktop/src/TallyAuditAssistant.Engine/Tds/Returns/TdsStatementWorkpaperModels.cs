@@ -51,6 +51,7 @@ public sealed class TdsStatementWorkpaper
     public TdsLegislativeRegime Regime { get; init; }
     public string FormNumber { get; init; } = string.Empty;
     public string PeriodLabel { get; init; } = string.Empty;
+    public DateOnly FilingDueDate { get; init; }
     public TdsStatementPeriod Period { get; init; } = new(default, default, 0, string.Empty);
     public int SourceLineCount { get; init; }
     public int AcceptedLineCount { get; init; }
