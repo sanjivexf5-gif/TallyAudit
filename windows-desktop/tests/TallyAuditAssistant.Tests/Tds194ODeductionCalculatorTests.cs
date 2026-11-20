@@ -62,10 +62,10 @@ public sealed class Tds194ODeductionCalculatorTests
     [Fact]
     public void Calculate_DoesNotApplyFiveLakhExemptionToCompaniesOrOtherEntities()
     {
-        var result = _calculator.Calculate(Request(gross: 1m,
+        var result = _calculator.Calculate(Request(gross: 1000m,
             entity: TdsDeducteeEntityType.Other));
         Assert.Equal(TdsCalculationStatus.Calculated, result.Status);
-        Assert.Equal(0.001m, result.TdsAmount);
+        Assert.Equal(1m, result.TdsAmount);
     }
 
     [Fact]
