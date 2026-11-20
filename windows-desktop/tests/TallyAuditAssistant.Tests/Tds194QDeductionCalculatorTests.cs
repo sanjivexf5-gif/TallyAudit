@@ -23,10 +23,15 @@ public sealed class Tds194QDeductionCalculatorTests
         bool otherTds = false,
         bool ecommerceTds = false,
         bool otherTcs = false,
-        bool tcs206c1h = false) =>
-        new(credit ?? new DateOnly(2026, 4, 1), payment, gross, gst, prior, turnover,
+        bool tcs206c1h = false,
+        bool omitCreditDate = false,
+        decimal? certificateRate = null,
+        string? certificateRef = null,
+        DateOnly? validFrom = null,
+        DateOnly? validTo = null) =>
+        new(omitCreditDate ? null : credit ?? new DateOnly(2026, 4, 1), payment, gross, gst, prior, turnover,
             buyerBusiness, resident, sellerExempt, goods, pan, applicability,
-            otherTds, ecommerceTds, otherTcs, tcs206c1h);
+            otherTds, ecommerceTds, otherTcs, tcs206c1h, certificateRate, certificateRef, validFrom, validTo);
 
     [Fact]
     public void Calculate_UsesEarlierEventForActTransition()
@@ -73,8 +78,8 @@ public sealed class Tds194QDeductionCalculatorTests
     {
         var result = _calculator.Calculate(Request(gross: 6000000m, gst: 600000m,
             credit: new(2026, 4, 1), payment: new(2026, 4, 5)));
-        Assert.Equal(500000m, result.TaxableAmount);
-        Assert.Equal(500m, result.TdsAmount);
+        Assert.Equal(400000m, result.TaxableAmount);
+        Assert.Equal(400m, result.TdsAmount);
     }
 
     [Fact]
@@ -89,7 +94,7 @@ public sealed class Tds194QDeductionCalculatorTests
     [Fact]
     public void Calculate_IncludesAdvancePaymentWhenNoCreditDateExists()
     {
-        var result = _calculator.Calculate(Request(credit: new(2026, 4, 5), payment: new(2026, 4, 1), gross: 6000000m, gst: 600000m));
+        var result = _calculator.Calculate(Request(payment: new(2026, 4, 1), gross: 6000000m, gst: 600000m, omitCreditDate: true));
         Assert.Equal(1000000m, result.TaxableAmount);
         Assert.Equal(1000m, result.TdsAmount);
     }
@@ -113,9 +118,18 @@ public sealed class Tds194QDeductionCalculatorTests
     }
 
     [Fact]
+    public void Calculate_AppliesValidLowerDeductionCertificate()
+    {
+        var result = _calculator.Calculate(Request(certificateRate: 0.05m, certificateRef: "CERT-194Q",
+            validFrom: new(2026, 4, 1), validTo: new(2027, 3, 31)));
+        Assert.Equal(0.05m, result.AppliedRatePercent);
+        Assert.Equal(500m, result.TdsAmount);
+    }
+
+    [Fact]
     public void Calculate_RejectsInvalidAmountsAndMissingDates()
     {
-        Assert.Throws<ArgumentException>(() => _calculator.Calculate(Request(credit: null, payment: null)));
+        Assert.Throws<ArgumentException>(() => _calculator.Calculate(Request(payment: null, omitCreditDate: true)));
         Assert.Throws<ArgumentOutOfRangeException>(() => _calculator.Calculate(Request(gross: -1m)));
         Assert.Throws<ArgumentOutOfRangeException>(() => _calculator.Calculate(Request(gross: 100m, gst: 101m)));
     }
