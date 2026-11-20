@@ -134,13 +134,13 @@ public sealed class Tcs206C1SpecifiedGoodsCalculator
             {
                 Tcs206C1GoodsCategory.AlcoholicLiquorForHumanConsumption or
                 Tcs206C1GoodsCategory.TenduLeaves or
-                Tcs206C1GoodsCategory.Scrap or
-                Tcs206C1GoodsCategory.Coal or
-                Tcs206C1GoodsCategory.Lignite or
-                Tcs206C1GoodsCategory.IronOre => 2m,
                 Tcs206C1GoodsCategory.TimberUnderForestLease or
                 Tcs206C1GoodsCategory.TimberOtherThanForestLease or
                 Tcs206C1GoodsCategory.OtherForestProduceUnderForestLease => 2m,
+                Tcs206C1GoodsCategory.Scrap or
+                Tcs206C1GoodsCategory.Coal or
+                Tcs206C1GoodsCategory.Lignite or
+                Tcs206C1GoodsCategory.IronOre => 1m,
                 _ => throw new ArgumentOutOfRangeException(nameof(category))
             };
         }

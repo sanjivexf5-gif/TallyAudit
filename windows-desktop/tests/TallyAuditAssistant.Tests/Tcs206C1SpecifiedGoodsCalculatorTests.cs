@@ -26,10 +26,10 @@ public sealed class Tcs206C1SpecifiedGoodsCalculatorTests
     [InlineData(Tcs206C1GoodsCategory.TimberUnderForestLease, 2, 2)]
     [InlineData(Tcs206C1GoodsCategory.TimberOtherThanForestLease, 2, 2)]
     [InlineData(Tcs206C1GoodsCategory.OtherForestProduceUnderForestLease, 2, 2)]
-    [InlineData(Tcs206C1GoodsCategory.Scrap, 1, 2)]
-    [InlineData(Tcs206C1GoodsCategory.Coal, 1, 2)]
-    [InlineData(Tcs206C1GoodsCategory.Lignite, 1, 2)]
-    [InlineData(Tcs206C1GoodsCategory.IronOre, 1, 2)]
+    [InlineData(Tcs206C1GoodsCategory.Scrap, 1, 1)]
+    [InlineData(Tcs206C1GoodsCategory.Coal, 1, 1)]
+    [InlineData(Tcs206C1GoodsCategory.Lignite, 1, 1)]
+    [InlineData(Tcs206C1GoodsCategory.IronOre, 1, 1)]
     public void Calculate_UsesCorrectCategoryRatesAcrossActTransition(
         Tcs206C1GoodsCategory category, decimal oldRate, decimal newRate)
     {
