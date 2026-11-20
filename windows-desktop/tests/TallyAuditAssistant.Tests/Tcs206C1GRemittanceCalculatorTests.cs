@@ -65,6 +65,18 @@ public sealed class Tcs206C1GRemittanceCalculatorTests
         Assert.Equal(TdsCalculationStatus.BelowThreshold, result.Status);
     }
 
+
+    [Fact]
+    public void Lrs_MedicalRemittanceIsNotExemptMerelyBecauseEducationLoanFlagIsSet()
+    {
+        var result = _calculator.Calculate(Request(
+            purpose: Tcs206C1GLrsPurpose.MedicalTreatment,
+            prior: 1000000m, current: 100000m, educationLoan: true));
+        Assert.Equal(TdsCalculationStatus.Calculated, result.Status);
+        Assert.Equal(2m, result.AppliedRatePercent);
+        Assert.Equal(2000m, result.TcsAmount);
+    }
+
     [Fact]
     public void Lrs_DoesNotDoubleCollectOnTourPackageAmount()
     {
