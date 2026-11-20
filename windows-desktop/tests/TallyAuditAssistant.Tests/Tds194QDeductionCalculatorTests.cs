@@ -55,8 +55,8 @@ public sealed class Tds194QDeductionCalculatorTests
 
     [Theory]
     [InlineData(5000000, 0, TdsCalculationStatus.BelowThreshold, 0)]
-    [InlineData(5000001, 0, TdsCalculationStatus.Calculated, 0.10)]
-    [InlineData(1000000, 4900000, TdsCalculationStatus.Calculated, 500)]
+    [InlineData(5001000, 0, TdsCalculationStatus.Calculated, 1)]
+    [InlineData(1000000, 4900000, TdsCalculationStatus.Calculated, 900)]
     [InlineData(1000000, 5000000, TdsCalculationStatus.Calculated, 1000)]
     public void Calculate_DeductsOnlyIncrementalAmountAboveSellerThreshold(
         decimal amount, decimal prior, TdsCalculationStatus expected, decimal expectedTax)
@@ -89,7 +89,7 @@ public sealed class Tds194QDeductionCalculatorTests
     [Fact]
     public void Calculate_IncludesAdvancePaymentWhenNoCreditDateExists()
     {
-        var result = _calculator.Calculate(Request(credit: null, payment: new(2026, 4, 1), gross: 6000000m, gst: 600000m));
+        var result = _calculator.Calculate(Request(credit: new(2026, 4, 5), payment: new(2026, 4, 1), gross: 6000000m, gst: 600000m));
         Assert.Equal(1000000m, result.TaxableAmount);
         Assert.Equal(1000m, result.TdsAmount);
     }
