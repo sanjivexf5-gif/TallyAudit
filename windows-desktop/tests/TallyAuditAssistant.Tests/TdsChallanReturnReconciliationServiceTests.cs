@@ -106,4 +106,38 @@ public class TdsChallanReturnReconciliationServiceTests
     }
 
 
+    [Theory]
+    [InlineData("TAN,TAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,SerialNumber,TaxAmount\\nMUMB12345A,MUMB12345A,2026-27,1,194C,0001234,2026-07-07,12345,10000")]
+    [InlineData("TAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,SerialNumber,TaxAmount\\nMUMB12345A,2026-27,1,194C,0001234,2026-07-07,12345,10000,IGNORED")]
+    [InlineData("TAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,SerialNumber,TaxAmount\\nMUMB12345A,2026-27,1,194C,0001234,2026-07-07,12345")]
+    public void ReadChallansCsv_RejectsDuplicateHeadersAndMisalignedRows(string csv)
+    {
+        Assert.Throws<ArgumentException>(() => _service.ReadChallansCsv(csv));
+    }
+
+    [Theory]
+    [InlineData("TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount\\nMUMB12345A,ABCDE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000,IGNORED")]
+    [InlineData("TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount\\nMUMB12345A,ABCDE1234F,2026-27,1,194C,0001234,2026-07-07,12345")]
+    public void ReadReturnCsv_RejectsExtraAndMissingFields(string csv)
+    {
+        Assert.Throws<ArgumentException>(() => _service.ReadReturnCsv(csv));
+    }
+
+    [Fact]
+    public void ReadReturnCsv_RejectsDuplicateHeaders()
+    {
+        var csv = "TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount,DeductedAmount\\n" +
+                  "MUMB12345A,ABCDE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000,10000";
+        Assert.Throws<ArgumentException>(() => _service.ReadReturnCsv(csv));
+    }
+
+    [Fact]
+    public void ReadChallansCsv_RejectsEmptyHeaderNames()
+    {
+        var csv = "TAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,SerialNumber,\\n" +
+                  "MUMB12345A,2026-27,1,194C,0001234,2026-07-07,12345,10000";
+        Assert.Throws<ArgumentException>(() => _service.ReadChallansCsv(csv));
+    }
+
+
 }
