@@ -54,6 +54,17 @@ public sealed class GstImsActionReviewService
             issues.Add(new(duplicate.Index, "DUPLICATE_INVOICE_REFERENCE",
                 "More than one IMS row has the same normalized supplier GSTIN and invoice number. Resolve amendments/document types before matching."));
 
+        var duplicateSourceReferences = valid
+            .Where(x => !string.IsNullOrWhiteSpace(x.Row.ReferenceId))
+            .GroupBy(x => x.Row.ReferenceId!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1);
+        foreach (var group in duplicateSourceReferences)
+        {
+            foreach (var duplicate in group)
+                issues.Add(new(duplicate.Index, "DUPLICATE_SOURCE_REFERENCE_ID",
+                    "IMS source reference ID is repeated. Verify the export rows before relying on this snapshot."));
+        }
+
         var validBooks = new List<(GstImsBooksInvoice Row, string Key)>();
         var booksIndex = 0;
         foreach (var bookRow in booksRows)
