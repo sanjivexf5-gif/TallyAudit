@@ -68,7 +68,7 @@ public sealed class TdsDeducteeCertificateReconciliationServiceTests
         var result = _service.Reconcile(statement, new[] { Certificate("FGHIJ5678K", number: "CERT-2") });
 
         Assert.Contains(result, x => x.Code == "MISSING_CERTIFICATE" && x.DeducteePan == "ABCDE1234F");
-        Assert.Contains(result, x => x.Code == "INVALID_DEDUCTEE_PAN" || x.Code == "CERTIFICATE_AMOUNT_MISMATCH");
+        Assert.Contains(result, x => x.Code == "CERTIFICATE_WITHOUT_STATEMENT" && x.DeducteePan == "FGHIJ5678K");
     }
 
     [Fact]

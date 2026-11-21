@@ -112,6 +112,15 @@ public sealed class TdsDeducteeCertificateReconciliationService
                 continue;
             }
 
+            if (!statementByPan.ContainsKey(pan))
+            {
+                Add(findings, "CERTIFICATE_WITHOUT_STATEMENT", "Error", pan, matching.Length == 1 ? matching[0].CertificateNumber : null,
+                    0m, 0m, certificateAmount, certificateTax,
+                    "A certificate was supplied for a deductee with no corresponding TDS in the quarterly statement workpaper.",
+                    "Verify that the certificate belongs to this deductor and quarter; check omitted statement lines, corrections or an incorrect source export.");
+                continue;
+            }
+
             if (matching.Length == 0)
             {
                 Add(findings, "MISSING_CERTIFICATE", "Error", pan, null, amounts.Amount, amounts.Tax, 0m, 0m,
