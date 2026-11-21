@@ -32,6 +32,14 @@ public sealed class GstImsActionSnapshotCsvParserTests
         Assert.Equal(expected, Assert.Single(GstImsActionSnapshotCsvParser.Parse(csv)).Action);
     }
 
+    [Theory]
+    [InlineData("GSTIN,GSTIN,Invoice Number,Invoice Value,Action\\n27AAACB2222D1Z9,27AAACB2222D1Z9,INV-1,100,Accepted")]
+    [InlineData("GSTIN,Invoice Number,Invoice Value,Action\\n27AAACB2222D1Z9,INV-1,100,Accepted,EXTRA")]
+    public void Parse_RejectsAmbiguousHeadersAndExtraFields(string csv)
+    {
+        Assert.Throws<InvalidDataException>(() => GstImsActionSnapshotCsvParser.Parse(csv));
+    }
+
     [Fact]
     public void Parse_RejectsMissingRequiredColumns()
     {

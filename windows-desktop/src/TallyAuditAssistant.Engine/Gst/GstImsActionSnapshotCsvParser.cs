@@ -18,10 +18,20 @@ public static class GstImsActionSnapshotCsvParser
         if (rows.Count < 2)
             throw new InvalidDataException("IMS CSV must contain a header and at least one invoice row.");
 
-        var headers = rows[0].Select((value, index) => (Key: NormalizeHeader(value), Index: index))
+        var normalizedHeaders = rows[0].Select((value, index) => (Key: NormalizeHeader(value), Index: index))
             .Where(x => x.Key.Length > 0)
+            .ToArray();
+        var duplicateHeaders = normalizedHeaders
             .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First().Index, StringComparer.OrdinalIgnoreCase);
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToArray();
+        if (duplicateHeaders.Length > 0)
+            throw new InvalidDataException(
+                $"IMS CSV contains duplicate column headers: {string.Join(", ", duplicateHeaders)}.");
+
+        var headers = normalizedHeaders.ToDictionary(x => x.Key, x => x.Index,
+            StringComparer.OrdinalIgnoreCase);
 
         int Column(params string[] names)
         {
@@ -50,6 +60,9 @@ public static class GstImsActionSnapshotCsvParser
         {
             var row = rows[i];
             if (row.All(string.IsNullOrWhiteSpace)) continue;
+            if (row.Count > rows[0].Count)
+                throw new InvalidDataException(
+                    $"IMS CSV row {i + 1} contains more fields than the header.");
             var gstin = Cell(row, gstinColumn);
             var invoice = Cell(row, invoiceColumn);
             if (gstin.Length == 0 && invoice.Length == 0) continue;
