@@ -71,7 +71,7 @@ public sealed class TdsStatementWorkpaperServiceTests
     [Fact]
     public void Prepare_BuildsQuarterlyWorkpaperAndControlTotals()
     {
-        var lines = new[] { Line(), Line(new(2026, 6, 30)) };
+        var lines = new[] { Line() with { DeducteeReference = "V-1" }, Line(new(2026, 6, 30)) with { DeducteeReference = "V-2" } };
         var challans = new[]
         {
             new TdsStatementChallan("CIN-001", new(2026, 5, 7), 18000m, Surcharge: 0, Cess: 0, Interest: 100m, Fee: 0)
@@ -123,7 +123,7 @@ public sealed class TdsStatementWorkpaperServiceTests
         Assert.Equal("SOURCE-42", issue.Reference);
         Assert.Single(result.Lines);
         Assert.Equal("SOURCE-43", result.Lines[0].DeducteeReference);
-        Assert.Equal(125000m, result.TotalAmountPaidOrCredited);
+        Assert.Equal(100000m, result.TotalAmountPaidOrCredited);
         Assert.Equal(1, result.AcceptedLineCount);
         Assert.False(result.IsReadyForReview);
     }
