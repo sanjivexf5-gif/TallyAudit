@@ -32,7 +32,8 @@ public sealed record TcsBuyerReturnReliefRequest(
     bool? BuyerIncludedAmountInReturn,
     bool? BuyerPaidTaxDueOnDeclaredIncome,
     bool? AccountantCertificateAvailable,
-    bool AssessingOfficerOrderExists);
+    bool AssessingOfficerOrderExists,
+    decimal? TaxAmount = null);
 
 public sealed record TcsBuyerReturnReliefAssessment(
     TcsBuyerReturnReliefStatus Status,
@@ -42,7 +43,9 @@ public sealed record TcsBuyerReturnReliefAssessment(
     string AccountantCertificateForm,
     string SectionReference,
     IReadOnlyList<string> Findings,
-    string SourceReference);
+    string SourceReference,
+    int? InterestMonthsOrParts,
+    decimal? InterestAmount);
 
 /// <summary>
 /// Assesses the buyer-return proviso for failure-to-collect TCS.
@@ -57,6 +60,8 @@ public sealed class TcsBuyerReturnReliefAssessmentService
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateRegimeDate(request);
+        if (request.TaxAmount is <= 0m)
+            throw new ArgumentOutOfRangeException(nameof(request), "Tax amount must be greater than zero when supplied.");
 
         var isNewAct = request.Regime == TcsBuyerReturnReliefRegime.IncomeTaxAct2025;
         var form = isNewAct ? "Form 150" : "Form 27BA";
@@ -113,8 +118,20 @@ public sealed class TcsBuyerReturnReliefAssessmentService
 
         findings.Add($"The statutory buyer-return conditions and {form} are marked as satisfied; independently verify the return acknowledgement, computation, tax payment and accountant certification before relying on this assessment.");
         findings.Add("If the statutory relief is established, the collector is not deemed to be in default for the qualifying failure to collect; 1% simple interest per month or part remains payable up to the buyer's return-filing date.");
+        int? interestMonths = null;
+        decimal? interestAmount = null;
+        if (request.TaxAmount is { } taxAmount)
+        {
+            interestMonths = CountCalendarMonthsOrParts(request.CollectibleDate, request.BuyerReturnFiledDate!.Value);
+            interestAmount = decimal.Round(taxAmount * interestMonths.Value / 100m, 2, MidpointRounding.AwayFromZero);
+            findings.Add($"Indicative buyer-return relief interest: {interestMonths.Value} calendar month(s) or part at 1% on tax of {taxAmount:N2}, amounting to {interestAmount.Value:N2}. Verify the applicable period, rate and any Assessing Officer direction before finalising.");
+        }
+        else
+        {
+            findings.Add("Tax amount was not supplied; the interest amount is not calculated. Enter the collectible tax amount to complete the interest workpaper.");
+        }
         return Result(TcsBuyerReturnReliefStatus.EligibleForRelief, true,
-            request.BuyerReturnFiledDate, form, section, findings, source);
+            request.BuyerReturnFiledDate, form, section, findings, source, interestMonths, interestAmount);
     }
 
     private static void AssessCondition(bool? condition, string missingMessage, string failedMessage,
@@ -152,8 +169,13 @@ public sealed class TcsBuyerReturnReliefAssessmentService
             throw new ArgumentException("Collectible date does not belong to the selected statutory regime. The buyer-return interest proviso is assessed for the 1961 Act period before 1 April 2026 and the 2025 Act period from 1 April 2026.", nameof(request));
     }
 
+    private static int CountCalendarMonthsOrParts(DateOnly start, DateOnly end) =>
+        checked((end.Year - start.Year) * 12 + end.Month - start.Month + 1);
+
     private static TcsBuyerReturnReliefAssessment Result(TcsBuyerReturnReliefStatus status,
         bool notDeemedInDefault, DateOnly? interestEndDate, string form, string section,
-        IReadOnlyList<string> findings, string source) =>
-        new(status, notDeemedInDefault, interestEndDate, 1.0m, form, section, findings, source);
+        IReadOnlyList<string> findings, string source, int? interestMonthsOrParts = null,
+        decimal? interestAmount = null) =>
+        new(status, notDeemedInDefault, interestEndDate, 1.0m, form, section, findings, source,
+            interestMonthsOrParts, interestAmount);
 }

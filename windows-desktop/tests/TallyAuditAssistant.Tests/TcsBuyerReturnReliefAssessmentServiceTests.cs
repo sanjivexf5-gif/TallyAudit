@@ -134,6 +134,45 @@ public sealed class TcsBuyerReturnReliefAssessmentServiceTests
     }
 
     [Fact]
+    public void Assess_EligibleRelief_WithTaxAmount_CalculatesInterestThroughBuyerReturnMonth()
+    {
+        var request = new TcsBuyerReturnReliefRequest(
+            TcsBuyerReturnReliefRegime.IncomeTaxAct1961FromApril2025,
+            TcsBuyerReturnReliefCollectionCategory.Section206C1SpecifiedGoodsOrNewActTable1To5,
+            new DateOnly(2025, 4, 10), new DateOnly(2025, 8, 20),
+            true, true, true, false, 10000m);
+        var result = _service.Assess(request);
+        Assert.Equal(TcsBuyerReturnReliefStatus.EligibleForRelief, result.Status);
+        Assert.Equal(5, result.InterestMonthsOrParts);
+        Assert.Equal(500m, result.InterestAmount);
+    }
+
+    [Fact]
+    public void Assess_EligibleRelief_WithoutTaxAmount_LeavesInterestAmountUncalculated()
+    {
+        var request = new TcsBuyerReturnReliefRequest(
+            TcsBuyerReturnReliefRegime.IncomeTaxAct1961BeforeApril2025,
+            TcsBuyerReturnReliefCollectionCategory.Section206C1SpecifiedGoodsOrNewActTable1To5,
+            new DateOnly(2025, 3, 31), new DateOnly(2025, 7, 31),
+            true, true, true, false);
+        var result = _service.Assess(request);
+        Assert.Equal(TcsBuyerReturnReliefStatus.EligibleForRelief, result.Status);
+        Assert.Null(result.InterestMonthsOrParts);
+        Assert.Null(result.InterestAmount);
+    }
+
+    [Fact]
+    public void Assess_RejectsNonPositiveTaxAmountWhenSupplied()
+    {
+        var request = new TcsBuyerReturnReliefRequest(
+            TcsBuyerReturnReliefRegime.IncomeTaxAct2025,
+            TcsBuyerReturnReliefCollectionCategory.Section206C1SpecifiedGoodsOrNewActTable1To5,
+            new DateOnly(2026, 4, 1), new DateOnly(2026, 7, 31),
+            true, true, true, false, 0m);
+        Assert.Throws<ArgumentOutOfRangeException>(() => _service.Assess(request));
+    }
+
+    [Fact]
     public void Assess_RejectsBuyerReturnBeforeCollectibleDate()
     {
         var request = new TcsBuyerReturnReliefRequest(
