@@ -38,7 +38,7 @@ public sealed class GstImsReconciliationService
 
         var csv = await File.ReadAllTextAsync(csvPath, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        var sourceRows = await Task.Run(() => GstImsActionSnapshotCsvParser.Parse(csv), cancellationToken);
+        var sourceRows = await Task.Run(() => GstImsActionSnapshotCsvParser.Parse(csv, cancellationToken), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var periodRows = new List<GstImsInvoiceAction>();
         var periodIssues = new List<GstImsValidationIssue>();
