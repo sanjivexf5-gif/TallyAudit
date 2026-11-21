@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Threading;
 
 namespace TallyAuditAssistant.Engine.Gst;
 
@@ -9,12 +10,12 @@ namespace TallyAuditAssistant.Engine.Gst;
 /// </summary>
 public static class GstImsActionSnapshotCsvParser
 {
-    public static IReadOnlyList<GstImsInvoiceAction> Parse(string csv)
+    public static IReadOnlyList<GstImsInvoiceAction> Parse(string csv, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(csv))
             throw new InvalidDataException("IMS CSV is empty.");
 
-        var rows = ReadRows(csv);
+        var rows = ReadRows(csv, cancellationToken);
         if (rows.Count < 2)
             throw new InvalidDataException("IMS CSV must contain a header and at least one invoice row.");
 
@@ -58,6 +59,7 @@ public static class GstImsActionSnapshotCsvParser
         var result = new List<GstImsInvoiceAction>();
         for (var i = 1; i < rows.Count; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var row = rows[i];
             if (row.All(string.IsNullOrWhiteSpace)) continue;
             if (row.Count > rows[0].Count)
@@ -115,7 +117,7 @@ public static class GstImsActionSnapshotCsvParser
 
     private static string? NullIfEmpty(string value) => value.Length == 0 ? null : value;
 
-    private static List<List<string>> ReadRows(string csv)
+    private static List<List<string>> ReadRows(string csv, CancellationToken cancellationToken)
     {
         var rows = new List<List<string>>();
         var row = new List<string>();
@@ -126,6 +128,7 @@ public static class GstImsActionSnapshotCsvParser
 
         for (var i = 0; i < csv.Length; i++)
         {
+            if ((i & 0x0FFF) == 0) cancellationToken.ThrowIfCancellationRequested();
             var c = csv[i];
             if (inQuotes)
             {
