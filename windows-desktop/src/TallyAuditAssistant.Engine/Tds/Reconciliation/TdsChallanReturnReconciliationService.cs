@@ -107,11 +107,14 @@ public sealed class TdsChallanReturnReconciliationService
         if (rows.Count < 2) throw new ArgumentException("The challan CSV must contain a header and at least one data row.", nameof(csv));
         var header = Header(rows[0]);
         return rows.Skip(1).Where(r => r.Any(v => !string.IsNullOrWhiteSpace(v))).Select(r =>
-            new TdsChallanRecord(
+        {
+            ValidateRowWidth(r, header);
+            return new TdsChallanRecord(
                 Cell(r, header, "TAN"), Cell(r, header, "FinancialYear"),
                 ParseInt(Cell(r, header, "Quarter")), Cell(r, header, "Section"),
                 Cell(r, header, "BSRCode"), ParseDate(Cell(r, header, "ChallanDate")),
-                Cell(r, header, "SerialNumber"), ParseMoney(Cell(r, header, "TaxAmount")))).ToArray();
+                Cell(r, header, "SerialNumber"), ParseMoney(Cell(r, header, "TaxAmount")));
+        }).ToArray();
     }
 
     public IReadOnlyList<TdsReturnLine> ReadReturnCsv(string csv)
@@ -120,17 +123,34 @@ public sealed class TdsChallanReturnReconciliationService
         if (rows.Count < 2) throw new ArgumentException("The return CSV must contain a header and at least one data row.", nameof(csv));
         var header = Header(rows[0]);
         return rows.Skip(1).Where(r => r.Any(v => !string.IsNullOrWhiteSpace(v))).Select(r =>
-            new TdsReturnLine(
+        {
+            ValidateRowWidth(r, header);
+            return new TdsReturnLine(
                 Cell(r, header, "TAN"), Cell(r, header, "DeducteePAN"),
                 Cell(r, header, "FinancialYear"), ParseInt(Cell(r, header, "Quarter")),
                 Cell(r, header, "Section"), Cell(r, header, "BSRCode"),
                 ParseDate(Cell(r, header, "ChallanDate")), Cell(r, header, "ChallanSerialNumber"),
-                ParseMoney(Cell(r, header, "DeductedAmount")), CellOptional(r, header, "DeducteeName"))).ToArray();
+                ParseMoney(Cell(r, header, "DeductedAmount")), CellOptional(r, header, "DeducteeName"));
+        }).ToArray();
     }
 
     private static Dictionary<string, int> Header(IReadOnlyList<string> row)
-        => row.Select((value, index) => new { Name = Normalize(value), Index = index })
-            .ToDictionary(x => x.Name, x => x.Index, StringComparer.OrdinalIgnoreCase);
+    {
+        var entries = row.Select((value, index) => new { Name = Normalize(value), Index = index }).ToArray();
+        if (entries.Any(x => string.IsNullOrWhiteSpace(x.Name)))
+            throw new ArgumentException("CSV header contains an empty column name.");
+        var duplicate = entries.GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicate is not null)
+            throw new ArgumentException($"CSV contains duplicate column '{duplicate.Key}'.");
+        return entries.ToDictionary(x => x.Name, x => x.Index, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static void ValidateRowWidth(IReadOnlyList<string> row, IReadOnlyDictionary<string, int> header)
+    {
+        if (row.Count != header.Count)
+            throw new ArgumentException($"CSV row contains {row.Count} fields but the header defines {header.Count}. Extra or missing fields are not accepted.");
+    }
 
     private static string Cell(IReadOnlyList<string> row, IReadOnlyDictionary<string, int> header, string name)
     {
