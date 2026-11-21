@@ -77,4 +77,33 @@ public class TdsChallanReturnReconciliationServiceTests
         Assert.Equal("Matched", Assert.Single(_service.Reconcile(challans, lines)).Status);
     }
 
+
+    [Fact]
+    public void CsvReaders_PreserveQuotedCommasEscapedQuotesAndOptionalDeducteeName()
+    {
+        var csv = "TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount,DeducteeName\r\n" +
+                  "MUMB12345A,ABCDE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000,\"Acme, \"\"North\"\", Ltd.\"";
+        var result = Assert.Single(_service.ReadReturnCsv(csv));
+        Assert.Equal("Acme, \"North\", Ltd.", result.DeducteeName);
+    }
+
+    [Fact]
+    public void CsvReaders_KeepDeducteeNameOptionalForExistingImportLayouts()
+    {
+        var csv = "TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount\n" +
+                  "MUMB12345A,ABCDE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000";
+        var result = Assert.Single(_service.ReadReturnCsv(csv));
+        Assert.Null(result.DeducteeName);
+    }
+
+    [Theory]
+    [InlineData("TAN,Value\nA,\"unterminated")]
+    [InlineData("TAN,Value\nA,\"quoted\"tail")]
+    [InlineData("TAN,Value\nA,unquoted\"quote")]
+    public void CsvReaders_RejectMalformedQuoting(string csv)
+    {
+        Assert.Throws<ArgumentException>(() => _service.ReadReturnCsv(csv));
+    }
+
+
 }

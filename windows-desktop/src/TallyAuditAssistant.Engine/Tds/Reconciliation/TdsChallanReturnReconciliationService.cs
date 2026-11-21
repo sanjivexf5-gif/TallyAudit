@@ -125,7 +125,7 @@ public sealed class TdsChallanReturnReconciliationService
                 Cell(r, header, "FinancialYear"), ParseInt(Cell(r, header, "Quarter")),
                 Cell(r, header, "Section"), Cell(r, header, "BSRCode"),
                 ParseDate(Cell(r, header, "ChallanDate")), Cell(r, header, "ChallanSerialNumber"),
-                ParseMoney(Cell(r, header, "DeductedAmount")))).ToArray();
+                ParseMoney(Cell(r, header, "DeductedAmount")), CellOptional(r, header, "DeducteeName"))).ToArray();
     }
 
     private static Dictionary<string, int> Header(IReadOnlyList<string> row)
@@ -138,6 +138,11 @@ public sealed class TdsChallanReturnReconciliationService
             throw new ArgumentException($"CSV is missing required column '{name}'.");
         return row[index].Trim();
     }
+
+    private static string? CellOptional(IReadOnlyList<string> row, IReadOnlyDictionary<string, int> header, string name)
+        => header.TryGetValue(Normalize(name), out var index) && index < row.Count
+            ? row[index].Trim()
+            : null;
 
     private static int ParseInt(string value)
         => int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
@@ -157,27 +162,84 @@ public sealed class TdsChallanReturnReconciliationService
         var rows = new List<List<string>>();
         var row = new List<string>();
         var cell = new System.Text.StringBuilder();
-        var quoted = false;
+        var inQuotes = false;
+        var quoteClosed = false;
+
+        void EndField()
+        {
+            row.Add(cell.ToString());
+            cell.Clear();
+            quoteClosed = false;
+        }
+
+        void EndRow()
+        {
+            EndField();
+            if (row.Any(x => x.Length > 0)) rows.Add(row);
+            row = new List<string>();
+        }
+
         for (var i = 0; i < csv.Length; i++)
         {
             var ch = csv[i];
+            if (inQuotes)
+            {
+                if (ch == '"')
+                {
+                    if (i + 1 < csv.Length && csv[i + 1] == '"')
+                    {
+                        cell.Append('"');
+                        i++;
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                        quoteClosed = true;
+                    }
+                }
+                else if (ch == '\r')
+                {
+                    if (i + 1 < csv.Length && csv[i + 1] == '\n') i++;
+                    cell.Append('\n');
+                }
+                else cell.Append(ch);
+                continue;
+            }
+
+            if (quoteClosed)
+            {
+                if (ch == ',') EndField();
+                else if (ch == '\r' || ch == '\n')
+                {
+                    if (ch == '\r' && i + 1 < csv.Length && csv[i + 1] == '\n') i++;
+                    EndRow();
+                }
+                else if (ch is ' ' or '\t') { /* tolerate whitespace after a closing quote */ }
+                else throw new ArgumentException("CSV contains unexpected characters after a closing quote.", nameof(csv));
+                continue;
+            }
+
             if (ch == '"')
             {
-                if (quoted && i + 1 < csv.Length && csv[i + 1] == '"') { cell.Append('"'); i++; }
-                else quoted = !quoted;
+                if (cell.Length != 0)
+                    throw new ArgumentException("CSV contains a quote inside an unquoted field.", nameof(csv));
+                inQuotes = true;
             }
-            else if (ch == ',' && !quoted) { row.Add(cell.ToString()); cell.Clear(); }
-            else if ((ch == '\n' || ch == '\r') && !quoted)
+            else if (ch == ',') EndField();
+            else if (ch == '\r' || ch == '\n')
             {
                 if (ch == '\r' && i + 1 < csv.Length && csv[i + 1] == '\n') i++;
-                row.Add(cell.ToString()); cell.Clear();
-                if (row.Any(x => x.Length > 0)) rows.Add(row);
-                row = new List<string>();
+                EndRow();
             }
             else cell.Append(ch);
         }
-        if (quoted) throw new ArgumentException("CSV contains an unterminated quoted field.", nameof(csv));
-        if (cell.Length > 0 || row.Count > 0) { row.Add(cell.ToString()); rows.Add(row); }
+
+        if (inQuotes) throw new ArgumentException("CSV contains an unterminated quoted field.", nameof(csv));
+        if (cell.Length > 0 || row.Count > 0 || quoteClosed)
+        {
+            EndField();
+            if (row.Any(x => x.Length > 0)) rows.Add(row);
+        }
         return rows;
     }
 
