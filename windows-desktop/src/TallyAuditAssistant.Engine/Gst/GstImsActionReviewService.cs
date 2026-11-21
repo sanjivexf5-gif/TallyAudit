@@ -54,11 +54,42 @@ public sealed class GstImsActionReviewService
             issues.Add(new(duplicate.Index, "DUPLICATE_INVOICE_REFERENCE",
                 "More than one IMS row has the same normalized supplier GSTIN and invoice number. Resolve amendments/document types before matching."));
 
-        var books = booksRows.Where(x => x is not null)
-            .Select(x => (Row: x, Key: NormalizeGstin(x.SupplierGstin) + "|" + NormalizeInvoice(x.InvoiceNumber)))
-            .Where(x => NormalizeGstin(x.Row.SupplierGstin).Length == 15 && NormalizeInvoice(x.Row.InvoiceNumber).Length > 0)
+        var validBooks = new List<(GstImsBooksInvoice Row, string Key)>();
+        var booksIndex = 0;
+        foreach (var bookRow in booksRows)
+        {
+            booksIndex++;
+            if (bookRow is null)
+            {
+                issues.Add(new(booksIndex, "BOOKS_NULL_ROW", "Purchase-book source row is null."));
+                continue;
+            }
+
+            var bookGstin = NormalizeGstin(bookRow.SupplierGstin);
+            var bookInvoice = NormalizeInvoice(bookRow.InvoiceNumber);
+            if (bookGstin.Length != 15)
+            {
+                issues.Add(new(booksIndex, "BOOKS_INVALID_SUPPLIER_GSTIN", "Purchase-book supplier GSTIN must contain 15 characters."));
+                continue;
+            }
+            if (bookInvoice.Length == 0)
+            {
+                issues.Add(new(booksIndex, "BOOKS_MISSING_INVOICE_NUMBER", "Purchase-book invoice number is required."));
+                continue;
+            }
+            if (bookRow.InvoiceValue < 0)
+            {
+                issues.Add(new(booksIndex, "BOOKS_NEGATIVE_INVOICE_VALUE", "Purchase-book invoice value cannot be negative."));
+                continue;
+            }
+
+            validBooks.Add((bookRow, bookGstin + "|" + bookInvoice));
+        }
+
+        var books = validBooks
             .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(g => g.Key, g => g.Select(x => (Row: x.Row, Key: x.Key)).ToArray(),
+                StringComparer.OrdinalIgnoreCase);
 
         var consumedBooks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var output = new List<GstImsReviewItem>();
