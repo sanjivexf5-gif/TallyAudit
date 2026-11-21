@@ -369,8 +369,25 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
                 return;
             }
 
+            // Keep the workpaper bound to the company and period that were selected
+            // when the import started. A company/period switch during a long review
+            // must never publish stale results into the current screen.
+            var reviewedFromDate = GstImsFromDate.Date;
+            var reviewedToDate = GstImsToDate.Date;
             var report = await _imsService.ReviewCsvAsync(
-                company.Id, GstImsFromDate, GstImsToDate, dialog.FileName);
+                company.Id, reviewedFromDate, reviewedToDate, dialog.FileName);
+
+            var currentCompany = await _companyContext.GetActiveCompanyAsync();
+            if (currentCompany?.Id != company.Id ||
+                GstImsFromDate.Date != reviewedFromDate ||
+                GstImsToDate.Date != reviewedToDate)
+            {
+                GstImsItems.Clear();
+                GstImsIssues.Clear();
+                GstImsSummary = "IMS review discarded because the active company or review period changed during import. Import again for the current selection.";
+                return;
+            }
+
             foreach (var item in report.Items) GstImsItems.Add(item);
             foreach (var issue in report.Issues) GstImsIssues.Add(issue);
             GstImsSummary = $"Source rows: {report.SourceRows} | Valid rows: {report.ValidRows} | " +
