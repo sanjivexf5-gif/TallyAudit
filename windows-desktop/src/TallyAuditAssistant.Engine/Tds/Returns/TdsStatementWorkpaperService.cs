@@ -114,11 +114,25 @@ public sealed class TdsStatementWorkpaperService
             if (valid) accepted.Add(line);
         }
 
+        // Detect duplicate identities from the complete source before validating individual rows.
+        // Exclude every row carrying an ambiguous reference so duplicate challans cannot inflate totals.
+        var duplicateChallanReferences = challans
+            .Where(x => !string.IsNullOrWhiteSpace(x.ChallanReference))
+            .GroupBy(x => x.ChallanReference.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var reference in duplicateChallanReferences)
+            issues.Add(new("DUPLICATE_CHALLAN_REFERENCE",
+                "The same challan reference appears more than once. All rows with this reference are excluded until the source is corrected.",
+                Reference: reference));
+
         var acceptedChallans = new List<TdsStatementChallan>();
         foreach (var challan in challans)
         {
             if (string.IsNullOrWhiteSpace(challan.ChallanReference))
             { issues.Add(new("MISSING_CHALLAN_REFERENCE", "Each challan requires a traceable reference.")); continue; }
+            if (duplicateChallanReferences.Contains(challan.ChallanReference.Trim())) continue;
             if (challan.DepositDate == DateOnly.MinValue)
             { issues.Add(new("INVALID_CHALLAN_DATE", "Each challan requires a valid deposit date.", Reference: challan.ChallanReference)); continue; }
             if (challan.DepositDate > periodEnd.AddDays(90))
@@ -127,11 +141,6 @@ public sealed class TdsStatementWorkpaperService
             { issues.Add(new("NEGATIVE_CHALLAN_COMPONENT", "Challan tax, surcharge, cess, interest and fee components cannot be negative.", Reference: challan.ChallanReference)); continue; }
             acceptedChallans.Add(challan);
         }
-
-        var duplicateChallans = acceptedChallans.GroupBy(x => x.ChallanReference.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Count() > 1);
-        foreach (var duplicate in duplicateChallans)
-            issues.Add(new("DUPLICATE_CHALLAN_REFERENCE", "The same challan reference appears more than once.", Reference: duplicate.Key));
 
         // Match deductee allocations to the challan pool. TRACES treats excess
         // consumption as an overbooked challan; missing or unmatched references

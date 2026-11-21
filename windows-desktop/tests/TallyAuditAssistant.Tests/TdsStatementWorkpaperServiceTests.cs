@@ -150,6 +150,8 @@ public sealed class TdsStatementWorkpaperServiceTests
             "TY 2026-27", 1, "ABCD12345E", new[] { Line() }, challans);
         Assert.Contains(result.Issues, x => x.Code == "DUPLICATE_CHALLAN_REFERENCE");
         Assert.Contains(result.Issues, x => x.Code == "NEGATIVE_CHALLAN_COMPONENT");
+        Assert.Empty(result.Challans);
+        Assert.Equal(0m, result.ChallanTaxTotal);
     }
 
     [Fact]
