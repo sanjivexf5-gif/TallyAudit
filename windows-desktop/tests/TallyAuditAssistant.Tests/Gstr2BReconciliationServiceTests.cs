@@ -13,10 +13,10 @@ public class Gstr2BReconciliationServiceTests
     public void ParseCsv_MapsGstr2BHeadersAndQuotedFields()
     {
         const string csv = "GSTIN of supplier,Trade/Legal name,Invoice number,Invoice Date,Invoice Value,Taxable Value,Integrated Tax,Central Tax,State/UT Tax,Cess\n" +
-            "27AAACB2222D1Z9,\"Bharat Plates, Ltd\",INV-001,10-05-2025,118000,100000,0,9000,9000,0\n";
+            "27AAACB2222D1ZF,\"Bharat Plates, Ltd\",INV-001,10-05-2025,118000,100000,0,9000,9000,0\n";
         var rows = Gstr2BReconciliationService.ParseCsv(csv);
         var invoice = Assert.Single(rows);
-        Assert.Equal("27AAACB2222D1Z9", invoice.SupplierGstin);
+        Assert.Equal("27AAACB2222D1ZF", invoice.SupplierGstin);
         Assert.Equal("INV-001", invoice.InvoiceNumber);
         Assert.Equal(new DateTime(2025,5,10), invoice.InvoiceDate);
         Assert.Equal(118000m, invoice.InvoiceValue);
@@ -28,7 +28,7 @@ public class Gstr2BReconciliationServiceTests
     [Fact]
     public void ParseCsv_RejectsMissingRequiredColumns()
     {
-        var ex=Assert.Throws<InvalidDataException>(()=>Gstr2BReconciliationService.ParseCsv("GSTIN,Invoice Date\n27AAACB2222D1Z9,10-05-2025"));
+        var ex=Assert.Throws<InvalidDataException>(()=>Gstr2BReconciliationService.ParseCsv("GSTIN,Invoice Date\n27AAACB2222D1ZF,10-05-2025"));
         Assert.Contains("Required columns",ex.Message);
     }
 
@@ -55,8 +55,8 @@ public class Gstr2BReconciliationServiceTests
                 await db.ExecuteAsync(@"INSERT INTO Companies(Id,TallyCompanyName,BooksFromDate,IsActive)
                     VALUES('C1','Test Company','2025-04-01',1);
                     INSERT INTO Ledgers(Id,CompanyId,Name,ParentGroup,GSTIN)
-                    VALUES('L1','C1','Supplier A','Sundry Creditors','27AAACB2222D1Z9'),
-                          ('L2','C1','Supplier B','Sundry Creditors','29BBBCD3333E1Z4');
+                    VALUES('L1','C1','Supplier A','Sundry Creditors','27AAACB2222D1ZF'),
+                          ('L2','C1','Supplier B','Sundry Creditors','29BBBCD3333E1ZX');
                     INSERT INTO Vouchers(Id,CompanyId,VoucherTypeId,VoucherTypeName,VoucherNumber,ReferenceNumber,VoucherDate,TotalAmount,PartyLedgerName,AlterId)
                     VALUES('V1','C1','Purchase','Purchase','P-1','INV-1','2025-05-10',118000,'Supplier A',1),
                           ('V2','C1','Purchase','Purchase','P-2','INV-2','2025-05-11',59000,'Supplier A',2),
@@ -65,10 +65,10 @@ public class Gstr2BReconciliationServiceTests
             }
             await File.WriteAllTextAsync(csvPath,
                 "GSTIN of supplier,Invoice number,Invoice Date,Invoice Value,Taxable Value,Integrated Tax,Central Tax,State/UT Tax,Cess\n"+
-                "27AAACB2222D1Z9,INV-1,10-05-2025,118000,100000,0,9000,9000,0\n"+
-                "27AAACB2222D1Z9,INV-2,11-05-2025,60000,50847.46,0,4576.27,4576.27,0\n"+
-                "27AAACB2222D1Z9,INV-3,12-05-2025,23600,20000,3600,0,0,0\n"+
-                "27AAACB2222D1Z9,INV-4,13-05-2025,11800,10000,0,900,900,0\n");
+                "27AAACB2222D1ZF,INV-1,10-05-2025,118000,100000,0,9000,9000,0\n"+
+                "27AAACB2222D1ZF,INV-2,11-05-2025,60000,50847.46,0,4576.27,4576.27,0\n"+
+                "27AAACB2222D1ZF,INV-3,12-05-2025,23600,20000,3600,0,0,0\n"+
+                "27AAACB2222D1ZF,INV-4,13-05-2025,11800,10000,0,900,900,0\n");
             var report=await new Gstr2BReconciliationService(factory).ReconcileCsvAsync("C1",
                 new DateTime(2025,4,1),new DateTime(2026,3,31),csvPath);
             Assert.Equal(4,report.ImportedRows);

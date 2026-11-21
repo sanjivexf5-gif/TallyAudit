@@ -25,7 +25,7 @@ public sealed class GstImsActionReviewService
             if (row is null) { issues.Add(new(index, "NULL_ROW", "IMS source row is null.")); continue; }
             var gstin = NormalizeGstin(row.SupplierGstin);
             var invoice = NormalizeInvoice(row.InvoiceNumber);
-            if (!IsValidGstin(gstin))
+            if (!GstinValidator.IsValid(gstin))
             {
                 issues.Add(new(index, "INVALID_SUPPLIER_GSTIN", "Supplier GSTIN format or checksum is invalid."));
                 continue;
@@ -67,7 +67,7 @@ public sealed class GstImsActionReviewService
 
             var bookGstin = NormalizeGstin(bookRow.SupplierGstin);
             var bookInvoice = NormalizeInvoice(bookRow.InvoiceNumber);
-            if (!IsValidGstin(bookGstin))
+            if (!GstinValidator.IsValid(bookGstin))
             {
                 issues.Add(new(booksIndex, "BOOKS_INVALID_SUPPLIER_GSTIN", "Purchase-book supplier GSTIN format or checksum is invalid."));
                 continue;
@@ -173,28 +173,6 @@ public sealed class GstImsActionReviewService
                 .ThenBy(x => x.InvoiceNumber, StringComparer.OrdinalIgnoreCase).ToArray(),
             Issues = issues
         };
-    }
-
-    private static bool IsValidGstin(string value)
-    {
-        if (value.Length != 15 || !value[..2].All(char.IsDigit) ||
-            value[0] == '0' || value[1] == '0' ||
-            !System.Text.RegularExpressions.Regex.IsMatch(value[2..12], "^[A-Z]{5}[0-9]{4}[A-Z]$") ||
-            !char.IsLetterOrDigit(value[12]) || value[13] != 'Z')
-            return false;
-
-        const string alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        var sum = 0;
-        for (var i = 0; i < 14; i++)
-        {
-            var digit = alphabet.IndexOf(value[i]);
-            if (digit < 0) return false;
-            var product = digit * (i % 2 == 0 ? 1 : 2);
-            sum += product / 36 + product % 36;
-        }
-
-        var checkValue = (36 - sum % 36) % 36;
-        return value[14] == alphabet[checkValue];
     }
 
     private static string NormalizeGstin(string? value) =>
