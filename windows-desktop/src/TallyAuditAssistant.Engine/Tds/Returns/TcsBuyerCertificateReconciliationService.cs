@@ -56,7 +56,7 @@ public sealed class TcsBuyerCertificateReconciliationService
 
         foreach (var buyer in statementByBuyer.Keys.Union(certificateGroups.Keys, StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal))
         {
-            var statementAmounts = statementByBuyer.GetValueOrDefault(buyer, (0m, 0m));
+            var statementAmounts = statementByBuyer.GetValueOrDefault(buyer, (Collection: 0m, Tcs: 0m));
             var matching = certificateGroups.GetValueOrDefault(buyer) ?? Array.Empty<TcsBuyerCertificate>();
             var certificate = matching.Length == 1 ? matching[0] : null;
             var certCollection = matching.Sum(x => x.CollectionAmount);
