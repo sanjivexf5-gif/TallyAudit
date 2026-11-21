@@ -5,7 +5,7 @@ using TallyAuditAssistant.Data;
 
 namespace TallyAuditAssistant.Engine.Gst;
 
-public enum Gstr2BMatchStatus { Matched, ValueMismatch, GstinMismatch, BooksOnly, Gstr2BOnly }
+public enum Gstr2BMatchStatus { Matched, ValueMismatch, GstinMismatch, InvalidBooksGstin, BooksOnly, Gstr2BOnly }
 
 public sealed record Gstr2BInvoice(string SupplierGstin, string InvoiceNumber, DateTime? InvoiceDate,
     decimal InvoiceValue, decimal TaxableValue, decimal Igst, decimal Cgst, decimal Sgst, decimal Cess);
@@ -56,10 +56,13 @@ public sealed class Gstr2BReconciliationService
         var rows = await db.QueryAsync(new CommandDefinition(sql, new {
             CompanyId=companyId, FromDate=fromDate.ToString("yyyy-MM-dd"), ToDate=toDate.ToString("yyyy-MM-dd")
         }, cancellationToken:cancellationToken));
-        var books = rows.Select(x => new Book(NormalizeInvoice(x.InvoiceNumber?.ToString()),
-            NormalizeGstin(x.SupplierGstin?.ToString()), x.VoucherNumber?.ToString(),
-            ParseDate(x.VoucherDate?.ToString()), Convert.ToDecimal(x.InvoiceValue, CultureInfo.InvariantCulture)))
-            .Where(x => x.Invoice.Length>0).ToList();
+        var books = rows.Select(x =>
+        {
+            var gstin = NormalizeGstin(x.SupplierGstin?.ToString());
+            return new Book(NormalizeInvoice(x.InvoiceNumber?.ToString()), gstin,
+                x.VoucherNumber?.ToString(), ParseDate(x.VoucherDate?.ToString()),
+                Convert.ToDecimal(x.InvoiceValue, CultureInfo.InvariantCulture), GstinValidator.IsValid(gstin));
+        }).Where(x => x.Invoice.Length > 0).ToList();
 
         var remainingBooks = new HashSet<int>(Enumerable.Range(0,books.Count));
         var remainingPortal = new HashSet<int>(Enumerable.Range(0,portal.Count));
@@ -70,6 +73,8 @@ public sealed class Gstr2BReconciliationService
         foreach (var bi in remainingBooks.ToArray())
         {
             var book=books[bi];
+            // An invalid or missing Tally supplier GSTIN cannot establish a safe invoice match.
+            if (!book.IsGstinValid) continue;
             if (!portalByInvoice.TryGetValue(book.Invoice,out var candidates)) continue;
             var available = candidates.Where(remainingPortal.Contains).ToArray();
             if (available.Length == 0) continue;
@@ -90,8 +95,17 @@ public sealed class Gstr2BReconciliationService
                     diff>tolerance?"Invoice value differs. Compare taxable value, tax components, rounding and amendments."
                     :"Invoice number, supplier GSTIN and invoice value agree within tolerance."));
         }
-        foreach(var i in remainingBooks){var b=books[i];output.Add(new(Gstr2BMatchStatus.BooksOnly,b.Invoice,b.Gstin,b.Voucher,b.Date,b.Value,null,b.Value,
-            "Purchase voucher exists in Tally but no matching invoice number was found in imported GSTR-2B rows."));}
+        foreach(var i in remainingBooks)
+        {
+            var b = books[i];
+            if (!b.IsGstinValid)
+                output.Add(new(Gstr2BMatchStatus.InvalidBooksGstin, b.Invoice, b.Gstin, b.Voucher, b.Date,
+                    b.Value, null, b.Value,
+                    "Purchase voucher has a missing or invalid supplier GSTIN in Tally. No GSTR-2B match is asserted; correct the supplier master and rerun."));
+            else
+                output.Add(new(Gstr2BMatchStatus.BooksOnly,b.Invoice,b.Gstin,b.Voucher,b.Date,b.Value,null,b.Value,
+                    "Purchase voucher exists in Tally but no matching invoice number was found in imported GSTR-2B rows."));
+        }
         foreach(var i in remainingPortal){var p=portal[i];output.Add(new(Gstr2BMatchStatus.Gstr2BOnly,p.InvoiceNumber,p.SupplierGstin,null,p.InvoiceDate,null,p.InvoiceValue,p.InvoiceValue,
             "Invoice appears in GSTR-2B but no matching purchase voucher was found in this company and period."));}
 
@@ -149,5 +163,5 @@ public sealed class Gstr2BReconciliationService
         var v=s.Replace(",","").Replace("₹","").Trim();
         if(decimal.TryParse(v,NumberStyles.Number|NumberStyles.AllowParentheses,CultureInfo.InvariantCulture,out var d))return d;
         throw new InvalidDataException($"Invalid {field} on CSV row {row}: '{s}'.");}
-    private sealed record Book(string Invoice,string Gstin,string? Voucher,DateTime? Date,decimal Value);
+    private sealed record Book(string Invoice,string Gstin,string? Voucher,DateTime? Date,decimal Value,bool IsGstinValid);
 }
