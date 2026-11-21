@@ -8,7 +8,7 @@ public sealed class TdsStatementWorkpaperServiceTests
     private readonly TdsStatementWorkpaperService _service = new();
 
     private static TdsStatementLine Line(DateOnly? date = null) =>
-        new("ABCDE1234F", "194C", date ?? new DateOnly(2026, 4, 15), 100000m, 10000m, 9000m, "CIN-001", "V-1");
+        new("ABCPE1234F", "194C", date ?? new DateOnly(2026, 4, 15), 100000m, 10000m, 9000m, "CIN-001", "V-1");
 
     [Theory]
     [InlineData(TdsStatementKind.Salary, "24Q")]
@@ -110,7 +110,7 @@ public sealed class TdsStatementWorkpaperServiceTests
     [Fact]
     public void Prepare_ExcludesAllRowsWithDuplicateDeducteeSourceReferences()
     {
-        var duplicateOne = new TdsStatementLine("ABCDE1234F", "194C", new(2026, 4, 15),
+        var duplicateOne = new TdsStatementLine("ABCPE1234F", "194C", new(2026, 4, 15),
             100000m, 10000m, 10000m, "CIN-1", "SOURCE-42");
         var duplicateTwo = duplicateOne with { AmountPaidOrCredited = 125000m, TaxDeducted = 12500m };
         var independent = duplicateOne with { DeducteeReference = "SOURCE-43" };
@@ -157,10 +157,10 @@ public sealed class TdsStatementWorkpaperServiceTests
     {
         var lines = new[]
         {
-            new TdsStatementLine("ABCDE1234F", "194C", new(2026, 4, 15), 100000m, 10000m, 7000m, "CIN-1", "V-1"),
-            new TdsStatementLine("ABCDE1234F", "194C", new(2026, 4, 16), 100000m, 10000m, 4000m, "CIN-1", "V-2"),
-            new TdsStatementLine("ABCDE1234F", "194C", new(2026, 4, 17), 100000m, 10000m, 1000m, "UNKNOWN", "V-3"),
-            new TdsStatementLine("ABCDE1234F", "194C", new(2026, 4, 18), 100000m, 10000m, 500m, null, "V-4")
+            new TdsStatementLine("ABCPE1234F", "194C", new(2026, 4, 15), 100000m, 10000m, 7000m, "CIN-1", "V-1"),
+            new TdsStatementLine("ABCPE1234F", "194C", new(2026, 4, 16), 100000m, 10000m, 4000m, "CIN-1", "V-2"),
+            new TdsStatementLine("ABCPE1234F", "194C", new(2026, 4, 17), 100000m, 10000m, 1000m, "UNKNOWN", "V-3"),
+            new TdsStatementLine("ABCPE1234F", "194C", new(2026, 4, 18), 100000m, 10000m, 500m, null, "V-4")
         };
         var challans = new[] { new TdsStatementChallan("CIN-1", new(2026, 5, 7), 10000m) };
 
@@ -170,6 +170,33 @@ public sealed class TdsStatementWorkpaperServiceTests
         Assert.Contains(result.Issues, x => x.Code == "OVERBOOKED_CHALLAN_ALLOCATION");
         Assert.Contains(result.Issues, x => x.Code == "UNMATCHED_LINE_CHALLAN_REFERENCE" && x.Reference == "UNKNOWN");
         Assert.Contains(result.Issues, x => x.Code == "MISSING_LINE_CHALLAN_REFERENCE");
+        Assert.False(result.IsReadyForReview);
+    }
+
+    [Theory]
+    [InlineData("ABCDE1234F")]
+    [InlineData("ABCDX1234F")]
+    [InlineData("ABCPE1234")]
+    public void Prepare_RejectsPanWithInvalidEntityCodeOrStructure(string pan)
+    {
+        var result = _service.Prepare(TdsStatementKind.NonSalaryResident,
+            new(2026, 4, 1), new(2026, 6, 30), "TY 2026-27", 1,
+            "ABCD12345E", new[] { Line() with { DeducteePan = pan } });
+
+        Assert.Empty(result.Lines);
+        Assert.Contains(result.Issues, x => x.Code == "INVALID_DEDUCTEE_PAN");
+    }
+
+    [Fact]
+    public void Prepare_RejectsChallanWithoutDepositDate()
+    {
+        var result = _service.Prepare(TdsStatementKind.NonSalaryResident,
+            new(2026, 4, 1), new(2026, 6, 30), "TY 2026-27", 1,
+            "ABCD12345E", new[] { Line() },
+            new[] { new TdsStatementChallan("CIN-001", default, 9000m) });
+
+        Assert.Contains(result.Issues, x => x.Code == "INVALID_CHALLAN_DATE");
+        Assert.Empty(result.Challans);
         Assert.False(result.IsReadyForReview);
     }
 
