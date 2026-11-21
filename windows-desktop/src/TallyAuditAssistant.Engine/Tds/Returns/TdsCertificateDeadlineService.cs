@@ -88,7 +88,7 @@ public sealed class TdsCertificateDeadlineService
             6 => new DateOnly(end.Year, 4, 1),
             9 => new DateOnly(end.Year, 7, 1),
             12 => new DateOnly(end.Year, 10, 1),
-            3 => new DateOnly(end.Year - 1, 1, 1),
+            3 => new DateOnly(end.Year, 1, 1),
             _ => throw new ArgumentException("Quarter end must be a statutory quarter end.", nameof(end))
         };
         if (start != expectedStart || end != expectedStart.AddMonths(3).AddDays(-1))
