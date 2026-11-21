@@ -119,15 +119,18 @@ public sealed class TcsBuyerReturnReliefAssessmentServiceTests
     }
 
     [Fact]
-    public void Assess_RejectsPreAmendmentOldActDate()
+    public void Assess_PreAmendmentOldActDate_IsCoveredBySection206C6AAndForm27BA()
     {
         var request = new TcsBuyerReturnReliefRequest(
-            TcsBuyerReturnReliefRegime.IncomeTaxAct1961FromApril2025,
+            TcsBuyerReturnReliefRegime.IncomeTaxAct1961BeforeApril2025,
             TcsBuyerReturnReliefCollectionCategory.Section206C1SpecifiedGoodsOrNewActTable1To5,
             new DateOnly(2025, 3, 31), new DateOnly(2025, 7, 31),
             true, true, true, false);
 
-        Assert.Throws<ArgumentException>(() => _service.Assess(request));
+        var result = _service.Assess(request);
+        Assert.Equal(TcsBuyerReturnReliefStatus.EligibleForRelief, result.Status);
+        Assert.Equal("Form 27BA", result.AccountantCertificateForm);
+        Assert.Equal(new DateOnly(2025, 7, 31), result.InterestEndDate);
     }
 
     [Fact]
