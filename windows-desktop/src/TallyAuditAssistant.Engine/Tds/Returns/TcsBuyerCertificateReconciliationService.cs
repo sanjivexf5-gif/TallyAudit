@@ -51,8 +51,24 @@ public sealed class TcsBuyerCertificateReconciliationService
         var certificateGroups = certificateList.GroupBy(x => Normalize(x.BuyerPan), StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
         var duplicateNumbers = certificateList.Where(x => !string.IsNullOrWhiteSpace(x.CertificateNumber))
-            .GroupBy(x => Normalize(x.CertificateNumber), StringComparer.Ordinal).Where(g => g.Count() > 1)
-            .Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
+            .GroupBy(x => Normalize(x.CertificateNumber), StringComparer.Ordinal).Where(g => g.Count() > 1);
+
+        // Detect duplicate certificate references globally before buyer-level branches.
+        // This ensures duplicates are not hidden by the multiple-certificates-per-buyer finding.
+        foreach (var duplicate in duplicateNumbers)
+        {
+            foreach (var certificate in duplicate)
+            {
+                var buyer = Normalize(certificate.BuyerPan);
+                var statementAmounts = statementByBuyer.GetValueOrDefault(buyer, (Collection: 0m, Tcs: 0m));
+                var buyerCertificates = certificateGroups.GetValueOrDefault(buyer) ?? Array.Empty<TcsBuyerCertificate>();
+                Add(findings, "DUPLICATE_CERTIFICATE_NUMBER", "Error", buyer, certificate.CertificateNumber,
+                    statementAmounts.Collection, statementAmounts.Tcs,
+                    buyerCertificates.Sum(x => x.CollectionAmount), buyerCertificates.Sum(x => x.TcsCollected),
+                    "The certificate number is repeated in the supplied certificate records.",
+                    "Verify the source export and investigate duplicate certificate records; retain the authoritative certificate reference only.");
+            }
+        }
 
         foreach (var buyer in statementByBuyer.Keys.Union(certificateGroups.Keys, StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal))
         {
@@ -89,18 +105,18 @@ public sealed class TcsBuyerCertificateReconciliationService
                 Add(findings, "MISSING_CERTIFICATE_NUMBER", "Error", buyer, null, statementAmounts.Collection, statementAmounts.Tcs,
                     certCollection, certTcs, "Certificate number or traceable certificate reference is missing.",
                     "Obtain the issued certificate reference and retain its evidence.");
-            else if (duplicateNumbers.Contains(Normalize(certificate.CertificateNumber)))
-                Add(findings, "DUPLICATE_CERTIFICATE_NUMBER", "Error", buyer, certificate.CertificateNumber,
-                    statementAmounts.Collection, statementAmounts.Tcs, certCollection, certTcs,
-                    "The certificate number is repeated in the supplied certificate records.",
-                    "Verify the source export and investigate duplicate certificate records.");
 
             if (!string.Equals(Normalize(certificate.Form), expectedForm, StringComparison.Ordinal))
                 Add(findings, "CERTIFICATE_FORM_MISMATCH", "Error", buyer, certificate.CertificateNumber,
                     statementAmounts.Collection, statementAmounts.Tcs, certCollection, certTcs,
                     $"This quarter requires {expectedForm}; the supplied certificate form is {Normalize(certificate.Form)}.",
                     $"Use {expectedForm} for the governing Act and quarter.");
-            if (certificate.IssuedOn > certificateDue)
+            if (certificate.IssuedOn == default || certificate.IssuedOn < expectedEnd)
+                Add(findings, "INVALID_CERTIFICATE_ISSUE_DATE", "Error", buyer, certificate.CertificateNumber,
+                    statementAmounts.Collection, statementAmounts.Tcs, certCollection, certTcs,
+                    "Certificate issue date is missing or predates the end of the reporting quarter.",
+                    "Verify the certificate's actual issue date from the authoritative issued document.");
+            else if (certificate.IssuedOn > certificateDue)
                 Add(findings, "LATE_CERTIFICATE", "Warning", buyer, certificate.CertificateNumber,
                     statementAmounts.Collection, statementAmounts.Tcs, certCollection, certTcs,
                     $"Certificate issue date {certificate.IssuedOn:dd MMM yyyy} is after the standard due date {certificateDue:dd MMM yyyy}.",

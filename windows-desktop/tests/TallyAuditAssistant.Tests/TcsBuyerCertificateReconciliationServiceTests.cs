@@ -64,11 +64,32 @@ public sealed class TcsBuyerCertificateReconciliationServiceTests
         Assert.Contains(result, x => x.Code == "LATE_CERTIFICATE");
     }
     [Fact]
-    public void Reconcile_FlagsMultipleCertificatesForBuyer()
+    public void Reconcile_FlagsMultipleCertificatesAndDuplicateNumberForSameBuyer()
     {
         var result = _service.Reconcile(Statement(2025, 1, Line()),
-            new[] { Certificate(), Certificate(number: "CERT-002") });
+            new[] { Certificate(), Certificate(number: "CERT-001") });
         Assert.Contains(result, x => x.Code == "MULTIPLE_BUYER_CERTIFICATES");
+        Assert.Equal(2, System.Linq.Enumerable.Count(result, x => x.Code == "DUPLICATE_CERTIFICATE_NUMBER"));
+    }
+    [Fact]
+    public void Reconcile_FlagsDuplicateCertificateNumberAcrossDifferentBuyers()
+    {
+        var secondPan = "FGHIJ5678K";
+        var statement = Statement(2025, 1, Line(), Line(secondPan));
+        var certificates = new[] { Certificate(), Certificate(pan: secondPan) };
+        var result = _service.Reconcile(statement, certificates);
+        Assert.Equal(2, System.Linq.Enumerable.Count(result, x => x.Code == "DUPLICATE_CERTIFICATE_NUMBER"));
+        Assert.DoesNotContain(result, x => x.Code == "MATCHED");
+    }
+    [Fact]
+    public void Reconcile_FlagsMissingOrPreQuarterCertificateIssueDate()
+    {
+        var missing = _service.Reconcile(Statement(2025, 1, Line()),
+            new[] { Certificate(issued: default) });
+        Assert.Contains(missing, x => x.Code == "INVALID_CERTIFICATE_ISSUE_DATE");
+        var early = _service.Reconcile(Statement(2025, 1, Line()),
+            new[] { Certificate(issued: new DateOnly(2025, 6, 29)) });
+        Assert.Contains(early, x => x.Code == "INVALID_CERTIFICATE_ISSUE_DATE");
     }
     [Fact]
     public void Reconcile_RejectsInvalidStatementQuarterAndNullInputs()
