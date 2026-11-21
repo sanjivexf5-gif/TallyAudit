@@ -26,7 +26,7 @@ public sealed record TdsReconciliationFinding(
 /// </summary>
 public sealed class TdsChallanReturnReconciliationService
 {
-    private static readonly Regex PanPattern = new("^[A-Z]{5}[0-9]{4}[A-Z]$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex PanPattern = new("^[A-Z]{3}[ABCFGHLJPT][A-Z][0-9]{4}[A-Z]$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public IReadOnlyList<TdsReconciliationFinding> Reconcile(
         IEnumerable<TdsChallanRecord> challans,
