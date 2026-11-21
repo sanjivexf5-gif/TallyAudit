@@ -108,6 +108,27 @@ public sealed class TdsStatementWorkpaperServiceTests
     }
 
     [Fact]
+    public void Prepare_ExcludesAllRowsWithDuplicateDeducteeSourceReferences()
+    {
+        var duplicateOne = new TdsStatementLine("ABCDE1234F", "194C", new(2026, 4, 15),
+            100000m, 10000m, 10000m, "CIN-1", "SOURCE-42");
+        var duplicateTwo = duplicateOne with { AmountPaidOrCredited = 125000m, TaxDeducted = 12500m };
+        var independent = duplicateOne with { DeducteeReference = "SOURCE-43" };
+
+        var result = _service.Prepare(TdsStatementKind.NonSalaryResident,
+            new(2026, 4, 1), new(2026, 6, 30), "TY 2026-27", 1,
+            "ABCD12345E", new[] { duplicateOne, duplicateTwo, independent });
+
+        var issue = Assert.Single(result.Issues.Where(x => x.Code == "DUPLICATE_DEDUCTEE_REFERENCE"));
+        Assert.Equal("SOURCE-42", issue.Reference);
+        Assert.Single(result.Lines);
+        Assert.Equal("SOURCE-43", result.Lines[0].DeducteeReference);
+        Assert.Equal(125000m, result.TotalAmountPaidOrCredited);
+        Assert.Equal(1, result.AcceptedLineCount);
+        Assert.False(result.IsReadyForReview);
+    }
+
+    [Fact]
     public void Prepare_ValidatesQuarterDatesAndRejectsQuarterCrossing()
     {
         Assert.Throws<ArgumentException>(() => _service.Prepare(TdsStatementKind.Salary,
