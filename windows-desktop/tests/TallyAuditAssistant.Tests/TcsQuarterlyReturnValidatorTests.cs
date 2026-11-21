@@ -51,7 +51,21 @@ public sealed class TcsQuarterlyReturnValidatorTests
 
         Assert.Contains(findings, x => x.Code == "INVALID_BUYER_PAN");
         Assert.Contains(findings, x => x.Code == "DUPLICATE_TRANSACTION_REFERENCE");
+        Assert.Contains(findings, x => x.Code == "CONFLICTING_TRANSACTION_REFERENCE" && x.Severity == "Error");
         Assert.Contains(findings, x => x.Code == "COLLECTION_OUTSIDE_PERIOD");
+    }
+
+    [Fact]
+    public void Validate_IdenticalDuplicateReferenceDoesNotCreateConflictFinding()
+    {
+        var line = Line("TX-SAME", "ABCDE1234F", new DateOnly(2025, 5, 15));
+        var statement = Statement("Form 27EQ", 2025, 1,
+            new DateOnly(2025, 4, 1), new DateOnly(2025, 6, 30), line, line);
+
+        var findings = _validator.Validate(statement);
+
+        Assert.Contains(findings, x => x.Code == "DUPLICATE_TRANSACTION_REFERENCE" && x.Severity == "Warning");
+        Assert.DoesNotContain(findings, x => x.Code == "CONFLICTING_TRANSACTION_REFERENCE");
     }
 
     [Fact]

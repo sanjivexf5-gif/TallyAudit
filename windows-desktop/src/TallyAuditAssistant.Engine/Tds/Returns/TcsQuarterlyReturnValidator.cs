@@ -81,11 +81,26 @@ public sealed class TcsQuarterlyReturnValidator
                 $"Statement filing date {filedOn:dd MMM yyyy} is after the standard due date {deadline.DueDate:dd MMM yyyy}.",
                 "Check any CBDT extension or portal-specific relief and retain supporting evidence.");
 
-        var duplicateReferences = statement.Lines
+        var duplicateReferenceGroups = statement.Lines
             .Where(x => !string.IsNullOrWhiteSpace(x.TransactionReference))
             .GroupBy(x => Normalize(x.TransactionReference), StringComparer.Ordinal)
             .Where(g => g.Count() > 1)
+            .ToArray();
+        var duplicateReferences = duplicateReferenceGroups
             .Select(g => g.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        var conflictingReferences = duplicateReferenceGroups
+            .Where(group => group
+                .Select(line => (
+                    BuyerPan: Normalize(line.BuyerPan),
+                    Section: Normalize(line.Section),
+                    line.CollectionDate,
+                    line.SaleAmount,
+                    line.TcsAmount))
+                .Distinct()
+                .Skip(1)
+                .Any())
+            .Select(group => group.Key)
             .ToHashSet(StringComparer.Ordinal);
 
         foreach (var line in statement.Lines)
@@ -95,9 +110,15 @@ public sealed class TcsQuarterlyReturnValidator
                 Add(findings, "MISSING_TRANSACTION_REFERENCE", "Error", "A statement line has no transaction reference.",
                     "Link the collection entry to its source voucher or invoice.", reference);
             else if (duplicateReferences.Contains(Normalize(reference)))
+            {
                 Add(findings, "DUPLICATE_TRANSACTION_REFERENCE", "Warning",
                     "The transaction reference occurs more than once in this statement.",
                     "Check whether the repeated rows are genuine separate collections or duplicate imports.", reference);
+                if (conflictingReferences.Contains(Normalize(reference)))
+                    Add(findings, "CONFLICTING_TRANSACTION_REFERENCE", "Error",
+                        "Rows with the same transaction reference contain conflicting buyer, section, collection date or amount details.",
+                        "Trace the reference to the source voucher or invoice, correct the source mapping, and retain evidence for any legitimate split collection.", reference);
+            }
 
             if (!PanPattern.IsMatch(Normalize(line.BuyerPan)))
                 Add(findings, "INVALID_BUYER_PAN", "Error", "Buyer PAN is missing or structurally invalid.",
