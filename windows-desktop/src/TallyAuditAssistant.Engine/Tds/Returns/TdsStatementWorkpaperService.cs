@@ -10,7 +10,7 @@ namespace TallyAuditAssistant.Engine.Tds.Returns;
 public sealed class TdsStatementWorkpaperService
 {
     private static readonly DateOnly TransitionDate = new(2026, 4, 1);
-    private static readonly Regex PanPattern = new("^[A-Z]{5}[0-9]{4}[A-Z]$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex PanPattern = new("^[A-Z]{3}[ABCFGHLJPT][A-Z][0-9]{4}[A-Z]$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public TdsStatementFormMapping ResolveForm(TdsStatementKind kind, DateOnly periodStart, DateOnly periodEnd, int? quarter = null)
     {
@@ -119,6 +119,8 @@ public sealed class TdsStatementWorkpaperService
         {
             if (string.IsNullOrWhiteSpace(challan.ChallanReference))
             { issues.Add(new("MISSING_CHALLAN_REFERENCE", "Each challan requires a traceable reference.")); continue; }
+            if (challan.DepositDate == DateOnly.MinValue)
+            { issues.Add(new("INVALID_CHALLAN_DATE", "Each challan requires a valid deposit date.", Reference: challan.ChallanReference)); continue; }
             if (challan.DepositDate > periodEnd.AddDays(90))
                 issues.Add(new("CHALLAN_DATE_REVIEW", "Challan deposit date is unusually later than the statement period; verify timing and allocation.", Reference: challan.ChallanReference));
             if (challan.Tax < 0 || challan.Surcharge < 0 || challan.Cess < 0 || challan.Interest < 0 || challan.Fee < 0)
