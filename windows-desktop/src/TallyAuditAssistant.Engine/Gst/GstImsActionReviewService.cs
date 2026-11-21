@@ -25,9 +25,9 @@ public sealed class GstImsActionReviewService
             if (row is null) { issues.Add(new(index, "NULL_ROW", "IMS source row is null.")); continue; }
             var gstin = NormalizeGstin(row.SupplierGstin);
             var invoice = NormalizeInvoice(row.InvoiceNumber);
-            if (gstin.Length != 15)
+            if (!IsValidGstin(gstin))
             {
-                issues.Add(new(index, "INVALID_SUPPLIER_GSTIN", "Supplier GSTIN must contain 15 characters."));
+                issues.Add(new(index, "INVALID_SUPPLIER_GSTIN", "Supplier GSTIN format or checksum is invalid."));
                 continue;
             }
             if (invoice.Length == 0)
@@ -67,9 +67,9 @@ public sealed class GstImsActionReviewService
 
             var bookGstin = NormalizeGstin(bookRow.SupplierGstin);
             var bookInvoice = NormalizeInvoice(bookRow.InvoiceNumber);
-            if (bookGstin.Length != 15)
+            if (!IsValidGstin(bookGstin))
             {
-                issues.Add(new(booksIndex, "BOOKS_INVALID_SUPPLIER_GSTIN", "Purchase-book supplier GSTIN must contain 15 characters."));
+                issues.Add(new(booksIndex, "BOOKS_INVALID_SUPPLIER_GSTIN", "Purchase-book supplier GSTIN format or checksum is invalid."));
                 continue;
             }
             if (bookInvoice.Length == 0)

@@ -5,7 +5,7 @@ namespace TallyAuditAssistant.Tests;
 
 public sealed class GstImsActionReviewServiceTests
 {
-    private const string Gstin = "27AAACB2222D1Z9";
+    private const string Gstin = "27AAPFU0939F1ZV";
 
     [Fact]
     public void Review_ClassifiesActionsAndReconcilesPurchaseBookValues()
