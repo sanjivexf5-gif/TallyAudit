@@ -15,7 +15,7 @@ public class TcsChallanStatementReconciliationServiceTests
 
     private static TcsChallanAllocationLine Allocation(
         decimal amount = 10000m,
-        string pan = "ABCDE1234F",
+        string pan = "ABCPE1234F",
         string serial = "12345",
         string tan = "MUMB12345A") =>
         new(tan, pan, "2026-27", 1, "206C(1H)", "0001234", ChallanDate, serial, amount);
