@@ -149,6 +149,8 @@ public sealed class TdsStatementWorkpaperService
             .GroupBy(x => x.ChallanReference.Trim(), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.OrdinalIgnoreCase);
         var allocations = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        var allocatedLines = new Dictionary<string, List<TdsStatementLine>>(StringComparer.OrdinalIgnoreCase);
+        var allocationInvalidLines = new HashSet<TdsStatementLine>();
         foreach (var line in accepted.Where(x => x.TaxDeposited > 0))
         {
             if (string.IsNullOrWhiteSpace(line.ChallanReference))
@@ -156,6 +158,7 @@ public sealed class TdsStatementWorkpaperService
                 issues.Add(new("MISSING_LINE_CHALLAN_REFERENCE",
                     "Tax deposited is allocated to a deductee line without a challan reference.",
                     Reference: line.DeducteeReference));
+                allocationInvalidLines.Add(line);
                 continue;
             }
 
@@ -165,20 +168,32 @@ public sealed class TdsStatementWorkpaperService
                 issues.Add(new("UNMATCHED_LINE_CHALLAN_REFERENCE",
                     "The deductee line refers to a challan that is missing or ambiguous in the supplied challan records.",
                     Reference: reference));
+                allocationInvalidLines.Add(line);
                 continue;
             }
 
             allocations[reference] = allocations.GetValueOrDefault(reference) + line.TaxDeposited;
+            if (!allocatedLines.TryGetValue(reference, out var rows))
+                allocatedLines[reference] = rows = new List<TdsStatementLine>();
+            rows.Add(line);
         }
 
         foreach (var allocation in allocations)
         {
             var challan = challanGroups[allocation.Key][0];
             if (allocation.Value > challan.Tax)
+            {
                 issues.Add(new("OVERBOOKED_CHALLAN_ALLOCATION",
                     $"Deductee allocations ({allocation.Value.ToString(CultureInfo.InvariantCulture)}) exceed challan tax ({challan.Tax.ToString(CultureInfo.InvariantCulture)}).",
                     Reference: allocation.Key));
+                foreach (var line in allocatedLines[allocation.Key])
+                    allocationInvalidLines.Add(line);
+            }
         }
+
+        // Do not include lines whose deposited-tax allocation cannot be reconciled.
+        // Retain the issue details, but keep accepted rows and control totals internally consistent.
+        accepted = accepted.Where(line => !allocationInvalidLines.Contains(line)).ToList();
 
         var period = new TdsStatementPeriod(periodStart, periodEnd, quarter, yearLabel.Trim());
         return new TdsStatementWorkpaper
