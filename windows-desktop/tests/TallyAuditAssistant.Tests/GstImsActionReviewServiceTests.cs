@@ -60,6 +60,27 @@ public sealed class GstImsActionReviewServiceTests
     }
 
     [Fact]
+    public void Review_FlagsRepeatedNonEmptySourceReferenceIdsAndRequiresReview()
+    {
+        var portal = new[]
+        {
+            new GstImsInvoiceAction(Gstin, "INV-21", null, 100m,
+                GstImsSupplierAction.Accepted, ReferenceId: " REF-001 "),
+            new GstImsInvoiceAction(Gstin, "INV-22", null, 200m,
+                GstImsSupplierAction.Pending, ReferenceId: "ref-001"),
+            new GstImsInvoiceAction(Gstin, "INV-23", null, 300m,
+                GstImsSupplierAction.Accepted, ReferenceId: " ")
+        };
+
+        var report = new GstImsActionReviewService().Review(portal, Array.Empty<GstImsBooksInvoice>());
+
+        Assert.Equal(2, report.DuplicateSourceReferenceCount);
+        Assert.Equal(2, report.Issues.Count(x => x.Code == "DUPLICATE_SOURCE_REFERENCE_ID"));
+        Assert.Equal(3, report.ValidRows);
+        Assert.False(report.IsReadyForReview);
+    }
+
+    [Fact]
     public void Review_FlagsDuplicatePurchaseBookReferencesAndDoesNotGuessAMatch()
     {
         var portal = new[]

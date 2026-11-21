@@ -31,5 +31,6 @@ public sealed class GstImsActionReviewReport
     public int PendingCount => Items.Count(x => x.Status == GstImsReviewStatus.Pending);
     public int DuplicateCount => Items.Count(x => x.Status == GstImsReviewStatus.DuplicateReference);
     public int DuplicateBooksReferenceCount => Items.Count(x => x.Status == GstImsReviewStatus.DuplicateBooksReference);
+    public int DuplicateSourceReferenceCount => Issues.Count(x => x.Code == "DUPLICATE_SOURCE_REFERENCE_ID");
     public bool IsReadyForReview => Issues.Count == 0 && Items.All(x => x.Status is not GstImsReviewStatus.UnknownAction and not GstImsReviewStatus.DuplicateReference and not GstImsReviewStatus.DuplicateBooksReference && !x.HasInvoiceDetailMismatch);
 }
