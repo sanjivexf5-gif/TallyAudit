@@ -7,6 +7,21 @@ namespace TallyAuditAssistant.Engine.Gst;
 /// </summary>
 public sealed class GstImsActionReviewService
 {
+    /// <summary>
+    /// Parses a normalized IMS CSV snapshot and reviews it against caller-supplied
+    /// purchase-book rows. This keeps parsing and review in one explicit pipeline;
+    /// callers remain responsible for obtaining books for the correct company/period.
+    /// </summary>
+    public GstImsActionReviewReport ReviewCsv(
+        string csv,
+        IReadOnlyCollection<GstImsBooksInvoice> booksRows,
+        decimal valueTolerance = 1m)
+    {
+        ArgumentNullException.ThrowIfNull(booksRows);
+        var portalRows = GstImsActionSnapshotCsvParser.Parse(csv);
+        return Review(portalRows, booksRows, valueTolerance);
+    }
+
     public GstImsActionReviewReport Review(
         IReadOnlyCollection<GstImsInvoiceAction> portalRows,
         IReadOnlyCollection<GstImsBooksInvoice> booksRows,
