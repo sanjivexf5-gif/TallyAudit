@@ -5,6 +5,7 @@ namespace TallyAuditAssistant.Engine.Tds.Returns;
 
 public enum TcsBuyerReturnReliefRegime
 {
+    IncomeTaxAct1961BeforeApril2025,
     IncomeTaxAct1961FromApril2025,
     IncomeTaxAct2025
 }
@@ -139,6 +140,8 @@ public sealed class TcsBuyerReturnReliefAssessmentService
     {
         var valid = request.Regime switch
         {
+            TcsBuyerReturnReliefRegime.IncomeTaxAct1961BeforeApril2025 =>
+                request.CollectibleDate < AmendmentStart,
             TcsBuyerReturnReliefRegime.IncomeTaxAct1961FromApril2025 =>
                 request.CollectibleDate >= AmendmentStart && request.CollectibleDate < NewActStart,
             TcsBuyerReturnReliefRegime.IncomeTaxAct2025 =>
@@ -146,7 +149,7 @@ public sealed class TcsBuyerReturnReliefAssessmentService
             _ => false
         };
         if (!valid)
-            throw new ArgumentException("Collectible date does not belong to the selected statutory regime. The buyer-return interest proviso is assessed only for the amended 1961 Act period from 1 April 2025 and the 2025 Act period from 1 April 2026.", nameof(request));
+            throw new ArgumentException("Collectible date does not belong to the selected statutory regime. The buyer-return interest proviso is assessed for the 1961 Act period before 1 April 2026 and the 2025 Act period from 1 April 2026.", nameof(request));
     }
 
     private static TcsBuyerReturnReliefAssessment Result(TcsBuyerReturnReliefStatus status,
