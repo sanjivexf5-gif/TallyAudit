@@ -191,6 +191,36 @@ public sealed class GstImsActionReviewServiceTests
     }
 
     [Fact]
+    public void ReviewCsv_ParsesSnapshotAndRunsFullReviewPipeline()
+    {
+        const string csv = "Supplier GSTIN,Invoice Number,Invoice Date,Invoice Value,IMS Action,Document Type,Reference ID\\n" +
+            "27AAPFU0939F1ZV,INV-CSV-1,10-05-2026,118000,Accepted,Invoice,REF-CSV-1";
+        var books = new[]
+        {
+            new GstImsBooksInvoice(Gstin, "INV CSV 1", new(2026, 5, 10), 118000m, "PUR-CSV-1", "Invoice")
+        };
+
+        var report = new GstImsActionReviewService().ReviewCsv(csv, books);
+
+        Assert.Equal(1, report.SourceRows);
+        Assert.Equal(1, report.ValidRows);
+        Assert.Empty(report.Issues);
+        var item = Assert.Single(report.Items);
+        Assert.Equal(GstImsReviewStatus.Accepted, item.Status);
+        Assert.Equal("PUR-CSV-1", item.VoucherNumber);
+        Assert.True(report.IsReadyForReview);
+    }
+
+    [Fact]
+    public void ReviewCsv_RejectsMalformedSnapshotInsteadOfReturningPartialReview()
+    {
+        const string csv = "GSTIN,Invoice Number,Invoice Value\\n27AAPFU0939F1ZV,INV-1,100";
+
+        Assert.Throws<InvalidDataException>(() =>
+            new GstImsActionReviewService().ReviewCsv(csv, Array.Empty<GstImsBooksInvoice>()));
+    }
+
+    [Fact]
     public void Review_RejectsNegativeTolerance()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
