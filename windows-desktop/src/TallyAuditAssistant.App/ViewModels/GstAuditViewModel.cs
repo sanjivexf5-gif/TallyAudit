@@ -115,7 +115,21 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
 
     private void OnActiveCompanyChanged(object? sender, Company? comp)
     {
+        ClearGstImsResults("Active company changed. Import the IMS snapshot again for the newly selected company.");
         _ = SafeLoadGstExceptionsAsync();
+    }
+
+    partial void OnGstImsFromDateChanged(DateTime value) =>
+        ClearGstImsResults("Review period changed. Import the IMS snapshot again.");
+
+    partial void OnGstImsToDateChanged(DateTime value) =>
+        ClearGstImsResults("Review period changed. Import the IMS snapshot again.");
+
+    private void ClearGstImsResults(string message)
+    {
+        GstImsItems.Clear();
+        GstImsIssues.Clear();
+        GstImsSummary = message;
     }
 
     private async Task SafeLoadGstExceptionsAsync()
@@ -321,6 +335,7 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
     [RelayCommand]
     private async Task ImportGstImsCsvAsync()
     {
+        if (IsReviewingIms) return;
         if (_imsService == null)
         {
             GstImsSummary = "GST IMS review is unavailable. Restart after updating the application.";
