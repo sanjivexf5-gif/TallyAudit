@@ -75,12 +75,26 @@ public sealed class TdsStatementWorkpaperService
         if (string.IsNullOrWhiteSpace(deductorTan) || !Regex.IsMatch(deductorTan.Trim(), "^[A-Z]{4}[0-9]{5}[A-Z]$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
             issues.Add(new("INVALID_DEDUCTOR_TAN", "A structurally valid 10-character deductor TAN is required."));
 
+        // A repeated source reference makes the deductee line identity ambiguous.
+        // Exclude every row carrying that reference rather than silently keeping the first.
+        var duplicateDeducteeReferences = lines
+            .Where(x => !string.IsNullOrWhiteSpace(x.DeducteeReference))
+            .GroupBy(x => x.DeducteeReference!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var reference in duplicateDeducteeReferences)
+            issues.Add(new("DUPLICATE_DEDUCTEE_REFERENCE",
+                "The same source deductee reference appears more than once. All rows with this reference are excluded until the source is corrected.",
+                Reference: reference));
+
         var accepted = new List<TdsStatementLine>();
         for (var index = 0; index < lines.Length; index++)
         {
             var line = lines[index];
             var lineNo = index + 1;
-            var valid = true;
+            var valid = string.IsNullOrWhiteSpace(line.DeducteeReference) ||
+                !duplicateDeducteeReferences.Contains(line.DeducteeReference.Trim());
             void Add(string code, string message) { issues.Add(new(code, message, lineNo, line.DeducteeReference)); valid = false; }
 
             if (string.IsNullOrWhiteSpace(line.DeducteePan) || !PanPattern.IsMatch(line.DeducteePan.Trim().ToUpperInvariant()))

@@ -71,7 +71,7 @@ public sealed class TdsStatementWorkpaperServiceTests
     [Fact]
     public void Prepare_BuildsQuarterlyWorkpaperAndControlTotals()
     {
-        var lines = new[] { Line(), Line(new(2026, 6, 30)) };
+        var lines = new[] { Line() with { DeducteeReference = "V-1" }, Line(new(2026, 6, 30)) with { DeducteeReference = "V-2" } };
         var challans = new[]
         {
             new TdsStatementChallan("CIN-001", new(2026, 5, 7), 18000m, Surcharge: 0, Cess: 0, Interest: 100m, Fee: 0)
@@ -105,6 +105,27 @@ public sealed class TdsStatementWorkpaperServiceTests
         Assert.Contains(result.Issues, x => x.Code == "NEGATIVE_PAYMENT_AMOUNT");
         Assert.Contains(result.Issues, x => x.Code == "TDS_EXCEEDS_PAYMENT");
         Assert.Contains(result.Issues, x => x.Code == "DEPOSIT_EXCEEDS_DEDUCTION");
+    }
+
+    [Fact]
+    public void Prepare_ExcludesAllRowsWithDuplicateDeducteeSourceReferences()
+    {
+        var duplicateOne = new TdsStatementLine("ABCDE1234F", "194C", new(2026, 4, 15),
+            100000m, 10000m, 10000m, "CIN-1", "SOURCE-42");
+        var duplicateTwo = duplicateOne with { AmountPaidOrCredited = 125000m, TaxDeducted = 12500m };
+        var independent = duplicateOne with { DeducteeReference = "SOURCE-43" };
+
+        var result = _service.Prepare(TdsStatementKind.NonSalaryResident,
+            new(2026, 4, 1), new(2026, 6, 30), "TY 2026-27", 1,
+            "ABCD12345E", new[] { duplicateOne, duplicateTwo, independent });
+
+        var issue = Assert.Single(result.Issues.Where(x => x.Code == "DUPLICATE_DEDUCTEE_REFERENCE"));
+        Assert.Equal("SOURCE-42", issue.Reference);
+        Assert.Single(result.Lines);
+        Assert.Equal("SOURCE-43", result.Lines[0].DeducteeReference);
+        Assert.Equal(100000m, result.TotalAmountPaidOrCredited);
+        Assert.Equal(1, result.AcceptedLineCount);
+        Assert.False(result.IsReadyForReview);
     }
 
     [Fact]
