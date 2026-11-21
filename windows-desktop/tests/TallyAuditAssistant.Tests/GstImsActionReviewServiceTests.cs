@@ -81,6 +81,28 @@ public sealed class GstImsActionReviewServiceTests
     }
 
     [Fact]
+    public void Review_ReportsInvalidPurchaseBookRowsInsteadOfSilentlyDroppingThem()
+    {
+        var books = new GstImsBooksInvoice[]
+        {
+            new("BAD", "INV-1", null, 100m),
+            new(Gstin, "", null, 100m),
+            new(Gstin, "INV-3", null, -1m),
+            null!
+        };
+
+        var report = new GstImsActionReviewService().Review(
+            Array.Empty<GstImsInvoiceAction>(), books);
+
+        Assert.Contains(report.Issues, x => x.Code == "BOOKS_INVALID_SUPPLIER_GSTIN");
+        Assert.Contains(report.Issues, x => x.Code == "BOOKS_MISSING_INVOICE_NUMBER");
+        Assert.Contains(report.Issues, x => x.Code == "BOOKS_NEGATIVE_INVOICE_VALUE");
+        Assert.Contains(report.Issues, x => x.Code == "BOOKS_NULL_ROW");
+        Assert.Empty(report.Items);
+        Assert.False(report.IsReadyForReview);
+    }
+
+    [Fact]
     public void Review_DoesNotTreatAcceptedActionAsProofOfItcEligibility()
     {
         var report = new GstImsActionReviewService().Review(
