@@ -128,6 +128,13 @@ public sealed class GstImsActionReviewService
                 _ => GstImsReviewStatus.UnknownAction
             };
             var difference = book is null ? (decimal?)null : Math.Abs(row.InvoiceValue - book.InvoiceValue);
+            var dateMismatch = book?.InvoiceDate is not null && row.InvoiceDate is not null &&
+                book.InvoiceDate.Value.Date != row.InvoiceDate.Value.Date;
+            var portalDocumentType = NormalizeDocumentType(row.DocumentType);
+            var booksDocumentType = NormalizeDocumentType(book?.DocumentType);
+            var documentTypeMismatch = portalDocumentType.Length > 0 && booksDocumentType.Length > 0 &&
+                !string.Equals(portalDocumentType, booksDocumentType, StringComparison.OrdinalIgnoreCase);
+            var detailMismatch = dateMismatch || documentTypeMismatch;
             var explanation = status switch
             {
                 GstImsReviewStatus.Rejected => "Supplier invoice is marked rejected in the supplied IMS snapshot; investigate the reason and supporting evidence.",
@@ -141,8 +148,12 @@ public sealed class GstImsActionReviewService
                 explanation += " No unique purchase-book invoice was found for this supplier/invoice key.";
             else if (difference > valueTolerance)
                 explanation += " Invoice value differs from the purchase books; investigate value, tax and amendment details.";
+            if (dateMismatch)
+                explanation += " Invoice date differs from the purchase books; verify the source document and amendments.";
+            if (documentTypeMismatch)
+                explanation += " Document type differs from the purchase books; verify invoice, debit-note or credit-note classification.";
             output.Add(new(status, gstin, row.InvoiceNumber, row.InvoiceDate, row.InvoiceValue,
-                book?.InvoiceValue, book?.VoucherNumber, difference, explanation));
+                book?.InvoiceValue, book?.VoucherNumber, difference, explanation, detailMismatch));
         }
 
         foreach (var pair in books.Where(x => x.Value.Length > 1))
@@ -179,5 +190,8 @@ public sealed class GstImsActionReviewService
         (value ?? string.Empty).Trim().Replace(" ", string.Empty).ToUpperInvariant();
 
     private static string NormalizeInvoice(string? value) =>
+        new((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+
+    private static string NormalizeDocumentType(string? value) =>
         new((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
 }
