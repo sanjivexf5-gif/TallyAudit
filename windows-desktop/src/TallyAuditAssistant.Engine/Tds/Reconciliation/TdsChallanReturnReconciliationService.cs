@@ -27,6 +27,7 @@ public sealed record TdsReconciliationFinding(
 public sealed class TdsChallanReturnReconciliationService
 {
     private static readonly Regex PanPattern = new("^[A-Z]{3}[ABCFGHLJPT][A-Z][0-9]{4}[A-Z]$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex TanPattern = new("^[A-Z]{4}[0-9]{5}[A-Z]$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public IReadOnlyList<TdsReconciliationFinding> Reconcile(
         IEnumerable<TdsChallanRecord> challans,
@@ -273,19 +274,32 @@ public sealed class TdsChallanReturnReconciliationService
     {
         foreach (var c in challans)
         {
-            if (string.IsNullOrWhiteSpace(c.Tan) || string.IsNullOrWhiteSpace(c.FinancialYear) ||
+            if (!TanPattern.IsMatch(Normalize(c.Tan)) || !IsValidFinancialYear(c.FinancialYear) ||
                 string.IsNullOrWhiteSpace(c.Section) || string.IsNullOrWhiteSpace(c.BsrCode) ||
-                string.IsNullOrWhiteSpace(c.SerialNumber) || c.Quarter is < 1 or > 4 || c.TaxAmount < 0)
-                throw new ArgumentException("Challan records require TAN, financial year, quarter 1-4, section, BSR code, date, serial number and a non-negative tax amount.");
+                string.IsNullOrWhiteSpace(c.SerialNumber) || c.ChallanDate == DateOnly.MinValue ||
+                c.Quarter is < 1 or > 4 || c.TaxAmount < 0)
+                throw new ArgumentException("Challan records require a structurally valid TAN, financial year (YYYY-YY), quarter 1-4, section, BSR code, valid challan date, serial number and a non-negative tax amount.");
         }
 
         foreach (var line in lines)
         {
-            if (string.IsNullOrWhiteSpace(line.Tan) || string.IsNullOrWhiteSpace(line.FinancialYear) || string.IsNullOrWhiteSpace(line.Section) ||
-                string.IsNullOrWhiteSpace(line.BsrCode) || string.IsNullOrWhiteSpace(line.ChallanSerialNumber) ||
+            if (!TanPattern.IsMatch(Normalize(line.Tan)) || !IsValidFinancialYear(line.FinancialYear) ||
+                string.IsNullOrWhiteSpace(line.Section) || string.IsNullOrWhiteSpace(line.BsrCode) ||
+                string.IsNullOrWhiteSpace(line.ChallanSerialNumber) || line.ChallanDate == DateOnly.MinValue ||
                 line.Quarter is < 1 or > 4 || line.DeductedAmount < 0)
-                throw new ArgumentException("Return lines require financial year, quarter 1-4, section, challan CIN and a non-negative deducted amount.");
+                throw new ArgumentException("Return lines require a structurally valid TAN, financial year (YYYY-YY), quarter 1-4, section, challan CIN with a valid date and a non-negative deducted amount.");
         }
+    }
+
+    private static bool IsValidFinancialYear(string? value)
+    {
+        var normalized = Normalize(value);
+        if (normalized.Length != 7 || normalized[4] != '-' ||
+            !int.TryParse(normalized.AsSpan(0, 4), NumberStyles.None, CultureInfo.InvariantCulture, out var startYear) ||
+            !int.TryParse(normalized.AsSpan(5, 2), NumberStyles.None, CultureInfo.InvariantCulture, out var endYear))
+            return false;
+
+        return startYear is >= 1900 and <= 2098 && endYear == (startYear + 1) % 100;
     }
 
     private static string Normalize(string? value) => (value ?? string.Empty).Trim().Trim('\uFEFF').ToUpperInvariant();

@@ -148,4 +148,39 @@ public class TdsChallanReturnReconciliationServiceTests
     }
 
 
+
+    [Theory]
+    [InlineData("BADTAN")]
+    [InlineData("MUMB1234A")]
+    [InlineData("MUMB12345")]
+    public void Reconcile_RejectsStructurallyInvalidTan(string tan)
+    {
+        Assert.Throws<ArgumentException>(() => _service.Reconcile(
+            new[] { Challan() with { Tan = tan } }, Array.Empty<TdsReturnLine>()));
+        Assert.Throws<ArgumentException>(() => _service.Reconcile(
+            Array.Empty<TdsChallanRecord>(), new[] { Line() with { Tan = tan } }));
+    }
+
+    [Theory]
+    [InlineData("2026-26")]
+    [InlineData("26-27")]
+    [InlineData("2026/27")]
+    [InlineData("")]
+    public void Reconcile_RejectsInvalidFinancialYear(string financialYear)
+    {
+        Assert.Throws<ArgumentException>(() => _service.Reconcile(
+            new[] { Challan() with { FinancialYear = financialYear } }, Array.Empty<TdsReturnLine>()));
+        Assert.Throws<ArgumentException>(() => _service.Reconcile(
+            Array.Empty<TdsChallanRecord>(), new[] { Line() with { FinancialYear = financialYear } }));
+    }
+
+    [Fact]
+    public void Reconcile_RejectsMissingChallanDate()
+    {
+        Assert.Throws<ArgumentException>(() => _service.Reconcile(
+            new[] { Challan() with { ChallanDate = default } }, Array.Empty<TdsReturnLine>()));
+        Assert.Throws<ArgumentException>(() => _service.Reconcile(
+            Array.Empty<TdsChallanRecord>(), new[] { Line() with { ChallanDate = default } }));
+    }
+
 }
