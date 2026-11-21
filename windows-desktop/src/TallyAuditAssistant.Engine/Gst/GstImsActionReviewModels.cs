@@ -11,12 +11,13 @@ public sealed record GstImsInvoiceAction(
 /// <summary>Purchase-book invoice supplied by the caller; no portal or books data is modified.</summary>
 public sealed record GstImsBooksInvoice(
     string SupplierGstin, string InvoiceNumber, DateTime? InvoiceDate, decimal InvoiceValue,
-    string? VoucherNumber = null);
+    string? VoucherNumber = null, string? DocumentType = null);
 
 public sealed record GstImsReviewItem(
     GstImsReviewStatus Status, string SupplierGstin, string InvoiceNumber,
     DateTime? InvoiceDate, decimal? PortalValue, decimal? BooksValue,
-    string? VoucherNumber, decimal? ValueDifference, string Explanation);
+    string? VoucherNumber, decimal? ValueDifference, string Explanation,
+    bool HasInvoiceDetailMismatch = false);
 
 public sealed record GstImsValidationIssue(int SourceRow, string Code, string Message);
 
@@ -30,5 +31,5 @@ public sealed class GstImsActionReviewReport
     public int PendingCount => Items.Count(x => x.Status == GstImsReviewStatus.Pending);
     public int DuplicateCount => Items.Count(x => x.Status == GstImsReviewStatus.DuplicateReference);
     public int DuplicateBooksReferenceCount => Items.Count(x => x.Status == GstImsReviewStatus.DuplicateBooksReference);
-    public bool IsReadyForReview => Issues.Count == 0 && Items.All(x => x.Status is not GstImsReviewStatus.UnknownAction and not GstImsReviewStatus.DuplicateReference and not GstImsReviewStatus.DuplicateBooksReference);
+    public bool IsReadyForReview => Issues.Count == 0 && Items.All(x => x.Status is not GstImsReviewStatus.UnknownAction and not GstImsReviewStatus.DuplicateReference and not GstImsReviewStatus.DuplicateBooksReference && !x.HasInvoiceDetailMismatch);
 }

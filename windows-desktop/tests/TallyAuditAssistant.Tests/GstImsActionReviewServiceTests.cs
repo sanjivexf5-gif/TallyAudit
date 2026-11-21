@@ -128,6 +128,48 @@ public sealed class GstImsActionReviewServiceTests
     }
 
     [Fact]
+    public void Review_FlagsInvoiceDateAndDocumentTypeMismatchWithoutHidingSupplierAction()
+    {
+        var portal = new[]
+        {
+            new GstImsInvoiceAction(Gstin, "INV-10", new(2026, 5, 10), 118000m,
+                GstImsSupplierAction.Accepted, DocumentType: "Invoice")
+        };
+        var books = new[]
+        {
+            new GstImsBooksInvoice(Gstin, "INV-10", new(2026, 5, 11), 118000m,
+                "PUR-10", "Credit Note")
+        };
+
+        var report = new GstImsActionReviewService().Review(portal, books);
+        var item = Assert.Single(report.Items);
+
+        Assert.Equal(GstImsReviewStatus.Accepted, item.Status);
+        Assert.True(item.HasInvoiceDetailMismatch);
+        Assert.Contains("Invoice date differs", item.Explanation);
+        Assert.Contains("Document type differs", item.Explanation);
+        Assert.False(report.IsReadyForReview);
+    }
+
+    [Fact]
+    public void Review_DoesNotFlagInvoiceDetailsWhenSourceFieldsAreUnavailable()
+    {
+        var portal = new[]
+        {
+            new GstImsInvoiceAction(Gstin, "INV-11", null, 100m, GstImsSupplierAction.Accepted)
+        };
+        var books = new[]
+        {
+            new GstImsBooksInvoice(Gstin, "INV-11", null, 100m)
+        };
+
+        var report = new GstImsActionReviewService().Review(portal, books);
+
+        Assert.False(Assert.Single(report.Items).HasInvoiceDetailMismatch);
+        Assert.True(report.IsReadyForReview);
+    }
+
+    [Fact]
     public void Review_RejectsNegativeTolerance()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
