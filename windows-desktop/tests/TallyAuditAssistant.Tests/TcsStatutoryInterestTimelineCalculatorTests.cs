@@ -32,8 +32,8 @@ public sealed class TcsStatutoryInterestTimelineCalculatorTests
         Assert.Equal(1.0m, result.Stages[0].MonthlyRatePercent);
         Assert.Equal(1.5m, result.Stages[1].MonthlyRatePercent);
         Assert.Equal(100m, result.Stages[0].InterestAmount);
-        Assert.Equal(150m, result.Stages[1].InterestAmount);
-        Assert.Equal(250m, result.TotalInterest);
+        Assert.Equal(300m, result.Stages[1].InterestAmount); // Collection-to-payment period touches April and May.
+        Assert.Equal(400m, result.TotalInterest);
     }
 
     [Fact]
@@ -44,8 +44,8 @@ public sealed class TcsStatutoryInterestTimelineCalculatorTests
             100000m, new DateOnly(2026, 4, 1), new DateOnly(2026, 4, 30), new DateOnly(2026, 5, 1)));
 
         Assert.Equal(1000m, result.Stages[0].InterestAmount);
-        Assert.Equal(1500m, result.Stages[1].InterestAmount);
-        Assert.Equal(2500m, result.TotalInterest);
+        Assert.Equal(3000m, result.Stages[1].InterestAmount); // Collection-to-payment period touches April and May.
+        Assert.Equal(4000m, result.TotalInterest);
         Assert.Contains("Section 398(3)(a)", result.SectionReference);
     }
 
