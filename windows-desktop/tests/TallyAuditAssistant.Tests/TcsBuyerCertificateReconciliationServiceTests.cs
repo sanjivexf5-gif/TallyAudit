@@ -85,7 +85,7 @@ public sealed class TcsBuyerCertificateReconciliationServiceTests
     public void Reconcile_FlagsMissingOrPreQuarterCertificateIssueDate()
     {
         var missing = _service.Reconcile(Statement(2025, 1, Line()),
-            new[] { Certificate(issued: default) });
+            new[] { Certificate(issued: DateOnly.MinValue) });
         Assert.Contains(missing, x => x.Code == "INVALID_CERTIFICATE_ISSUE_DATE");
         var early = _service.Reconcile(Statement(2025, 1, Line()),
             new[] { Certificate(issued: new DateOnly(2025, 6, 29)) });
