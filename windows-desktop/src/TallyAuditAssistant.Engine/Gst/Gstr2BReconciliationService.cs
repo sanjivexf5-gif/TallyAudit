@@ -119,7 +119,7 @@ public sealed class Gstr2BReconciliationService
             var r=rows[n];if(r.All(string.IsNullOrWhiteSpace))continue;
             var g=NormalizeGstin(Cell(r,gst));var number=Cell(r,inv);
             if(g.Length==0&&number.Length==0)continue;
-            if(g.Length!=15)throw new InvalidDataException($"Invalid supplier GSTIN on CSV row {n+1}.");
+            if(!GstinValidator.IsValid(g))throw new InvalidDataException($"Invalid supplier GSTIN format or checksum on CSV row {n+1}.");
             if(number.Length==0)throw new InvalidDataException($"Missing invoice number on CSV row {n+1}.");
             result.Add(new(g,number,ParseDate(Cell(r,date)),Amount(Cell(r,value),n+1,"invoice value"),
                 Amount(Cell(r,taxable),n+1,"taxable value"),Amount(Cell(r,igst),n+1,"IGST"),
