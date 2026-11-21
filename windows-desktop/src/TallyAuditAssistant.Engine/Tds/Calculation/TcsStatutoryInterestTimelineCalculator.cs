@@ -67,11 +67,11 @@ public sealed class TcsStatutoryInterestTimelineCalculator
         }
         else
         {
-            if (request.CollectedDate is not { } collected)
+            if (request.CollectedDate is not { } collectionDate)
                 throw new ArgumentException("A collection date is required for the post-amendment interest calculation.", nameof(request));
 
-            AddStage(stages, "Failure to collect", request.CollectibleDate, collected, 1.0m, request.TaxAmount);
-            AddStage(stages, "Failure to deposit after collection", collected, request.PaidDate, 1.5m, request.TaxAmount);
+            AddStage(stages, "Failure to collect", request.CollectibleDate, collectionDate, 1.0m, request.TaxAmount);
+            AddStage(stages, "Failure to deposit after collection", collectionDate, request.PaidDate, 1.5m, request.TaxAmount);
         }
 
         var total = decimal.Round(SumInterest(stages), 2, MidpointRounding.AwayFromZero);
