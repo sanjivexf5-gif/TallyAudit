@@ -12,7 +12,7 @@ public class TdsChallanReturnReconciliationServiceTests
     private static TdsChallanRecord Challan(decimal amount = 10000m, string serial = "12345") =>
         new("MUMB12345A", "2026-27", 1, "194C", "0001234", ChallanDate, serial, amount);
 
-    private static TdsReturnLine Line(decimal amount = 10000m, string pan = "ABCDE1234F", string serial = "12345", string tan = "MUMB12345A") =>
+    private static TdsReturnLine Line(decimal amount = 10000m, string pan = "ABCPE1234F", string serial = "12345", string tan = "MUMB12345A") =>
         new(tan, pan, "2026-27", 1, "194C", "0001234", ChallanDate, serial, amount, "Test Deductee");
 
     [Fact]
@@ -73,7 +73,7 @@ public class TdsChallanReturnReconciliationServiceTests
     public void CsvReaders_ParseNormalizedImports()
     {
         var challans = _service.ReadChallansCsv("TAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,SerialNumber,TaxAmount\nMUMB12345A,2026-27,1,194C,0001234,2026-07-07,12345,10000");
-        var lines = _service.ReadReturnCsv("TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount\nMUMB12345A,ABCDE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000");
+        var lines = _service.ReadReturnCsv("TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount\nMUMB12345A,ABCPE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000");
         Assert.Equal("Matched", Assert.Single(_service.Reconcile(challans, lines)).Status);
     }
 
@@ -82,7 +82,7 @@ public class TdsChallanReturnReconciliationServiceTests
     public void CsvReaders_PreserveQuotedCommasEscapedQuotesAndOptionalDeducteeName()
     {
         var csv = "TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount,DeducteeName\r\n" +
-                  "MUMB12345A,ABCDE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000,\"Acme, \"\"North\"\", Ltd.\"";
+                  "MUMB12345A,ABCPE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000,\"Acme, \"\"North\"\", Ltd.\"";
         var result = Assert.Single(_service.ReadReturnCsv(csv));
         Assert.Equal("Acme, \"North\", Ltd.", result.DeducteeName);
     }
@@ -91,7 +91,7 @@ public class TdsChallanReturnReconciliationServiceTests
     public void CsvReaders_KeepDeducteeNameOptionalForExistingImportLayouts()
     {
         var csv = "TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount\n" +
-                  "MUMB12345A,ABCDE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000";
+                  "MUMB12345A,ABCPE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000";
         var result = Assert.Single(_service.ReadReturnCsv(csv));
         Assert.Null(result.DeducteeName);
     }
@@ -116,8 +116,8 @@ public class TdsChallanReturnReconciliationServiceTests
     }
 
     [Theory]
-    [InlineData("TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount\\nMUMB12345A,ABCDE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000,IGNORED")]
-    [InlineData("TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount\\nMUMB12345A,ABCDE1234F,2026-27,1,194C,0001234,2026-07-07,12345")]
+    [InlineData("TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount\\nMUMB12345A,ABCPE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000,IGNORED")]
+    [InlineData("TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount\\nMUMB12345A,ABCPE1234F,2026-27,1,194C,0001234,2026-07-07,12345")]
     public void ReadReturnCsv_RejectsExtraAndMissingFields(string csv)
     {
         Assert.Throws<ArgumentException>(() => _service.ReadReturnCsv(csv));
@@ -127,7 +127,7 @@ public class TdsChallanReturnReconciliationServiceTests
     public void ReadReturnCsv_RejectsDuplicateHeaders()
     {
         var csv = "TAN,DeducteePAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,ChallanSerialNumber,DeductedAmount,DeductedAmount\\n" +
-                  "MUMB12345A,ABCDE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000,10000";
+                  "MUMB12345A,ABCPE1234F,2026-27,1,194C,0001234,2026-07-07,12345,10000,10000";
         Assert.Throws<ArgumentException>(() => _service.ReadReturnCsv(csv));
     }
 
@@ -137,6 +137,14 @@ public class TdsChallanReturnReconciliationServiceTests
         var csv = "TAN,FinancialYear,Quarter,Section,BSRCode,ChallanDate,SerialNumber,\\n" +
                   "MUMB12345A,2026-27,1,194C,0001234,2026-07-07,12345,10000";
         Assert.Throws<ArgumentException>(() => _service.ReadChallansCsv(csv));
+    }
+
+
+    [Fact]
+    public void Reconcile_FlagsPanWithUnsupportedEntityTypeCode()
+    {
+        var result = Assert.Single(_service.Reconcile(new[] { Challan() }, new[] { Line(pan: "AB CDE1234F".Replace(" ", "")) }));
+        Assert.Equal("Invalid deductee PAN", result.Status);
     }
 
 
