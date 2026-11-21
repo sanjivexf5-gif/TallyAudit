@@ -25,6 +25,7 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
     private readonly ILogger<GstAuditViewModel> _logger;
     private readonly Gstr2BReconciliationService? _gstr2BService;
     private readonly ItcRiskScreeningService? _itcRiskService;
+    private readonly GstImsReconciliationService? _imsService;
 
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private readonly object _ctsLock = new();
@@ -62,6 +63,22 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
     [ObservableProperty]
     private string _gstr2BSummary = string.Empty;
 
+    [ObservableProperty]
+    private DateTime _gstImsFromDate = GetCurrentFinancialYearStart();
+
+    [ObservableProperty]
+    private DateTime _gstImsToDate = DateTime.Today;
+
+    [ObservableProperty]
+    private string _gstImsSummary = string.Empty;
+
+    [ObservableProperty]
+    private bool _isReviewingIms;
+
+    public ObservableCollection<GstImsReviewItem> GstImsItems { get; } = new();
+
+    public ObservableCollection<GstImsValidationIssue> GstImsIssues { get; } = new();
+
     public ObservableCollection<Gstr2BReconciliationItem> Gstr2BItems { get; } = new();
 
     public ObservableCollection<ItcRiskScreeningItem> ItcRiskItems { get; } = new();
@@ -75,7 +92,8 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
         INavigationService navigationService,
         ILogger<GstAuditViewModel>? logger = null,
         Gstr2BReconciliationService? gstr2BService = null,
-        ItcRiskScreeningService? itcRiskService = null)
+        ItcRiskScreeningService? itcRiskService = null,
+        GstImsReconciliationService? imsService = null)
     {
         _repository = repository;
         _settingsService = settingsService;
@@ -84,6 +102,7 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
         _logger = logger ?? NullLogger<GstAuditViewModel>.Instance;
         _gstr2BService = gstr2BService;
         _itcRiskService = itcRiskService;
+        _imsService = imsService;
 
         _companyContext.ActiveCompanyChanged += OnActiveCompanyChanged;
         _ = SafeLoadGstExceptionsAsync();
@@ -296,6 +315,63 @@ public partial class GstAuditViewModel : ObservableObject, INavigationAware, IDi
         finally
         {
             IsReconciling = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportGstImsCsvAsync()
+    {
+        if (_imsService == null)
+        {
+            GstImsSummary = "GST IMS review is unavailable. Restart after updating the application.";
+            return;
+        }
+        if (GstImsFromDate.Date > GstImsToDate.Date)
+        {
+            GstImsSummary = "GST IMS period start date must not be after its end date.";
+            return;
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select normalized GST IMS action snapshot CSV",
+            Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        IsReviewingIms = true;
+        GstImsItems.Clear();
+        GstImsIssues.Clear();
+        GstImsSummary = "Importing IMS snapshot and reviewing against selected-company purchase books…";
+        try
+        {
+            var company = await _companyContext.GetActiveCompanyAsync();
+            if (company == null)
+            {
+                GstImsSummary = "Select an active Tally company before reviewing the IMS snapshot.";
+                return;
+            }
+
+            var report = await _imsService.ReviewCsvAsync(
+                company.Id, GstImsFromDate, GstImsToDate, dialog.FileName);
+            foreach (var item in report.Items) GstImsItems.Add(item);
+            foreach (var issue in report.Issues) GstImsIssues.Add(issue);
+            GstImsSummary = $"Source rows: {report.SourceRows} | Valid rows: {report.ValidRows} | " +
+                $"Rejected: {report.RejectedCount} | Pending: {report.PendingCount} | " +
+                $"Duplicate portal refs: {report.DuplicateCount} | Duplicate books refs: {report.DuplicateBooksReferenceCount} | " +
+                $"Validation issues: {report.Issues.Count} | Review status: {(report.IsReadyForReview ? "Ready for auditor review" : "Exceptions require resolution")}.";
+            StatusMessage = "GST IMS workpaper generated. Review all exceptions; this does not determine ITC eligibility or submit an IMS action.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GST IMS CSV review failed.");
+            GstImsSummary = $"GST IMS review failed: {ex.Message}";
+        }
+        finally
+        {
+            IsReviewingIms = false;
         }
     }
 

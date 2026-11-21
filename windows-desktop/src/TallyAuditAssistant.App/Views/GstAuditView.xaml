@@ -72,6 +72,47 @@
                     </DataGrid>
                 </StackPanel>
             </Border>
+            <Border Padding="12" Margin="0,10,0,0" Background="#312E81" CornerRadius="6"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="GST Invoice Management System (IMS) Review" FontSize="15" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="Import a normalized IMS action snapshot and compare it with non-cancelled purchase vouchers for the selected Tally company and period. This is a read-only workpaper; it does not submit actions or determine ITC eligibility."
+                               Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,3,0,8"/>
+                    <WrapPanel VerticalAlignment="Center">
+                        <TextBlock Text="From" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <DatePicker SelectedDate="{Binding GstImsFromDate}" Width="130" Margin="0,0,12,0"/>
+                        <TextBlock Text="To" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <DatePicker SelectedDate="{Binding GstImsToDate}" Width="130" Margin="0,0,12,0"/>
+                        <Button Content="Import IMS CSV &amp; Review" Command="{Binding ImportGstImsCsvCommand}" Padding="12,5"
+                                IsEnabled="{Binding IsReviewingIms, Converter={StaticResource InverseBooleanConverter}}"/>
+                    </WrapPanel>
+                    <TextBlock Text="{Binding GstImsSummary}" Foreground="#E0E7FF" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                    <DataGrid ItemsSource="{Binding GstImsItems}" Height="170" Margin="0,8,0,0"
+                              AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="IMS Action / Result" Binding="{Binding Status}" Width="135"/>
+                            <DataGridTextColumn Header="Invoice" Binding="{Binding InvoiceNumber}" Width="115"/>
+                            <DataGridTextColumn Header="Supplier GSTIN" Binding="{Binding SupplierGstin}" Width="150"/>
+                            <DataGridTextColumn Header="Tally Voucher" Binding="{Binding VoucherNumber}" Width="110"/>
+                            <DataGridTextColumn Header="Books Value" Binding="{Binding BooksValue, StringFormat={}{0:N2}}" Width="105"/>
+                            <DataGridTextColumn Header="IMS Value" Binding="{Binding PortalValue, StringFormat={}{0:N2}}" Width="105"/>
+                            <DataGridTextColumn Header="Difference" Binding="{Binding ValueDifference, StringFormat={}{0:N2}}" Width="100"/>
+                            <DataGridTextColumn Header="Explanation" Binding="{Binding Explanation}" Width="2*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Text="Source validation issues" FontWeight="Bold" Foreground="White" Margin="0,10,0,4"/>
+                    <DataGrid ItemsSource="{Binding GstImsIssues}" Height="95" Margin="0,0,0,0"
+                              AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Row" Binding="{Binding SourceRow}" Width="55"/>
+                            <DataGridTextColumn Header="Code" Binding="{Binding Code}" Width="190"/>
+                            <DataGridTextColumn Header="Issue" Binding="{Binding Message}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
         </StackPanel>
 
         <!-- Main Body Area -->
