@@ -175,6 +175,39 @@ public sealed class TdsStatementWorkpaperServiceTests
         Assert.False(result.IsReadyForReview);
     }
 
+    [Fact]
+    public void Prepare_ExcludesLinesWithMissingUnmatchedOrOverbookedChallanAllocationsFromTotals()
+    {
+        var lines = new[]
+        {
+            new TdsStatementLine("ABCPE1234F", "194C", new(2026, 4, 15), 100000m, 10000m, 7000m, "CIN-1", "OVER-1"),
+            new TdsStatementLine("ABCPE1234F", "194C", new(2026, 4, 16), 125000m, 12500m, 4000m, "CIN-1", "OVER-2"),
+            new TdsStatementLine("ABCPE1234F", "194C", new(2026, 4, 17), 150000m, 15000m, 1000m, "UNKNOWN", "MISSING-CHALLAN"),
+            new TdsStatementLine("ABCPE1234F", "194C", new(2026, 4, 18), 175000m, 17500m, 500m, null, "NO-REFERENCE"),
+            new TdsStatementLine("ABCPE1234F", "194C", new(2026, 4, 19), 50000m, 5000m, 4000m, "CIN-2", "VALID")
+        };
+        var challans = new[]
+        {
+            new TdsStatementChallan("CIN-1", new(2026, 5, 7), 10000m),
+            new TdsStatementChallan("CIN-2", new(2026, 5, 8), 5000m)
+        };
+
+        var result = _service.Prepare(TdsStatementKind.NonSalaryResident,
+            new(2026, 4, 1), new(2026, 6, 30), "TY 2026-27", 1,
+            "ABCD12345E", lines, challans);
+
+        Assert.Single(result.Lines);
+        Assert.Equal("VALID", result.Lines[0].DeducteeReference);
+        Assert.Equal(1, result.AcceptedLineCount);
+        Assert.Equal(50000m, result.TotalAmountPaidOrCredited);
+        Assert.Equal(5000m, result.TotalTaxDeducted);
+        Assert.Equal(4000m, result.TotalTaxDepositedOnLines);
+        Assert.Contains(result.Issues, x => x.Code == "OVERBOOKED_CHALLAN_ALLOCATION");
+        Assert.Contains(result.Issues, x => x.Code == "UNMATCHED_LINE_CHALLAN_REFERENCE");
+        Assert.Contains(result.Issues, x => x.Code == "MISSING_LINE_CHALLAN_REFERENCE");
+        Assert.False(result.IsReadyForReview);
+    }
+
     [Theory]
     [InlineData("ABCDE1234F")]
     [InlineData("ABCDX1234F")]
