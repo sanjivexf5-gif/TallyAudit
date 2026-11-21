@@ -11,6 +11,8 @@ namespace TallyAuditAssistant.Engine.Gst;
 /// </summary>
 public sealed class GstImsReconciliationService
 {
+    public const long MaxCsvFileSizeBytes = 25L * 1024 * 1024;
+
     private readonly SqliteConnectionFactory _factory;
     private readonly GstImsActionReviewService _reviewService;
 
@@ -30,8 +32,14 @@ public sealed class GstImsReconciliationService
         if (string.IsNullOrWhiteSpace(csvPath) || !File.Exists(csvPath))
             throw new FileNotFoundException("IMS CSV file was not found.", csvPath);
 
+        var fileInfo = new FileInfo(csvPath);
+        if (fileInfo.Length > MaxCsvFileSizeBytes)
+            throw new InvalidDataException("IMS CSV exceeds the 25 MB import limit. Split the export into smaller period files and import them separately.");
+
         var csv = await File.ReadAllTextAsync(csvPath, cancellationToken);
-        var sourceRows = GstImsActionSnapshotCsvParser.Parse(csv);
+        cancellationToken.ThrowIfCancellationRequested();
+        var sourceRows = await Task.Run(() => GstImsActionSnapshotCsvParser.Parse(csv), cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         var periodRows = new List<GstImsInvoiceAction>();
         var periodIssues = new List<GstImsValidationIssue>();
         for (var i = 0; i < sourceRows.Count; i++)
