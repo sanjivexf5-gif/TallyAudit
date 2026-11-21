@@ -9,7 +9,7 @@ public sealed class TcsBuyerReturnReliefAssessmentServiceTests
     private readonly TcsBuyerReturnReliefAssessmentService _service = new();
 
     [Fact]
-    public void Assess_QualifyingOldActSection206C1_UsesBuyerReturnDateAsInterestEnd()
+    public void Assess_QualifyingOldActSection206C1_UsesBuyerReturnDateAndForm27BA()
     {
         var result = _service.Assess(new TcsBuyerReturnReliefRequest(
             TcsBuyerReturnReliefRegime.IncomeTaxAct1961FromApril2025,
@@ -21,6 +21,7 @@ public sealed class TcsBuyerReturnReliefAssessmentServiceTests
         Assert.True(result.CollectorNotDeemedInDefault);
         Assert.Equal(new DateOnly(2025, 8, 20), result.InterestEndDate);
         Assert.Equal(1.0m, result.InterestRatePercent);
+        Assert.Equal("Form 27BA", result.AccountantCertificateForm);
         Assert.Contains("206C(7)", result.SectionReference);
     }
 
@@ -37,7 +38,7 @@ public sealed class TcsBuyerReturnReliefAssessmentServiceTests
     }
 
     [Fact]
-    public void Assess_NewActEligibleTableCategory_IsCovered()
+    public void Assess_NewActEligibleTableCategory_UsesForm150()
     {
         var result = _service.Assess(new TcsBuyerReturnReliefRequest(
             TcsBuyerReturnReliefRegime.IncomeTaxAct2025,
@@ -46,7 +47,9 @@ public sealed class TcsBuyerReturnReliefAssessmentServiceTests
             true, true, true, false));
 
         Assert.Equal(TcsBuyerReturnReliefStatus.EligibleForRelief, result.Status);
+        Assert.Equal("Form 150", result.AccountantCertificateForm);
         Assert.Contains("398(3)(c)", result.SectionReference);
+        Assert.Contains("Rule 221", result.SourceReference);
     }
 
     [Fact]
@@ -63,23 +66,43 @@ public sealed class TcsBuyerReturnReliefAssessmentServiceTests
         Assert.Null(result.InterestEndDate);
     }
 
-    [Theory]
-    [InlineData(false, true, true, true)]
-    [InlineData(true, false, true, true)]
-    [InlineData(true, true, false, true)]
-    [InlineData(true, true, true, false)]
-    public void Assess_MissingStatutoryCondition_IsNotEligible(
-        bool amountIncluded, bool taxPaid, bool certificate, bool returnDatePresent)
+    [Fact]
+    public void Assess_MissingEvidenceRequiresReviewInsteadOfDeclaringReliefIneligible()
     {
         var result = _service.Assess(new TcsBuyerReturnReliefRequest(
             TcsBuyerReturnReliefRegime.IncomeTaxAct2025,
             TcsBuyerReturnReliefCollectionCategory.Section206C1CLeaseOrNewActTable9,
-            new DateOnly(2026, 4, 1),
-            returnDatePresent ? new DateOnly(2026, 7, 31) : null,
-            amountIncluded, taxPaid, certificate, false));
+            new DateOnly(2026, 4, 1), null,
+            null, null, null, false));
+
+        Assert.Equal(TcsBuyerReturnReliefStatus.ReviewRequired, result.Status);
+        Assert.False(result.CollectorNotDeemedInDefault);
+        Assert.Null(result.InterestEndDate);
+    }
+
+    [Fact]
+    public void Assess_ConfirmedUnpaidTaxDoesNotQualify()
+    {
+        var result = _service.Assess(new TcsBuyerReturnReliefRequest(
+            TcsBuyerReturnReliefRegime.IncomeTaxAct2025,
+            TcsBuyerReturnReliefCollectionCategory.Section206C1CLeaseOrNewActTable9,
+            new DateOnly(2026, 4, 1), new DateOnly(2026, 7, 31),
+            true, false, true, false));
 
         Assert.Equal(TcsBuyerReturnReliefStatus.NotEligible, result.Status);
-        Assert.False(result.CollectorNotDeemedInDefault);
+    }
+
+    [Fact]
+    public void Assess_MissingCertificateRequiresReview()
+    {
+        var result = _service.Assess(new TcsBuyerReturnReliefRequest(
+            TcsBuyerReturnReliefRegime.IncomeTaxAct2025,
+            TcsBuyerReturnReliefCollectionCategory.Section206C1CLeaseOrNewActTable9,
+            new DateOnly(2026, 4, 1), new DateOnly(2026, 7, 31),
+            true, true, null, false));
+
+        Assert.Equal(TcsBuyerReturnReliefStatus.ReviewRequired, result.Status);
+        Assert.Equal("Form 150", result.AccountantCertificateForm);
     }
 
     [Fact]
