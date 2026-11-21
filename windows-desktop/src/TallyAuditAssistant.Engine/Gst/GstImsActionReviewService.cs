@@ -1,0 +1,133 @@
+namespace TallyAuditAssistant.Engine.Gst;
+
+/// <summary>
+/// Reviews an explicitly imported IMS action snapshot against purchase-book invoices.
+/// This is a workpaper only: it does not connect to GSTN, determine ITC eligibility,
+/// infer statutory deemed acceptance, or submit/alter an IMS action.
+/// </summary>
+public sealed class GstImsActionReviewService
+{
+    public GstImsActionReviewReport Review(
+        IReadOnlyCollection<GstImsInvoiceAction> portalRows,
+        IReadOnlyCollection<GstImsBooksInvoice> booksRows,
+        decimal valueTolerance = 1m)
+    {
+        ArgumentNullException.ThrowIfNull(portalRows);
+        ArgumentNullException.ThrowIfNull(booksRows);
+        if (valueTolerance < 0) throw new ArgumentOutOfRangeException(nameof(valueTolerance));
+
+        var issues = new List<GstImsValidationIssue>();
+        var valid = new List<(GstImsInvoiceAction Row, int Index, string Key)>();
+        var index = 0;
+        foreach (var row in portalRows)
+        {
+            index++;
+            if (row is null) { issues.Add(new(index, "NULL_ROW", "IMS source row is null.")); continue; }
+            var gstin = NormalizeGstin(row.SupplierGstin);
+            var invoice = NormalizeInvoice(row.InvoiceNumber);
+            if (gstin.Length != 15)
+            {
+                issues.Add(new(index, "INVALID_SUPPLIER_GSTIN", "Supplier GSTIN must contain 15 characters."));
+                continue;
+            }
+            if (invoice.Length == 0)
+            {
+                issues.Add(new(index, "MISSING_INVOICE_NUMBER", "Invoice number is required."));
+                continue;
+            }
+            if (row.InvoiceValue < 0)
+            {
+                issues.Add(new(index, "NEGATIVE_INVOICE_VALUE", "Invoice value cannot be negative."));
+                continue;
+            }
+            if (!Enum.IsDefined(row.Action))
+            {
+                issues.Add(new(index, "INVALID_ACTION", "IMS action value is not recognised."));
+                continue;
+            }
+            valid.Add((row, index, gstin + "|" + invoice));
+        }
+
+        var duplicateKeys = valid.GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var duplicate in valid.Where(x => duplicateKeys.Contains(x.Key)))
+            issues.Add(new(duplicate.Index, "DUPLICATE_INVOICE_REFERENCE",
+                "More than one IMS row has the same normalized supplier GSTIN and invoice number. Resolve amendments/document types before matching."));
+
+        var books = booksRows.Where(x => x is not null)
+            .Select(x => (Row: x, Key: NormalizeGstin(x.SupplierGstin) + "|" + NormalizeInvoice(x.InvoiceNumber)))
+            .Where(x => x.Key.Length > 16)
+            .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.OrdinalIgnoreCase);
+
+        var consumedBooks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var output = new List<GstImsReviewItem>();
+        foreach (var entry in valid)
+        {
+            var row = entry.Row;
+            var gstin = NormalizeGstin(row.SupplierGstin);
+            var invoice = NormalizeInvoice(row.InvoiceNumber);
+            if (duplicateKeys.Contains(entry.Key))
+            {
+                output.Add(new(GstImsReviewStatus.DuplicateReference, gstin, row.InvoiceNumber,
+                    row.InvoiceDate, row.InvoiceValue, null, null, null,
+                    "Duplicate supplier/invoice key; no books match is asserted until the duplicate is resolved."));
+                continue;
+            }
+
+            var hasBooks = books.TryGetValue(entry.Key, out var matches) && matches.Length == 1;
+            var book = hasBooks ? matches![0].Row : null;
+            if (hasBooks) consumedBooks.Add(entry.Key);
+
+            var status = row.Action switch
+            {
+                GstImsSupplierAction.Accepted => GstImsReviewStatus.Accepted,
+                GstImsSupplierAction.Rejected => GstImsReviewStatus.Rejected,
+                GstImsSupplierAction.Pending => GstImsReviewStatus.Pending,
+                GstImsSupplierAction.NoAction => GstImsReviewStatus.NoAction,
+                GstImsSupplierAction.DeemedAccepted => GstImsReviewStatus.DeemedAccepted,
+                _ => GstImsReviewStatus.UnknownAction
+            };
+            var difference = book is null ? (decimal?)null : Math.Abs(row.InvoiceValue - book.InvoiceValue);
+            var explanation = status switch
+            {
+                GstImsReviewStatus.Rejected => "Supplier invoice is marked rejected in the supplied IMS snapshot; investigate the reason and supporting evidence.",
+                GstImsReviewStatus.Pending => "Supplier invoice is pending in the supplied IMS snapshot; review before the applicable action cut-off.",
+                GstImsReviewStatus.NoAction => "No action is recorded in the supplied IMS snapshot; confirm whether review/action is still required.",
+                GstImsReviewStatus.DeemedAccepted => "Source explicitly labels this row deemed accepted; verify the source status and applicable legal conditions independently.",
+                GstImsReviewStatus.UnknownAction => "Action is not recognised; do not infer acceptance.",
+                _ => "Invoice is marked accepted in the supplied IMS snapshot; acceptance alone does not establish ITC eligibility."
+            };
+            if (book is null)
+                explanation += " No unique purchase-book invoice was found for this supplier/invoice key.";
+            else if (difference > valueTolerance)
+                explanation += " Invoice value differs from the purchase books; investigate value, tax and amendment details.";
+            output.Add(new(status, gstin, row.InvoiceNumber, row.InvoiceDate, row.InvoiceValue,
+                book?.InvoiceValue, book?.VoucherNumber, difference, explanation));
+        }
+
+        foreach (var pair in books)
+        {
+            if (pair.Value.Length != 1 || consumedBooks.Contains(pair.Key)) continue;
+            var book = pair.Value[0].Row;
+            output.Add(new(GstImsReviewStatus.BooksOnly, NormalizeGstin(book.SupplierGstin),
+                book.InvoiceNumber, book.InvoiceDate, null, book.InvoiceValue, book.VoucherNumber,
+                null, "Purchase-book invoice has no corresponding valid IMS row in the supplied snapshot."));
+        }
+
+        return new GstImsActionReviewReport
+        {
+            SourceRows = portalRows.Count,
+            ValidRows = valid.Count,
+            Items = output.OrderBy(x => x.Status).ThenBy(x => x.SupplierGstin)
+                .ThenBy(x => x.InvoiceNumber, StringComparer.OrdinalIgnoreCase).ToArray(),
+            Issues = issues
+        };
+    }
+
+    private static string NormalizeGstin(string? value) =>
+        (value ?? string.Empty).Trim().Replace(" ", string.Empty).ToUpperInvariant();
+
+    private static string NormalizeInvoice(string? value) =>
+        new((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToUpperInvariant).ToArray());
+}
