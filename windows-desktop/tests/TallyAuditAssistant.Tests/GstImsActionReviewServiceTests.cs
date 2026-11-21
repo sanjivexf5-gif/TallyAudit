@@ -60,6 +60,27 @@ public sealed class GstImsActionReviewServiceTests
     }
 
     [Fact]
+    public void Review_FlagsDuplicatePurchaseBookReferencesAndDoesNotGuessAMatch()
+    {
+        var portal = new[]
+        {
+            new GstImsInvoiceAction(Gstin, "INV-9", new(2026, 5, 9), 100m, GstImsSupplierAction.Accepted)
+        };
+        var books = new[]
+        {
+            new GstImsBooksInvoice(Gstin, "INV 9", new(2026, 5, 9), 100m, "PUR-9A"),
+            new GstImsBooksInvoice(Gstin, "INV-9", new(2026, 5, 10), 100m, "PUR-9B")
+        };
+
+        var report = new GstImsActionReviewService().Review(portal, books);
+
+        Assert.Single(report.Items, x => x.Status == GstImsReviewStatus.PortalOnly);
+        Assert.Equal(2, report.DuplicateBooksReferenceCount);
+        Assert.Equal(2, report.Items.Count(x => x.Status == GstImsReviewStatus.DuplicateBooksReference));
+        Assert.False(report.IsReadyForReview);
+    }
+
+    [Fact]
     public void Review_DoesNotTreatAcceptedActionAsProofOfItcEligibility()
     {
         var report = new GstImsActionReviewService().Review(

@@ -1,7 +1,7 @@
 namespace TallyAuditAssistant.Engine.Gst;
 
 public enum GstImsSupplierAction { Accepted, Rejected, Pending, NoAction, DeemedAccepted, Unknown }
-public enum GstImsReviewStatus { Accepted, Rejected, Pending, NoAction, DeemedAccepted, UnknownAction, DuplicateReference, BooksOnly, PortalOnly }
+public enum GstImsReviewStatus { Accepted, Rejected, Pending, NoAction, DeemedAccepted, UnknownAction, DuplicateReference, DuplicateBooksReference, BooksOnly, PortalOnly }
 
 /// <summary>One invoice/action row exported from the GST Invoice Management System.</summary>
 public sealed record GstImsInvoiceAction(
@@ -29,5 +29,6 @@ public sealed class GstImsActionReviewReport
     public int RejectedCount => Items.Count(x => x.Status == GstImsReviewStatus.Rejected);
     public int PendingCount => Items.Count(x => x.Status == GstImsReviewStatus.Pending);
     public int DuplicateCount => Items.Count(x => x.Status == GstImsReviewStatus.DuplicateReference);
-    public bool IsReadyForReview => Issues.Count == 0 && Items.All(x => x.Status != GstImsReviewStatus.UnknownAction);
+    public int DuplicateBooksReferenceCount => Items.Count(x => x.Status == GstImsReviewStatus.DuplicateBooksReference);
+    public bool IsReadyForReview => Issues.Count == 0 && Items.All(x => x.Status is not GstImsReviewStatus.UnknownAction and not GstImsReviewStatus.DuplicateReference and not GstImsReviewStatus.DuplicateBooksReference);
 }

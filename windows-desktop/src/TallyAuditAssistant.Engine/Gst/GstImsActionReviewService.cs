@@ -56,7 +56,7 @@ public sealed class GstImsActionReviewService
 
         var books = booksRows.Where(x => x is not null)
             .Select(x => (Row: x, Key: NormalizeGstin(x.SupplierGstin) + "|" + NormalizeInvoice(x.InvoiceNumber)))
-            .Where(x => x.Key.Length > 16)
+            .Where(x => NormalizeGstin(x.Row.SupplierGstin).Length == 15 && NormalizeInvoice(x.Row.InvoiceNumber).Length > 0)
             .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.OrdinalIgnoreCase);
 
@@ -75,7 +75,15 @@ public sealed class GstImsActionReviewService
                 continue;
             }
 
-            var hasBooks = books.TryGetValue(entry.Key, out var matches) && matches.Length == 1;
+            var hasKey = books.TryGetValue(entry.Key, out var matches);
+            if (hasKey && matches!.Length > 1)
+            {
+                output.Add(new(GstImsReviewStatus.PortalOnly, gstin, row.InvoiceNumber,
+                    row.InvoiceDate, row.InvoiceValue, null, null, null,
+                    "Multiple purchase-book invoices share this supplier/invoice key; no match is asserted until the books duplicates are resolved."));
+                continue;
+            }
+            var hasBooks = hasKey && matches!.Length == 1;
             var book = hasBooks ? matches![0].Row : null;
             if (hasBooks) consumedBooks.Add(entry.Key);
 
@@ -104,6 +112,17 @@ public sealed class GstImsActionReviewService
                 explanation += " Invoice value differs from the purchase books; investigate value, tax and amendment details.";
             output.Add(new(status, gstin, row.InvoiceNumber, row.InvoiceDate, row.InvoiceValue,
                 book?.InvoiceValue, book?.VoucherNumber, difference, explanation));
+        }
+
+        foreach (var pair in books.Where(x => x.Value.Length > 1))
+        {
+            foreach (var duplicate in pair.Value)
+            {
+                var book = duplicate.Row;
+                output.Add(new(GstImsReviewStatus.DuplicateBooksReference, NormalizeGstin(book.SupplierGstin),
+                    book.InvoiceNumber, book.InvoiceDate, null, book.InvoiceValue, book.VoucherNumber,
+                    null, "More than one purchase-book invoice has the same normalized supplier GSTIN and invoice number; resolve the duplicate before reconciliation."));
+            }
         }
 
         foreach (var pair in books)
