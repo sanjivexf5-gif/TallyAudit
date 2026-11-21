@@ -5,7 +5,7 @@ namespace TallyAuditAssistant.Tests;
 
 public sealed class GstImsActionReviewServiceTests
 {
-    private const string Gstin = "27AAACB2222D1Z9";
+    private const string Gstin = "27AAPFU0939F1ZV";
 
     [Fact]
     public void Review_ClassifiesActionsAndReconcilesPurchaseBookValues()
@@ -110,6 +110,21 @@ public sealed class GstImsActionReviewServiceTests
             Array.Empty<GstImsBooksInvoice>());
 
         Assert.Contains("does not establish ITC eligibility", Assert.Single(report.Items).Explanation);
+    }
+
+    [Theory]
+    [InlineData("27AAPFU0939F1ZV", true)]
+    [InlineData("27AAPFU0939F1ZA", false)]
+    [InlineData("27AAPFUO939F1ZV", false)]
+    [InlineData("BAD", false)]
+    public void Review_ValidatesGstinStructureAndChecksum(string gstin, bool expectedValid)
+    {
+        var report = new GstImsActionReviewService().Review(
+            new[] { new GstImsInvoiceAction(gstin, "INV-1", null, 100m, GstImsSupplierAction.Accepted) },
+            Array.Empty<GstImsBooksInvoice>());
+
+        Assert.Equal(expectedValid ? 1 : 0, report.ValidRows);
+        Assert.Equal(expectedValid, !report.Issues.Any(x => x.Code == "INVALID_SUPPLIER_GSTIN"));
     }
 
     [Fact]
